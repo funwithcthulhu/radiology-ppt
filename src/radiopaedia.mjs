@@ -14,9 +14,11 @@ import {
 
 const BASE_URL = "https://radiopaedia.org";
 const IMAGE_BASE_URL = "https://prod-images-static.radiopaedia.org/images";
-const PROJECT_ROOT = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
-const FOCUS_CROP_SCRIPT = path.join(PROJECT_ROOT, "scripts", "focus_crop.py");
-const FOCUS_CROP_EXE = path.join(PROJECT_ROOT, "scripts", "focus_crop.exe");
+const RESOURCE_ROOT =
+  process.env.RADIOLOGY_PPT_RESOURCE_ROOT || path.resolve(fileURLToPath(new URL("..", import.meta.url)));
+const APP_ROOT = process.env.RADIOLOGY_PPT_APP_ROOT || RESOURCE_ROOT;
+const FOCUS_CROP_SCRIPT = path.join(RESOURCE_ROOT, "scripts", "focus_crop.py");
+const FOCUS_CROP_EXE = path.join(APP_ROOT, "scripts", "focus_crop.exe");
 const execFileAsync = promisify(execFile);
 const REQUEST_HEADERS = {
   "accept": "text/html,application/xhtml+xml",
@@ -25,7 +27,7 @@ const REQUEST_HEADERS = {
 };
 const TEXT_CACHE = new Map();
 const RANDOM_HISTORY_LIMIT = 240;
-const RANDOM_HISTORY_PATH = path.join(PROJECT_ROOT, "cache", "random-selection-history.json");
+const RANDOM_HISTORY_PATH = path.join(APP_ROOT, "cache", "random-selection-history.json");
 let PYTHON_RUNTIME_PROMISE = null;
 let OLLAMA_MODELS_PROMISE = null;
 

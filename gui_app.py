@@ -19,12 +19,15 @@ from PIL import Image, ImageOps, ImageTk
 
 
 APP_TITLE = "Radiopaedia Case PowerPoint Builder"
-PROJECT_ROOT = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent
-CLI_SCRIPT = PROJECT_ROOT / "src" / "cli.mjs"
-GENERATE_SCRIPT = PROJECT_ROOT / "generate-case-deck.ps1"
-OUTPUTS_DIR = PROJECT_ROOT / "outputs"
-STATE_PATH = PROJECT_ROOT / "gui_state.json"
-LIBRARY_DIR = PROJECT_ROOT / "library"
+IS_FROZEN = bool(getattr(sys, "frozen", False))
+APP_ROOT = Path(sys.executable).resolve().parent if IS_FROZEN else Path(__file__).resolve().parent
+RESOURCE_ROOT = Path(getattr(sys, "_MEIPASS", APP_ROOT)).resolve() if IS_FROZEN else APP_ROOT
+PROJECT_ROOT = APP_ROOT
+CLI_SCRIPT = RESOURCE_ROOT / "src" / "cli.mjs"
+GENERATE_SCRIPT = RESOURCE_ROOT / "generate-case-deck.ps1"
+OUTPUTS_DIR = APP_ROOT / "outputs"
+STATE_PATH = APP_ROOT / "gui_state.json"
+LIBRARY_DIR = APP_ROOT / "library"
 LIBRARY_PATH = LIBRARY_DIR / "case-library.json"
 CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
@@ -265,13 +268,20 @@ def powershell_path() -> str:
 
 
 def node_path() -> str:
-    packaged = PROJECT_ROOT / "runtime" / "node.exe"
+    packaged = APP_ROOT / "runtime" / "node.exe"
     if packaged.exists():
         return str(packaged)
     bundled = Path.home() / ".cache" / "codex-runtimes" / "codex-primary-runtime" / "dependencies" / "node" / "bin" / "node.exe"
     if bundled.exists():
         return str(bundled)
     return shutil.which("node.exe") or shutil.which("node") or "node"
+
+
+def command_env() -> dict[str, str]:
+    env = os.environ.copy()
+    env["RADIOLOGY_PPT_APP_ROOT"] = str(APP_ROOT)
+    env["RADIOLOGY_PPT_RESOURCE_ROOT"] = str(RESOURCE_ROOT)
+    return env
 
 
 def hidden_subprocess_kwargs() -> dict[str, object]:
@@ -2598,6 +2608,7 @@ class DeckBuilderApp(tk.Tk):
             completed = subprocess.run(
                 [node_path(), str(CLI_SCRIPT), "--probe-input", temp_path],
                 cwd=str(PROJECT_ROOT),
+                env=command_env(),
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
@@ -2645,6 +2656,7 @@ class DeckBuilderApp(tk.Tk):
             completed = subprocess.run(
                 command,
                 cwd=str(PROJECT_ROOT),
+                env=command_env(),
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
@@ -2839,7 +2851,10 @@ class DeckBuilderApp(tk.Tk):
             return
 
         if not CLI_SCRIPT.exists():
-            messagebox.showerror(APP_TITLE, "Generator files are missing from the project folder.")
+            messagebox.showerror(
+                APP_TITLE,
+                f"The app could not find its bundled generator files.\n\nLooked for:\n{CLI_SCRIPT}",
+            )
             return
 
         self._save_state()
@@ -2953,6 +2968,7 @@ class DeckBuilderApp(tk.Tk):
             self.current_process = subprocess.Popen(
                 command,
                 cwd=str(PROJECT_ROOT),
+                env=command_env(),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,

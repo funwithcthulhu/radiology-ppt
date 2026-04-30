@@ -11,7 +11,9 @@ import {
 } from "./radiopaedia.mjs";
 import { collapseWhitespace, formatTimestamp, slugify } from "./utils.mjs";
 
-const PROJECT_ROOT = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
+const RESOURCE_ROOT =
+  process.env.RADIOLOGY_PPT_RESOURCE_ROOT || path.resolve(fileURLToPath(new URL("..", import.meta.url)));
+const APP_ROOT = process.env.RADIOLOGY_PPT_APP_ROOT || RESOURCE_ROOT;
 
 function usage() {
   return [
@@ -276,7 +278,7 @@ async function prepareCaseItems(rawEntries, args, { readRandomHistory = true, wr
     writeRandomHistory,
   });
 
-  const cacheDir = path.join(PROJECT_ROOT, "cache");
+  const cacheDir = path.join(APP_ROOT, "cache");
   const items = [];
   const failures = [];
 
@@ -351,10 +353,10 @@ async function runRender(inputPath, args) {
   const stamp = formatTimestamp();
   const fileStem = `${slugify(deckTitle) || "radiology-case-deck"}-${stamp}`;
   const outputPath = ensurePptxPath(
-    path.resolve(args.out || path.join(PROJECT_ROOT, "outputs", `${fileStem}.pptx`)),
+    path.resolve(args.out || path.join(APP_ROOT, "outputs", `${fileStem}.pptx`)),
   );
   const manifestPath = path.join(path.dirname(outputPath), `${path.parse(outputPath).name}.json`);
-  const scratchDir = path.join(PROJECT_ROOT, "scratch", path.parse(outputPath).name);
+  const scratchDir = path.join(APP_ROOT, "scratch", path.parse(outputPath).name);
 
   await fs.mkdir(path.dirname(outputPath), { recursive: true });
   await fs.writeFile(
@@ -418,7 +420,7 @@ async function main() {
     throw new Error("No cases could be built from the supplied diagnoses.");
   }
 
-  const tempPath = path.join(PROJECT_ROOT, "scratch", `prepared-${formatTimestamp()}.json`);
+  const tempPath = path.join(APP_ROOT, "scratch", `prepared-${formatTimestamp()}.json`);
   await fs.mkdir(path.dirname(tempPath), { recursive: true });
   await fs.writeFile(tempPath, `${JSON.stringify({ items: prepared.items }, null, 2)}\n`, "utf8");
   try {
