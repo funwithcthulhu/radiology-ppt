@@ -1,0 +1,8 @@
+{
+  "name": "radiopaedia-case-powerpoint-builder",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "generate": "powershell -ExecutionPolicy Bypass -File .\\generate-case-deck.ps1"
+  }
+}

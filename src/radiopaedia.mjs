@@ -1,0 +1,2192 @@
+import fs from "node:fs/promises";
+import path from "node:path";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { fileURLToPath } from "node:url";
+import {
+  cleanText,
+  collapseWhitespace,
+  dedupe,
+  redactTerms,
+  slugify,
+  truncate,
+} from "./utils.mjs";
+
+const BASE_URL = "https://radiopaedia.org";
+const IMAGE_BASE_URL = "https://prod-images-static.radiopaedia.org/images";
+const PROJECT_ROOT = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
+const FOCUS_CROP_SCRIPT = path.join(PROJECT_ROOT, "scripts", "focus_crop.py");
+const FOCUS_CROP_EXE = path.join(PROJECT_ROOT, "scripts", "focus_crop.exe");
+const execFileAsync = promisify(execFile);
+const REQUEST_HEADERS = {
+  "accept": "text/html,application/xhtml+xml",
+  "accept-language": "en-US,en;q=0.9",
+  "user-agent": "Mozilla/5.0",
+};
+const TEXT_CACHE = new Map();
+const RANDOM_HISTORY_LIMIT = 240;
+const RANDOM_HISTORY_PATH = path.join(PROJECT_ROOT, "cache", "random-selection-history.json");
+let PYTHON_RUNTIME_PROMISE = null;
+let OLLAMA_MODELS_PROMISE = null;
+
+const MODALITY_HINTS = [
+  { label: "MRI", patterns: [/\bmri\b/i, /\bmr\b/i, /\bmagnetic resonance\b/i] },
+  { label: "CT", patterns: [/\bct\b/i, /\bcomputed tomography\b/i, /\bcat scan\b/i] },
+  { label: "X-ray", patterns: [/\bx-?ray\b/i, /\bradiograph(?:y|ic)?\b/i, /\bcxr\b/i] },
+  { label: "Ultrasound", patterns: [/\bultrasound\b/i, /\bsonograph(?:y|ic)?\b/i, /\bus\b/i] },
+  { label: "Fluoroscopy", patterns: [/\bfluoro(?:scopy)?\b/i] },
+  { label: "PET", patterns: [/\bpet\b/i] },
+  { label: "Mammography", patterns: [/\bmammograph(?:y|ic)?\b/i, /\bmammo\b/i] },
+  { label: "Angiography", patterns: [/\bangiograph(?:y|ic)?\b/i, /\bangio\b/i] },
+];
+const RANDOM_REQUEST_LIMIT = 20;
+const RANDOM_DIRECTIVE_PATTERNS = [
+  /\brandom\b/gi,
+  /\bdiagnos(?:is|es)\b/gi,
+  /\bcases?\b/gi,
+  /\bstud(?:y|ies)\b/gi,
+  /\bpick\b/gi,
+  /\bchoose\b/gi,
+  /\bfind\b/gi,
+  /\bfrom\b/gi,
+  /\bcategory\b/gi,
+  /\bplease\b/gi,
+  /\bjust\b/gi,
+  /\bme\b/gi,
+];
+const BODY_SYSTEMS = ["Chest", "Gastrointestinal", "Hepatobiliary", "Urogenital", "Gynaecology", "Obstetrics"];
+const RANDOM_CATEGORY_HINTS = [
+  {
+    systems: ["Central Nervous System"],
+    aliases: ["neuro", "neuroradiology", "cns", "brain", "brain imaging", "neuraxial"],
+  },
+  {
+    systems: ["Paediatrics"],
+    aliases: ["pediatric", "pediatrics", "paediatric", "paediatrics", "peds", "peds", "child", "children", "pediatric imaging", "paediatric imaging"],
+  },
+  {
+    systems: ["Musculoskeletal"],
+    aliases: ["msk", "musculoskeletal", "muskuloskeletal", "muskuloskletal", "orthopedic", "orthopaedic", "ortho", "bone", "joint", "extremity", "sports"],
+  },
+  {
+    systems: BODY_SYSTEMS,
+    aliases: ["body", "body imaging", "abdominal imaging", "abdominopelvic", "abdomen pelvis"],
+    mode: "any",
+  },
+  {
+    systems: ["Chest"],
+    aliases: ["chest", "thoracic", "thorax", "lung", "pulmonary"],
+  },
+  {
+    systems: ["Cardiac"],
+    aliases: ["cardiac", "cardio", "cardiology", "heart"],
+  },
+  {
+    systems: ["Head & Neck"],
+    aliases: ["head neck", "head and neck", "h n", "hn", "ent", "orbit", "orbits", "sinus", "sinuses", "temporal bone", "maxillofacial"],
+  },
+  {
+    systems: ["Spine"],
+    aliases: ["spine", "spinal"],
+  },
+  {
+    systems: ["Gastrointestinal"],
+    aliases: ["gi", "gastrointestinal", "gastro", "abdomen", "abdominal", "bowel"],
+  },
+  {
+    systems: ["Hepatobiliary"],
+    aliases: ["hepatobiliary", "biliary", "liver", "pancreas", "pancreatic"],
+  },
+  {
+    systems: ["Urogenital"],
+    aliases: ["urogenital", "genitourinary", "gu", "urology", "renal", "kidney", "bladder", "pelvis", "pelvic", "prostate", "testicular"],
+  },
+  {
+    systems: ["Breast"],
+    aliases: ["breast", "breast imaging", "mammography", "mammo"],
+  },
+  {
+    systems: ["Vascular"],
+    aliases: ["vascular", "vascular imaging"],
+  },
+  {
+    systems: ["Trauma"],
+    aliases: ["trauma", "trauma imaging"],
+  },
+  {
+    systems: ["Oncology"],
+    aliases: ["oncology", "oncologic", "cancer"],
+  },
+  {
+    systems: ["Obstetrics"],
+    aliases: ["obstetrics", "obstetric", "ob", "fetal", "prenatal"],
+  },
+  {
+    systems: ["Gynaecology"],
+    aliases: ["gynaecology", "gynecology", "gyn", "pelvic", "uterine", "ovarian", "adnexal"],
+  },
+  {
+    systems: ["Haematology"],
+    aliases: ["haematology", "hematology"],
+  },
+  {
+    systems: ["Interventional"],
+    aliases: ["interventional", "ir", "interventional radiology"],
+  },
+  {
+    systems: ["Forensic"],
+    aliases: ["forensic"],
+  },
+];
+const IMPLICIT_STUDY_QUERY_TERMS = [
+  "brain",
+  "head",
+  "neck",
+  "sinus",
+  "orbits",
+  "orbit",
+  "spine",
+  "spinal",
+  "chest",
+  "thorax",
+  "thoracic",
+  "lung",
+  "heart",
+  "cardiac",
+  "abdomen",
+  "abdominal",
+  "pelvis",
+  "pelvic",
+  "body",
+  "breast",
+  "extremity",
+  "shoulder",
+  "elbow",
+  "wrist",
+  "hand",
+  "hip",
+  "knee",
+  "ankle",
+  "foot",
+  "bone",
+  "joint",
+  "soft",
+  "tissue",
+  "fetal",
+  "pediatric",
+  "paediatric",
+  "child",
+  "children",
+  "adult",
+  "neonatal",
+  "neonate",
+];
+const KNOWN_CASE_SYSTEMS = dedupe(RANDOM_CATEGORY_HINTS.flatMap((hint) => hint.systems));
+const STRUCTURED_RANDOM_MODES = new Set(["random", "random_case"]);
+const AGE_GROUP_QUERY_TERMS = {
+  adult: "adult",
+  pediatric: "pediatric",
+  neonatal: "neonatal",
+};
+const TOPIC_QUERY_TERMS = {
+  tumor: "tumor",
+  trauma: "trauma",
+  infection: "infection",
+  vascular: "vascular",
+  congenital: "congenital",
+};
+const FILTER_SYSTEM_MAP = {
+  pediatric: ["Paediatrics"],
+  neonatal: ["Paediatrics"],
+  trauma: ["Trauma"],
+  vascular: ["Vascular"],
+};
+
+function isAnyValue(value) {
+  const normalized = normalizePhrase(value);
+  return !normalized || normalized === "any" || normalized === "auto";
+}
+
+function buildStructuredStudyHint(payload) {
+  if (!payload || typeof payload !== "object") {
+    return "";
+  }
+
+  if (payload.studyHint && !isAnyValue(payload.studyHint)) {
+    return collapseWhitespace(payload.studyHint);
+  }
+
+  const modality = isAnyValue(payload.modality) ? "" : collapseWhitespace(payload.modality);
+  const anatomy = isAnyValue(payload.anatomy) ? "" : collapseWhitespace(payload.anatomy);
+  return collapseWhitespace([modality, anatomy].filter(Boolean).join(" "));
+}
+
+function normalizedAgeGroup(value) {
+  const normalized = normalizePhrase(value);
+  if (normalized.startsWith("ped")) {
+    return "pediatric";
+  }
+  if (normalized.startsWith("neo")) {
+    return "neonatal";
+  }
+  if (normalized.startsWith("adult")) {
+    return "adult";
+  }
+  return "";
+}
+
+function normalizedTopicFocus(value) {
+  const normalized = normalizePhrase(value);
+  if (normalized.startsWith("tum")) {
+    return "tumor";
+  }
+  if (normalized.startsWith("trau")) {
+    return "trauma";
+  }
+  if (normalized.startsWith("inf")) {
+    return "infection";
+  }
+  if (normalized.startsWith("vas")) {
+    return "vascular";
+  }
+  if (normalized.startsWith("cong")) {
+    return "congenital";
+  }
+  return "";
+}
+
+function normalizedDifficulty(value) {
+  const normalized = normalizePhrase(value);
+  return ["easy", "medium", "hard"].includes(normalized) ? normalized : "";
+}
+
+function canonicalCropMode(value) {
+  const normalized = normalizePhrase(value);
+  if (normalized === "tighter") {
+    return "tighter";
+  }
+  if (normalized === "wider") {
+    return "wider";
+  }
+  return "default";
+}
+
+function canonicalMarkupStyle(value) {
+  const normalized = normalizePhrase(value);
+  if (normalized === "focus ring") {
+    return "focus-ring";
+  }
+  return "none";
+}
+
+function buildStructuredFilterQuery(payload) {
+  if (!payload || typeof payload !== "object") {
+    return "";
+  }
+
+  const bits = [];
+  const ageGroup = normalizedAgeGroup(payload.ageGroup);
+  const topicFocus = normalizedTopicFocus(payload.topicFocus);
+  if (ageGroup) {
+    bits.push(AGE_GROUP_QUERY_TERMS[ageGroup]);
+  }
+  if (topicFocus) {
+    bits.push(TOPIC_QUERY_TERMS[topicFocus]);
+  }
+  return collapseWhitespace(bits.join(" "));
+}
+
+function filterSystemsFromPayload(payload) {
+  if (!payload || typeof payload !== "object") {
+    return [];
+  }
+
+  const systems = [];
+  const ageGroup = normalizedAgeGroup(payload.ageGroup);
+  const topicFocus = normalizedTopicFocus(payload.topicFocus);
+  if (ageGroup && FILTER_SYSTEM_MAP[ageGroup]) {
+    systems.push(...FILTER_SYSTEM_MAP[ageGroup]);
+  }
+  if (topicFocus && FILTER_SYSTEM_MAP[topicFocus]) {
+    systems.push(...FILTER_SYSTEM_MAP[topicFocus]);
+  }
+  return dedupe(systems.map((value) => collapseWhitespace(value)).filter(Boolean));
+}
+
+function buildPreferredModalities(payload, studyHint) {
+  const matches = [...preferredModalitiesFromHint(studyHint)];
+  if (payload && typeof payload === "object" && !isAnyValue(payload.secondaryModality)) {
+    matches.push(collapseWhitespace(payload.secondaryModality));
+  }
+  return dedupe(matches.map((value) => collapseWhitespace(value)).filter(Boolean));
+}
+
+function buildStructuredRandomSpec(payload, studyHint) {
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+
+  const requestMode = normalizePhrase(payload.requestMode || "");
+  const hasStructuredRandom =
+    STRUCTURED_RANDOM_MODES.has(requestMode) ||
+    Number.isInteger(payload.randomCount) ||
+    Boolean(payload.randomQuery) ||
+    Boolean(payload.randomSystems?.length);
+
+  if (!hasStructuredRandom) {
+    return null;
+  }
+
+  const parsedCount = Number.parseInt(String(payload.randomCount ?? "1"), 10);
+  const count = Number.isInteger(parsedCount) && parsedCount > 0 ? parsedCount : 1;
+  const systems = dedupe(
+    [...(payload.randomSystems ?? []), ...filterSystemsFromPayload(payload)]
+      .map((value) => collapseWhitespace(value))
+      .filter(Boolean),
+  );
+  const filterQuery = buildStructuredFilterQuery(payload);
+  const queryText = collapseWhitespace(
+    [payload.randomQuery || stripCategoryTerms(stripModalityTerms(studyHint)), filterQuery].filter(Boolean).join(" "),
+  );
+
+  return {
+    count: Math.max(1, Math.min(RANDOM_REQUEST_LIMIT, count)),
+    systems,
+    queryText,
+    studyHintText: collapseWhitespace(studyHint),
+    systemMode: normalizePhrase(payload.randomSystemMode) === "any" ? "any" : "all",
+    diversify: normalizePhrase(payload.randomDiversity) === "mixed" ? "mixed" : "",
+  };
+}
+
+function buildStructuredRawInput(payload, diagnosis, studyHint, randomSpec, filterQuery = "") {
+  if (payload.rawInput && !isAnyValue(payload.rawInput)) {
+    return collapseWhitespace(payload.rawInput);
+  }
+
+  if (randomSpec) {
+    const parts = ["Random"];
+    if (randomSpec.count > 1) {
+      parts.push(String(randomSpec.count));
+    }
+    if (randomSpec.systems.length) {
+      parts.push(randomSpec.systems.join(" / "));
+    }
+    if (studyHint) {
+      parts.push(studyHint);
+    } else if (randomSpec.queryText) {
+      parts.push(randomSpec.queryText);
+    }
+    if (filterQuery && !parts.includes(filterQuery)) {
+      parts.push(filterQuery);
+    }
+    return collapseWhitespace(parts.join(" | "));
+  }
+
+  return collapseWhitespace([diagnosis, studyHint, filterQuery].filter(Boolean).join(", "));
+}
+
+async function loadRandomHistory(historyPath = RANDOM_HISTORY_PATH) {
+  try {
+    const raw = await fs.readFile(historyPath, "utf8");
+    const parsed = JSON.parse(raw);
+    const values = Array.isArray(parsed) ? parsed : parsed?.casePaths;
+    if (!Array.isArray(values)) {
+      return [];
+    }
+    return dedupe(values.map((value) => collapseWhitespace(value)).filter(Boolean)).slice(0, RANDOM_HISTORY_LIMIT);
+  } catch {
+    return [];
+  }
+}
+
+export async function saveRandomHistory(casePaths, historyPath = RANDOM_HISTORY_PATH) {
+  const recent = await loadRandomHistory(historyPath);
+  const next = [];
+  const seen = new Set();
+
+  for (const casePath of [...casePaths, ...recent]) {
+    const clean = collapseWhitespace(casePath);
+    if (!clean || seen.has(clean)) {
+      continue;
+    }
+    seen.add(clean);
+    next.push(clean);
+    if (next.length >= RANDOM_HISTORY_LIMIT) {
+      break;
+    }
+  }
+
+  await fs.mkdir(path.dirname(historyPath), { recursive: true });
+  await fs.writeFile(
+    historyPath,
+    `${JSON.stringify({ updatedAt: new Date().toISOString(), casePaths: next }, null, 2)}\n`,
+    "utf8",
+  );
+}
+
+async function pythonRuntime() {
+  if (!PYTHON_RUNTIME_PROMISE) {
+    PYTHON_RUNTIME_PROMISE = (async () => {
+      const candidates = [
+        process.env.PYTHON ? { command: process.env.PYTHON, prefixArgs: [] } : null,
+        { command: "python", prefixArgs: [] },
+        { command: "py", prefixArgs: ["-3"] },
+      ].filter(Boolean);
+
+      for (const candidate of candidates) {
+        try {
+          await execFileAsync(candidate.command, [...candidate.prefixArgs, "--version"], {
+            timeout: 8000,
+          });
+          return candidate;
+        } catch {
+          // try the next runtime
+        }
+      }
+
+      return null;
+    })();
+  }
+
+  return PYTHON_RUNTIME_PROMISE;
+}
+
+async function listOllamaModels() {
+  if (!OLLAMA_MODELS_PROMISE) {
+    OLLAMA_MODELS_PROMISE = (async () => {
+      try {
+        const { stdout } = await execFileAsync("ollama", ["list"], {
+          timeout: 8000,
+        });
+        return stdout
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter(Boolean)
+          .map((line) => line.split(/\s+/)[0])
+          .filter((name) => name && name.toLowerCase() !== "name");
+      } catch {
+        return [];
+      }
+    })();
+  }
+
+  return OLLAMA_MODELS_PROMISE;
+}
+
+async function discoverOllamaVisionModel() {
+  const models = await listOllamaModels();
+  const patterns = [
+    /vision/i,
+    /llava/i,
+    /moondream/i,
+    /minicpm/i,
+    /qwen.*vl/i,
+    /bakllava/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = models.find((name) => pattern.test(name));
+    if (match) {
+      return match;
+    }
+  }
+
+  return null;
+}
+
+function shouldRememberRandomEntry(request) {
+  return Boolean(
+    request.originalInput ||
+    request.randomSpec ||
+    request.randomQuery ||
+    (Array.isArray(request.randomSystems) && request.randomSystems.length),
+  );
+}
+
+function absoluteUrl(value) {
+  if (!value) {
+    return null;
+  }
+  return value.startsWith("http") ? value : `${BASE_URL}${value}`;
+}
+
+function extractFirst(pattern, text) {
+  const match = pattern.exec(text);
+  return match ? match[1] : null;
+}
+
+function licenseNameFromUrl(url) {
+  if (!url) {
+    return "Unknown license";
+  }
+  if (url.includes("by-nc-sa/4.0")) {
+    return "CC BY-NC-SA 4.0";
+  }
+  if (url.includes("by-nc-sa/3.0")) {
+    return "CC BY-NC-SA 3.0";
+  }
+  if (url.includes("by-sa/")) {
+    return "CC BY-SA";
+  }
+  if (url.includes("creativecommons.org")) {
+    return "Creative Commons";
+  }
+  return url;
+}
+
+function buildCurlArgs(url, extraHeaders = {}, outputPath = null) {
+  const args = [
+    "-sS",
+    "-L",
+    "-A",
+    REQUEST_HEADERS["user-agent"],
+    "-H",
+    `Accept: ${REQUEST_HEADERS.accept}`,
+    "-H",
+    `Accept-Language: ${REQUEST_HEADERS["accept-language"]}`,
+  ];
+
+  for (const [key, value] of Object.entries(extraHeaders)) {
+    args.push("-H", `${key}: ${value}`);
+  }
+
+  if (outputPath) {
+    args.push("-o", outputPath);
+  }
+
+  args.push(url);
+  return args;
+}
+
+function looksLikeInterstitial(text) {
+  const body = String(text ?? "");
+  return /Just a moment/i.test(body) || /Attention Required/i.test(body) || /cf-browser-verification/i.test(body);
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fileExists(filePath) {
+  try {
+    await fs.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function fetchText(url, extraHeaders = {}, attempt = 1) {
+  const cacheKey = JSON.stringify({ url, extraHeaders });
+  if (TEXT_CACHE.has(cacheKey)) {
+    return TEXT_CACHE.get(cacheKey);
+  }
+
+  const { stdout } = await execFileAsync("curl.exe", buildCurlArgs(url, extraHeaders), {
+    maxBuffer: 50 * 1024 * 1024,
+  });
+  if (looksLikeInterstitial(stdout) && attempt < 3) {
+    await sleep(350 * attempt);
+    return fetchText(url, extraHeaders, attempt + 1);
+  }
+  TEXT_CACHE.set(cacheKey, stdout);
+  return stdout;
+}
+
+async function fetchJson(url, extraHeaders = {}, attempt = 1) {
+  const text = await fetchText(url, {
+    "accept": "application/json,text/javascript,*/*;q=0.1",
+    "x-requested-with": "XMLHttpRequest",
+    ...extraHeaders,
+  });
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    if (attempt < 3 && /^\s*</.test(text)) {
+      await sleep(350 * attempt);
+      return fetchJson(url, extraHeaders, attempt + 1);
+    }
+    throw error;
+  }
+}
+
+async function downloadFile(url, filePath) {
+  try {
+    await fs.access(filePath);
+    return filePath;
+  } catch {
+    // fall through
+  }
+
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  await execFileAsync("curl.exe", buildCurlArgs(url, {}, filePath), {
+    maxBuffer: 10 * 1024 * 1024,
+  });
+  return filePath;
+}
+
+async function applyFocusCrop(imagePath, focusPoints, { cropMode = "default", markupStyle = "none" } = {}) {
+  const hasFocusPoints = Array.isArray(focusPoints) && focusPoints.length > 0;
+  const normalizedCropMode = canonicalCropMode(cropMode);
+  const normalizedMarkupStyle = canonicalMarkupStyle(markupStyle);
+  if (!hasFocusPoints) {
+    return imagePath;
+  }
+
+  const extension = path.extname(imagePath) || ".jpg";
+  const variant = [normalizedCropMode, normalizedMarkupStyle]
+    .filter((value) => value && value !== "default" && value !== "none")
+    .join("-");
+  const focusedPath = imagePath.replace(
+    new RegExp(`${extension.replace(".", "\\.")}$`),
+    `-focus${variant ? `-${variant}` : ""}${extension}`,
+  );
+  try {
+    const args = [
+      imagePath,
+      focusedPath,
+      JSON.stringify(focusPoints),
+      JSON.stringify({
+        cropMode: normalizedCropMode,
+        markupStyle: normalizedMarkupStyle,
+      }),
+    ];
+    if (await fileExists(FOCUS_CROP_EXE)) {
+      await execFileAsync(FOCUS_CROP_EXE, args, { timeout: 20000 });
+      return focusedPath;
+    }
+
+    const runtime = await pythonRuntime();
+    if (!runtime) {
+      return imagePath;
+    }
+    await execFileAsync(runtime.command, [...runtime.prefixArgs, FOCUS_CROP_SCRIPT, ...args], {
+      timeout: 20000,
+    });
+    return focusedPath;
+  } catch {
+    return imagePath;
+  }
+}
+
+async function scoreImageWithOllama(imagePath, { visionModel, caseTitle, diagnosisQuery }) {
+  if (!visionModel) {
+    return null;
+  }
+
+  try {
+    const imageBase64 = (await fs.readFile(imagePath)).toString("base64");
+    const response = await fetch("http://127.0.0.1:11434/api/generate", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        model: visionModel,
+        stream: false,
+        format: "json",
+        prompt:
+          `You are scoring a radiology teaching image from a case titled "${caseTitle}". ` +
+          `Rate how useful the image is for showing the relevant pathology or anatomy for diagnosis "${diagnosisQuery}". ` +
+          'Reply only as JSON with keys "score" (0-10 integer) and "reason" (max 12 words).',
+        images: [imageBase64],
+      }),
+    });
+    if (!response.ok) {
+      return null;
+    }
+
+    const payload = await response.json();
+    const text = String(payload?.response ?? "").trim();
+    if (!text) {
+      return null;
+    }
+
+    const parsed = JSON.parse(text);
+    const score = Number.parseInt(parsed?.score, 10);
+    return {
+      score: Number.isInteger(score) ? Math.max(0, Math.min(10, score)) : null,
+      reason: truncate(cleanText(parsed?.reason || ""), 80),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function representativeIndices(length, currentIndex) {
+  const candidates = [
+    currentIndex,
+    Math.floor(length / 2),
+    Math.floor(length * 0.25),
+    Math.floor(length * 0.75),
+    0,
+    length - 1,
+  ];
+
+  return dedupe(
+    candidates.filter((value) => Number.isInteger(value) && value >= 0 && value < length),
+  );
+}
+
+function normalizePhrase(value) {
+  return collapseWhitespace(String(value ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " "));
+}
+
+function wordTokens(value) {
+  return dedupe(
+    normalizePhrase(value)
+      .split(/\s+/)
+      .filter(Boolean)
+      .filter((token) => token.length > 1),
+  );
+}
+
+function tokenOverlapScore(left, right) {
+  const leftTokens = wordTokens(left);
+  const rightTokens = wordTokens(right);
+  if (!leftTokens.length || !rightTokens.length) {
+    return 0;
+  }
+
+  const rightSet = new Set(rightTokens);
+  const overlap = leftTokens.filter((token) => rightSet.has(token)).length;
+  return overlap / Math.max(leftTokens.length, rightTokens.length);
+}
+
+function levenshteinDistance(left, right) {
+  const a = normalizePhrase(left);
+  const b = normalizePhrase(right);
+  if (!a) return b.length;
+  if (!b) return a.length;
+
+  const rows = Array.from({ length: a.length + 1 }, () => Array(b.length + 1).fill(0));
+  for (let i = 0; i <= a.length; i += 1) rows[i][0] = i;
+  for (let j = 0; j <= b.length; j += 1) rows[0][j] = j;
+
+  for (let i = 1; i <= a.length; i += 1) {
+    for (let j = 1; j <= b.length; j += 1) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      rows[i][j] = Math.min(
+        rows[i - 1][j] + 1,
+        rows[i][j - 1] + 1,
+        rows[i - 1][j - 1] + cost,
+      );
+    }
+  }
+
+  return rows[a.length][b.length];
+}
+
+function similarityScore(left, right) {
+  const normalizedLeft = normalizePhrase(left);
+  const normalizedRight = normalizePhrase(right);
+  if (!normalizedLeft || !normalizedRight) {
+    return 0;
+  }
+
+  const overlap = tokenOverlapScore(normalizedLeft, normalizedRight);
+  const maxLength = Math.max(normalizedLeft.length, normalizedRight.length);
+  const editScore = maxLength ? 1 - levenshteinDistance(normalizedLeft, normalizedRight) / maxLength : 0;
+
+  let score = Math.max(overlap, editScore);
+  if (normalizedRight.includes(normalizedLeft) || normalizedLeft.includes(normalizedRight)) {
+    score = Math.max(score, 0.94);
+  }
+
+  return Math.min(0.99, score);
+}
+
+function candidateScore(request, title, snippet = "") {
+  const diagnosisScore = similarityScore(request.diagnosis || request.rawInput, title);
+  const snippetScore = snippet ? tokenOverlapScore(request.diagnosis || request.rawInput, snippet) : 0;
+  const titleAndSnippet = `${title} ${snippet}`;
+  const hintBonus =
+    request.studyHint && normalizePhrase(titleAndSnippet).includes(normalizePhrase(request.studyHint)) ? 0.03 : 0;
+  const filterBonus =
+    request.filterQuery && normalizePhrase(titleAndSnippet).includes(normalizePhrase(request.filterQuery)) ? 0.05 : 0;
+
+  return Math.min(0.99, Math.max(diagnosisScore, snippetScore) + hintBonus + filterBonus);
+}
+
+function preferredModalitiesFromHint(studyHint) {
+  const hint = collapseWhitespace(studyHint);
+  if (!hint) {
+    return [];
+  }
+
+  const matches = [];
+  for (const modality of MODALITY_HINTS) {
+    if (modality.patterns.some((pattern) => pattern.test(hint))) {
+      matches.push(modality.label);
+    }
+  }
+
+  return dedupe(matches);
+}
+
+function stripModalityTerms(studyHint) {
+  let working = normalizePhrase(studyHint);
+  for (const modality of MODALITY_HINTS) {
+    working = replaceAllPatterns(working, modality.patterns);
+  }
+  return collapseWhitespace(working);
+}
+
+function replaceAllPatterns(text, patterns) {
+  let output = text;
+  for (const pattern of patterns) {
+    const flags = pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`;
+    output = output.replace(new RegExp(pattern.source, flags), " ");
+  }
+  return output;
+}
+
+function findAliasMatch(text, aliases) {
+  const tokens = wordTokens(text);
+  if (!tokens.length) {
+    return null;
+  }
+
+  let bestMatch = null;
+  for (const alias of dedupe(aliases.map((value) => normalizePhrase(value)).filter(Boolean))) {
+    const aliasTokens = wordTokens(alias);
+    if (!aliasTokens.length) {
+      continue;
+    }
+
+    const lengths = dedupe([
+      aliasTokens.length,
+      Math.max(1, aliasTokens.length - 1),
+      aliasTokens.length + 1,
+    ]);
+
+    for (const length of lengths) {
+      if (length > tokens.length) {
+        continue;
+      }
+
+      for (let index = 0; index <= tokens.length - length; index += 1) {
+        const segment = tokens.slice(index, index + length).join(" ");
+        const score = segment === alias ? 1 : similarityScore(segment, alias);
+        const threshold =
+          aliasTokens.length === 1
+            ? alias.length <= 3
+              ? 1
+              : alias.length <= 5
+                ? 0.92
+                : 0.84
+            : 0.8;
+        if (score < threshold) {
+          continue;
+        }
+
+        if (
+          !bestMatch ||
+          score > bestMatch.score ||
+          (score === bestMatch.score && segment.length > bestMatch.matched.length)
+        ) {
+          bestMatch = {
+            alias,
+            matched: segment,
+            score,
+          };
+        }
+      }
+    }
+  }
+
+  return bestMatch;
+}
+
+function removeMatchedPhrase(text, phrase) {
+  const tokens = wordTokens(text);
+  const phraseTokens = wordTokens(phrase);
+  if (!tokens.length || !phraseTokens.length || phraseTokens.length > tokens.length) {
+    return collapseWhitespace(text);
+  }
+
+  for (let index = 0; index <= tokens.length - phraseTokens.length; index += 1) {
+    const segment = tokens.slice(index, index + phraseTokens.length);
+    if (segment.join(" ") === phraseTokens.join(" ")) {
+      return collapseWhitespace(
+        [...tokens.slice(0, index), ...tokens.slice(index + phraseTokens.length)].join(" "),
+      );
+    }
+  }
+
+  return collapseWhitespace(text);
+}
+
+function detectCategoryHints(text) {
+  let working = normalizePhrase(text);
+  const systems = [];
+  const matches = [];
+
+  for (const hint of RANDOM_CATEGORY_HINTS) {
+    const match = findAliasMatch(working, hint.aliases || []);
+    if (!match) {
+      continue;
+    }
+
+    const hintSystems =
+      hint.mode === "any" && Array.isArray(hint.systems) && hint.systems.length
+        ? [hint.systems[Math.floor(Math.random() * hint.systems.length)]]
+        : hint.systems || [];
+
+    systems.push(...hintSystems);
+    matches.push(match.matched);
+    working = removeMatchedPhrase(working, match.matched);
+  }
+
+  return {
+    systems: dedupe(systems),
+    matches: dedupe(matches),
+    remaining: collapseWhitespace(working),
+  };
+}
+
+function stripCategoryTerms(text) {
+  let working = normalizePhrase(text);
+  let previous = null;
+  while (working && working !== previous) {
+    previous = working;
+    const detected = detectCategoryHints(working);
+    if (!detected.matches.length) {
+      break;
+    }
+    for (const matched of detected.matches) {
+      working = removeMatchedPhrase(working, matched);
+    }
+  }
+  return collapseWhitespace(working);
+}
+
+function isImplicitStudyQuery(queryText) {
+  const remaining = stripCategoryTerms(queryText);
+  const tokens = wordTokens(remaining);
+  if (!tokens.length) {
+    return true;
+  }
+
+  return tokens.every((token) => IMPLICIT_STUDY_QUERY_TERMS.includes(token));
+}
+
+function parseRandomDirective(rawText) {
+  const normalized = normalizePhrase(rawText);
+  if (!normalized) {
+    return null;
+  }
+
+  let working = normalized;
+  const countMatch = working.match(/\b(\d{1,2})\b/);
+  const count = countMatch ? Number.parseInt(countMatch[1], 10) : 1;
+  if (countMatch) {
+    working = working.replace(countMatch[0], " ");
+  }
+
+  const hasRandomKeyword = /\brandom\b/i.test(normalized);
+  const categoryDetection = detectCategoryHints(working);
+  const systems = [...categoryDetection.systems];
+  working = categoryDetection.remaining;
+
+  working = replaceAllPatterns(working, RANDOM_DIRECTIVE_PATTERNS);
+  const queryText = collapseWhitespace(working);
+  const isDirectiveOnly = !queryText && (hasRandomKeyword || systems.length > 0 || Boolean(countMatch));
+
+  if (hasRandomKeyword || isDirectiveOnly) {
+    return {
+      count: Math.max(1, Math.min(RANDOM_REQUEST_LIMIT, count)),
+      systems: dedupe(systems),
+      queryText,
+      studyHintText: "",
+    };
+  }
+
+  const hasModality = preferredModalitiesFromHint(rawText).length > 0;
+  const strippedStudyHint = stripModalityTerms(rawText);
+  const impliedSystems = dedupe([...systems, ...detectCategoryHints(strippedStudyHint).systems]);
+  const implicitQueryText = collapseWhitespace(stripCategoryTerms(strippedStudyHint));
+
+  if ((hasModality || impliedSystems.length > 0) && isImplicitStudyQuery(implicitQueryText)) {
+    return {
+      count: Math.max(1, Math.min(RANDOM_REQUEST_LIMIT, count)),
+      systems: impliedSystems,
+      queryText: implicitQueryText,
+      studyHintText: collapseWhitespace(rawText),
+    };
+  }
+
+  return null;
+}
+
+function titleFromCasePath(casePath) {
+  const slug = String(casePath ?? "")
+    .replace(/^\/cases\//, "")
+    .replace(/\?.*$/, "")
+    .replace(/-\d+$/, "");
+
+  return cleanText(slug.replace(/-/g, " "));
+}
+
+function parseCaseSystemsFromHtml(html) {
+  const keywords = cleanText(extractFirst(/<meta\s+name="keywords"\s+content="([^"]+)"/i, html));
+  if (!keywords) {
+    return [];
+  }
+
+  const keywordParts = keywords
+    .split(",")
+    .map((value) => cleanText(value))
+    .filter(Boolean);
+
+  return keywordParts.filter((value) => KNOWN_CASE_SYSTEMS.includes(value));
+}
+
+export function parseCaseRequest(input) {
+  const payload = typeof input === "string" ? { rawInput: input } : { ...(input ?? {}) };
+  const requestMode = normalizePhrase(payload.requestMode || "");
+  const structuredStudyHint = buildStructuredStudyHint(payload);
+  const structuredRandomSpec = buildStructuredRandomSpec(payload, structuredStudyHint);
+  const filterQuery = buildStructuredFilterQuery(payload);
+  const preferredModalities = buildPreferredModalities(payload, structuredStudyHint);
+  const searchSystems = filterSystemsFromPayload(payload);
+  const difficulty = normalizedDifficulty(payload.difficulty);
+  const cropMode = canonicalCropMode(payload.cropMode || "");
+  const markupStyle = canonicalMarkupStyle(payload.markupStyle || "");
+
+  if (requestMode === "manual" || payload.selectedCasePath) {
+    const selectedCasePath = collapseWhitespace(payload.selectedCasePath || "");
+    const diagnosis =
+      collapseWhitespace(payload.diagnosis || payload.selectedCaseTitle || titleFromCasePath(selectedCasePath));
+    const studyHint = structuredStudyHint;
+    const rawInput =
+      buildStructuredRawInput(payload, diagnosis, studyHint, null, filterQuery) || selectedCasePath;
+
+    return {
+      ...payload,
+      rawInput,
+      diagnosis,
+      studyHint,
+      filterQuery,
+      searchSystems,
+      difficulty,
+      cropMode,
+      markupStyle,
+      randomSpec: null,
+      preferredModalities,
+      searchText: collapseWhitespace([diagnosis, studyHint, filterQuery].filter(Boolean).join(" ")),
+    };
+  }
+
+  if (requestMode === "specific" || structuredRandomSpec) {
+    const diagnosis = collapseWhitespace(payload.diagnosis || "");
+    const studyHint = structuredStudyHint;
+    const rawInput = buildStructuredRawInput(payload, diagnosis, studyHint, structuredRandomSpec, filterQuery);
+
+    return {
+      ...payload,
+      rawInput,
+      diagnosis,
+      studyHint,
+      filterQuery,
+      searchSystems,
+      difficulty,
+      cropMode,
+      markupStyle,
+      randomSpec: structuredRandomSpec,
+      preferredModalities,
+      searchText: collapseWhitespace([diagnosis, studyHint, filterQuery].filter(Boolean).join(" ")),
+    };
+  }
+
+  let rawInput = collapseWhitespace(
+    payload.rawInput || payload.query || payload.diagnosisQuery || payload.diagnosis || "",
+  );
+  let diagnosis = collapseWhitespace(payload.diagnosis || "");
+  let studyHint = collapseWhitespace(payload.studyHint || "");
+
+  if (!diagnosis && rawInput) {
+    const pipeParts = rawInput.split("|").map((item) => collapseWhitespace(item)).filter(Boolean);
+    if (pipeParts.length > 1) {
+      [diagnosis, ...pipeParts] = pipeParts;
+      studyHint = studyHint || pipeParts.join(" | ");
+    } else {
+      const commaParts = rawInput.split(",").map((item) => collapseWhitespace(item)).filter(Boolean);
+      diagnosis = commaParts.shift() || rawInput;
+      if (!studyHint && commaParts.length) {
+        studyHint = commaParts.join(", ");
+      }
+    }
+  }
+
+  diagnosis = diagnosis || rawInput;
+  rawInput = rawInput || collapseWhitespace([diagnosis, studyHint].filter(Boolean).join(", "));
+  const randomSpec = parseRandomDirective(diagnosis || rawInput);
+  if (!studyHint && randomSpec?.studyHintText) {
+    studyHint = randomSpec.studyHintText;
+  }
+
+  return {
+    ...payload,
+    rawInput,
+    diagnosis,
+    studyHint,
+    filterQuery,
+    searchSystems,
+    difficulty,
+    cropMode,
+    markupStyle,
+    randomSpec,
+    preferredModalities: buildPreferredModalities(payload, studyHint),
+    searchText: collapseWhitespace([diagnosis, studyHint, filterQuery].filter(Boolean).join(" ")),
+  };
+}
+
+function parseCaseSearchResults(html) {
+  const results = [];
+  const blocks = [...html.matchAll(/<a class="[^"]*search-result-case[^"]*" href="([^"]+)">([\s\S]*?)<\/a>/g)];
+
+  for (const match of blocks) {
+    const casePath = match[1];
+    const body = match[2];
+    const title =
+      cleanText(extractFirst(/<h4[^>]*>([\s\S]*?)<\/h4>/i, body)) || titleFromCasePath(casePath) || "Radiopaedia case";
+    const snippetText = cleanText(
+      body
+        .replace(/<span[^>]*>[\s\S]*?<\/span>/gi, " ")
+        .replace(/<h4[^>]*>[\s\S]*?<\/h4>/i, " "),
+    )
+      .replace(/^Case\b/i, "")
+      .trim();
+
+    results.push({
+      casePath,
+      caseUrl: absoluteUrl(casePath),
+      title,
+      snippet: truncate(snippetText, 220),
+    });
+  }
+
+  return dedupe(results.map((candidate) => JSON.stringify(candidate))).map((value) => JSON.parse(value));
+}
+
+function parseSearchResultCandidates(html, request, limit = 5) {
+  const results = parseCaseSearchResults(html).map((candidate) => ({
+    ...candidate,
+    score: candidateScore(request, candidate.title, candidate.snippet),
+  }));
+
+  return results
+    .sort((left, right) => right.score - left.score || left.title.localeCompare(right.title))
+    .slice(0, limit);
+}
+
+function buildCaseSearchUrl({ query = "", systems = [], page = 1 } = {}) {
+  const searchUrl = new URL(`${BASE_URL}/search`);
+  searchUrl.searchParams.set("lang", "us");
+  searchUrl.searchParams.set("scope", "cases");
+  searchUrl.searchParams.set("page", String(Math.max(1, page)));
+  for (const system of dedupe(systems)) {
+    searchUrl.searchParams.append("system[]", system);
+  }
+  const cleanQuery = collapseWhitespace(query);
+  if (cleanQuery) {
+    searchUrl.searchParams.set("q", cleanQuery);
+  }
+  return searchUrl.toString();
+}
+
+function extractSearchPageNumbers(html) {
+  return dedupe(
+    [...html.matchAll(/href="[^"]*page=(\d+)[^"]*scope=cases[^"]*"/g)]
+      .map((match) => Number.parseInt(match[1], 10))
+      .filter((value) => Number.isInteger(value) && value >= 1),
+  ).sort((left, right) => left - right);
+}
+
+function shuffle(values) {
+  const items = [...values];
+  for (let index = items.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [items[index], items[swapIndex]] = [items[swapIndex], items[index]];
+  }
+  return items;
+}
+
+function buildRandomSearchQueries(request) {
+  const randomQuery = request.randomSpec?.queryText || "";
+  const studyHint = request.studyHint || "";
+  const filterQuery = request.filterQuery || "";
+  const strippedHint = stripModalityTerms(studyHint);
+  return dedupe([
+    collapseWhitespace([randomQuery, filterQuery, studyHint].filter(Boolean).join(" ")),
+    collapseWhitespace([randomQuery, filterQuery, strippedHint].filter(Boolean).join(" ")),
+    collapseWhitespace([filterQuery, studyHint].filter(Boolean).join(" ")),
+    collapseWhitespace([filterQuery, strippedHint].filter(Boolean).join(" ")),
+    collapseWhitespace([randomQuery, filterQuery].filter(Boolean).join(" ")),
+    strippedHint,
+    filterQuery,
+    randomQuery,
+    studyHint,
+    "",
+  ]);
+}
+
+async function collectRandomCasePool(query, systems) {
+  const pageOneHtml = await fetchText(buildCaseSearchUrl({ query, systems, page: 1 }));
+  const pageNumbers = extractSearchPageNumbers(pageOneHtml);
+  const desiredPageCount = Math.min(pageNumbers.length || 1, 5);
+  const extraPages = pageNumbers
+    .filter((page) => page > 1)
+    .slice(0, Math.max(0, desiredPageCount - 1));
+  const pagesToFetch = dedupe([1, ...extraPages]);
+  const poolMap = new Map();
+
+  for (const page of pagesToFetch) {
+    const html =
+      page === 1 ? pageOneHtml : await fetchText(buildCaseSearchUrl({ query, systems, page }));
+
+    for (const candidate of parseCaseSearchResults(html)) {
+      if (!poolMap.has(candidate.casePath)) {
+        poolMap.set(candidate.casePath, candidate);
+      }
+    }
+  }
+
+  return [...poolMap.values()];
+}
+
+async function candidateSystemList(candidate, htmlCache = new Map()) {
+  let html = htmlCache.get(candidate.casePath);
+  if (!html) {
+    const caseUrl = absoluteUrl(candidate.casePath.includes("?") ? candidate.casePath : `${candidate.casePath}?lang=us`);
+    html = await fetchText(caseUrl);
+    htmlCache.set(candidate.casePath, html);
+  }
+  return parseCaseSystemsFromHtml(html);
+}
+
+async function candidateMatchesSystems(candidate, systems, htmlCache = new Map(), systemMode = "all") {
+  if (!systems.length) {
+    return true;
+  }
+
+  const caseSystems = await candidateSystemList(candidate, htmlCache);
+  if (!caseSystems.length) {
+    return systemMode === "any" || systems.length <= 1;
+  }
+  return systemMode === "any"
+    ? systems.some((system) => caseSystems.includes(system))
+    : systems.every((system) => caseSystems.includes(system));
+}
+
+async function pickMixedCandidates(candidates, desiredCount, htmlCache) {
+  const picks = [];
+  const usedSystems = new Set();
+  const pickedPaths = new Set();
+
+  const attemptPick = async (requireNovelSystem) => {
+    for (const candidate of candidates) {
+      if (picks.length >= desiredCount) {
+        return;
+      }
+      if (pickedPaths.has(candidate.casePath)) {
+        continue;
+      }
+
+      const caseSystems = await candidateSystemList(candidate, htmlCache);
+      const hasNovelSystem = caseSystems.some((system) => !usedSystems.has(system));
+      if (requireNovelSystem && caseSystems.length && !hasNovelSystem) {
+        continue;
+      }
+
+      picks.push(candidate);
+      pickedPaths.add(candidate.casePath);
+      caseSystems.forEach((system) => usedSystems.add(system));
+    }
+  };
+
+  await attemptPick(true);
+  await attemptPick(false);
+  return picks.slice(0, desiredCount);
+}
+
+async function pickRandomCaseCandidates(request, { excludePaths = new Set(), allowReuseIfNeeded = true } = {}) {
+  const systems = request.randomSpec?.systems || [];
+  const systemMode = request.randomSpec?.systemMode || "all";
+  const candidateMap = new Map();
+  const htmlCache = new Map();
+  const targetPoolSize = Math.max(request.randomSpec.count + 14, 24);
+
+  for (const query of buildRandomSearchQueries(request)) {
+    const pool = await collectRandomCasePool(query, systems);
+    for (const candidate of shuffle(pool)) {
+      if (excludePaths.has(candidate.casePath) || candidateMap.has(candidate.casePath)) {
+        continue;
+      }
+      if (!(await candidateMatchesSystems(candidate, systems, htmlCache, systemMode))) {
+        continue;
+      }
+      candidateMap.set(candidate.casePath, candidate);
+      if (candidateMap.size >= targetPoolSize) {
+        break;
+      }
+    }
+
+    if (candidateMap.size >= targetPoolSize) {
+      break;
+    }
+  }
+
+  const shuffledCandidates = shuffle([...candidateMap.values()]);
+  const picks =
+    request.randomSpec?.diversify === "mixed"
+      ? await pickMixedCandidates(shuffledCandidates, request.randomSpec.count, htmlCache)
+      : shuffledCandidates.slice(0, request.randomSpec.count);
+  if (picks.length < request.randomSpec.count && excludePaths.size > 0 && allowReuseIfNeeded) {
+    return pickRandomCaseCandidates(request, {
+      excludePaths: new Set(),
+      allowReuseIfNeeded: false,
+    });
+  }
+  if (!picks.length) {
+    const filterBits = dedupe([...(request.randomSpec.systems || []), request.randomSpec.queryText, request.studyHint]).filter(Boolean);
+    const filterText = filterBits.length ? ` (${filterBits.join(" | ")})` : "";
+    throw new Error(`No random Radiopaedia cases were found for "${request.rawInput}"${filterText}.`);
+  }
+
+  const fallbackCandidates = shuffledCandidates.slice(request.randomSpec.count).map((candidate) => ({
+    casePath: candidate.casePath,
+    title: candidate.title,
+  }));
+
+  return picks.map((candidate) => ({
+    ...candidate,
+    fallbackCandidates,
+  }));
+}
+
+export async function expandCaseRequests(
+  inputs,
+  { readRandomHistory = false, writeRandomHistory = false, historyPath = RANDOM_HISTORY_PATH } = {},
+) {
+  const expanded = [];
+  const selectedPaths = new Set(readRandomHistory ? await loadRandomHistory(historyPath) : []);
+  const historySelections = [];
+
+  for (const item of inputs) {
+    const request = parseCaseRequest(item);
+    const requestExcludedPaths = new Set((request.excludeCasePaths ?? []).map((value) => collapseWhitespace(value)).filter(Boolean));
+    if (request.selectedCasePath) {
+      if (requestExcludedPaths.has(request.selectedCasePath)) {
+        continue;
+      }
+      if (shouldRememberRandomEntry(request)) {
+        historySelections.push(request.selectedCasePath);
+      }
+      selectedPaths.add(request.selectedCasePath);
+      expanded.push(request);
+      continue;
+    }
+
+    if (!request.randomSpec) {
+      expanded.push(request);
+      continue;
+    }
+
+    const picks = await pickRandomCaseCandidates(request, {
+      excludePaths: new Set([...selectedPaths, ...requestExcludedPaths]),
+    });
+    for (const pick of picks) {
+      selectedPaths.add(pick.casePath);
+      historySelections.push(pick.casePath);
+      expanded.push(
+        parseCaseRequest({
+          rawInput: collapseWhitespace([pick.title, request.studyHint].filter(Boolean).join(", ")),
+          diagnosis: pick.title,
+          studyHint: request.studyHint,
+          secondaryModality: request.secondaryModality,
+          ageGroup: request.ageGroup,
+          topicFocus: request.topicFocus,
+          difficulty: request.difficulty,
+          cropMode: request.cropMode,
+          markupStyle: request.markupStyle,
+          requestedImagesPerCase: request.requestedImagesPerCase,
+          selectedCasePath: pick.casePath,
+          selectedCaseTitle: pick.title,
+          fallbackCandidates: pick.fallbackCandidates || [],
+          originalInput: request.rawInput,
+          randomQuery: request.randomSpec.queryText,
+          randomSystems: request.randomSpec.systems,
+          randomDiversity: request.randomSpec.diversify,
+          requestId: request.requestId,
+          includeClinicalHistory: request.includeClinicalHistory,
+          useOllamaAssist: request.useOllamaAssist,
+        }),
+      );
+    }
+  }
+
+  if (writeRandomHistory && historySelections.length) {
+    await saveRandomHistory(historySelections, historyPath);
+  }
+
+  return expanded;
+}
+
+function buildSearchQueries(request) {
+  const diagnosisTokens = wordTokens(request.diagnosis);
+  const queries = [
+    request.searchText,
+    collapseWhitespace([request.diagnosis, request.filterQuery].filter(Boolean).join(" ")),
+    request.diagnosis,
+  ];
+
+  if (diagnosisTokens.length > 2) {
+    for (let index = 0; index < diagnosisTokens.length; index += 1) {
+      queries.push(diagnosisTokens.filter((_, tokenIndex) => tokenIndex !== index).join(" "));
+    }
+  }
+
+  if (diagnosisTokens.length >= 2) {
+    queries.push(diagnosisTokens.slice(0, 2).join(" "));
+    queries.push(`${diagnosisTokens[0]} ${diagnosisTokens[diagnosisTokens.length - 1]}`);
+  }
+
+  if (diagnosisTokens.length >= 1) {
+    queries.push(diagnosisTokens[0]);
+  }
+
+  return dedupe(queries.map((query) => collapseWhitespace(query)).filter(Boolean));
+}
+
+export async function inspectRadiopaediaCaseCandidates(input, { limit = 5 } = {}) {
+  const request = parseCaseRequest(input);
+  const excludedPaths = new Set((request.excludeCasePaths ?? []).map((value) => collapseWhitespace(value)).filter(Boolean));
+  if (request.selectedCasePath) {
+    if (excludedPaths.has(request.selectedCasePath)) {
+      return {
+        ...request,
+        candidates: [],
+        suggestedCasePath: null,
+        suggestedTitle: null,
+        needsReview: true,
+      };
+    }
+    const title = request.selectedCaseTitle || titleFromCasePath(request.selectedCasePath) || request.diagnosis || "Radiopaedia case";
+    return {
+      ...request,
+      candidates: [
+        {
+          casePath: request.selectedCasePath,
+          caseUrl: absoluteUrl(request.selectedCasePath),
+          title,
+          snippet: request.originalInput ? `Randomly selected from "${request.originalInput}".` : "",
+          score: 0.99,
+          matchedQuery: request.originalInput ? "random-selection" : "manual-selection",
+        },
+      ],
+      suggestedCasePath: request.selectedCasePath,
+      suggestedTitle: title,
+      needsReview: false,
+    };
+  }
+  const candidateMap = new Map();
+
+  for (const query of buildSearchQueries(request)) {
+    const searchUrl = buildCaseSearchUrl({ query, systems: request.searchSystems || [] });
+    const html = await fetchText(searchUrl);
+    const results = parseSearchResultCandidates(html, request, Math.max(limit * 2, 6));
+
+    for (const candidate of results) {
+      if (excludedPaths.has(candidate.casePath)) {
+        continue;
+      }
+      const existing = candidateMap.get(candidate.casePath);
+      if (!existing || candidate.score > existing.score) {
+        candidateMap.set(candidate.casePath, {
+          ...candidate,
+          matchedQuery: query,
+        });
+      }
+    }
+
+    const provisional = [...candidateMap.values()].sort((left, right) => right.score - left.score);
+    if (provisional.length >= limit && provisional[0]?.score >= 0.84) {
+      break;
+    }
+  }
+
+  const candidates = [...candidateMap.values()]
+    .sort((left, right) => right.score - left.score || left.title.localeCompare(right.title))
+    .slice(0, limit);
+  const best = candidates[0] ?? null;
+  const second = candidates[1] ?? null;
+
+  return {
+    ...request,
+    candidates,
+    suggestedCasePath: best?.casePath ?? null,
+    suggestedTitle: best?.title ?? null,
+    needsReview:
+      !best ||
+      best.score < 0.78 ||
+      Boolean(second && best.score - second.score < 0.05 && best.score < 0.94),
+  };
+}
+
+async function searchCasePath(input) {
+  const probe = await inspectRadiopaediaCaseCandidates(input, { limit: 5 });
+  if (!probe.candidates.length) {
+    throw new Error(`No Radiopaedia case results found for "${probe.rawInput}".`);
+  }
+  return probe.candidates[0].casePath;
+}
+
+async function fetchStudy(studyId, caseUrl) {
+  const studyUrl = `${BASE_URL}/studies/${studyId}/annotated_viewer_json?lang=us&only_findings=true`;
+  const payload = await fetchJson(studyUrl, {
+    referer: caseUrl,
+  });
+
+  return payload.study;
+}
+
+function buildImageCandidates(study) {
+  const candidates = [];
+  const studyHasAnnotations = (study.series ?? []).some((series) => {
+    const frames = series.frames ?? [];
+    return extractSeriesAnnotationIndices(series, frames.length).length > 0;
+  });
+
+  for (const series of study.series ?? []) {
+    const files = series.encodings?.thumbnailed_files ?? [];
+    const frames = series.frames ?? [];
+    const usableLength = Math.min(files.length, frames.length);
+
+    if (!usableLength) {
+      continue;
+    }
+
+    const currentIndex = Math.max(0, frames.findIndex((frame) => frame.current));
+    const keyImageIndex = frames.findIndex((frame) => frame.id === study.case_key_image_id);
+    const annotationIndices = extractSeriesAnnotationIndices(series, usableLength);
+    const candidateIndices = buildRelevantFrameIndices({
+      usableLength,
+      currentIndex,
+      keyImageIndex,
+      annotationIndices,
+      studyHasAnnotations,
+    });
+
+    for (const index of candidateIndices) {
+      const frame = frames[index];
+      const file = files[index];
+      const fileName = file?.original ?? file?.small ?? file?.thumb;
+
+      if (!frame?.id || !fileName) {
+        continue;
+      }
+
+      const annotationDistance = nearestDistance(index, annotationIndices);
+      const isAnnotated = annotationIndices.includes(index);
+      const isKeyImage = Number.isInteger(keyImageIndex) && index === keyImageIndex;
+      const isCurrent = index === currentIndex;
+      const focusPoints = extractFrameFocusPoints(series, index);
+      candidates.push({
+        url: `${IMAGE_BASE_URL}/${frame.id}/${fileName}`,
+        label: [study.modality, series.specifics, series.perspective].filter(Boolean).join(" • "),
+        studyId: study.id,
+        seriesId: series.series_id,
+        modality: study.modality,
+        frameId: frame.id,
+        sliceIndex: index,
+        viewSignature: [series.specifics, series.perspective].filter(Boolean).join(" • "),
+        annotationDistance,
+        hasSeriesAnnotations: annotationIndices.length > 0,
+        isAnnotated,
+        isKeyImage,
+        isCurrent,
+        focusPoints,
+        frameWidth: frame.width,
+        frameHeight: frame.height,
+        relevantScore: computeFrameRelevanceScore({
+          index,
+          currentIndex,
+          keyImageIndex,
+          annotationIndices,
+          annotationDistance,
+          studyHasAnnotations,
+        }),
+      });
+    }
+  }
+
+  return dedupe(candidates.map((candidate) => JSON.stringify(candidate))).map((value) => JSON.parse(value));
+}
+
+function extractFrameFocusPoints(series, frameIndex) {
+  const points = [];
+
+  for (const annotation of series.annotations ?? []) {
+    const arrowPoints = (annotation.arrow_positions ?? [])
+      .filter((position) => position?.slice_idx === frameIndex)
+      .map((position) => ({ x: position.x, y: position.y, kind: "arrow" }));
+    const labelPoints = (annotation.label_positions ?? [])
+      .filter((position) => position?.slice_idx === frameIndex)
+      .map((position) => ({ x: position.x, y: position.y, kind: "label" }));
+
+    if (arrowPoints.length) {
+      points.push(...arrowPoints);
+    } else {
+      points.push(...labelPoints);
+    }
+  }
+
+  return points.filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
+}
+
+function extractSeriesAnnotationIndices(series, usableLength) {
+  return dedupe(
+    (series.annotations ?? [])
+      .flatMap((annotation) => [
+        ...(annotation.label_positions ?? []).map((position) => position?.slice_idx),
+        ...(annotation.arrow_positions ?? []).map((position) => position?.slice_idx),
+      ])
+      .filter((value) => Number.isInteger(value) && value >= 0 && value < usableLength),
+  ).sort((left, right) => left - right);
+}
+
+function nearestDistance(index, targets) {
+  if (!targets.length) {
+    return null;
+  }
+  return Math.min(...targets.map((target) => Math.abs(target - index)));
+}
+
+function buildRelevantFrameIndices({ usableLength, currentIndex, keyImageIndex, annotationIndices, studyHasAnnotations }) {
+  const indices = [];
+
+  if (annotationIndices.length) {
+    indices.push(...annotationIndices);
+    if (Number.isInteger(keyImageIndex) && keyImageIndex >= 0 && annotationIndices.includes(keyImageIndex)) {
+      indices.push(keyImageIndex);
+    }
+    if (Number.isInteger(currentIndex) && currentIndex >= 0 && annotationIndices.includes(currentIndex)) {
+      indices.push(currentIndex);
+    }
+  } else if (!studyHasAnnotations) {
+    indices.push(
+      currentIndex - 1,
+      currentIndex,
+      currentIndex + 1,
+    );
+    if (Number.isInteger(keyImageIndex) && keyImageIndex >= 0) {
+      indices.unshift(keyImageIndex);
+    }
+  } else {
+    if (Number.isInteger(keyImageIndex) && keyImageIndex >= 0) {
+      indices.push(keyImageIndex);
+    }
+    if (Number.isInteger(currentIndex) && currentIndex >= 0) {
+      indices.push(currentIndex);
+    }
+  }
+
+  return dedupe(
+    indices.filter((value) => Number.isInteger(value) && value >= 0 && value < usableLength),
+  );
+}
+
+function computeFrameRelevanceScore({ index, currentIndex, keyImageIndex, annotationIndices, annotationDistance, studyHasAnnotations }) {
+  let score = 0;
+
+  if (annotationIndices.includes(index)) {
+    score += 420;
+  }
+
+  if (Number.isInteger(keyImageIndex) && index === keyImageIndex) {
+    score += 160;
+  } else if (annotationDistance !== null) {
+    score += Math.max(0, 70 - annotationDistance * 30);
+  } else if (!studyHasAnnotations) {
+    score += Math.max(0, 58 - Math.abs(index - currentIndex) * 18);
+  } else if (index === currentIndex) {
+    score += 8;
+  } else {
+    score -= 30;
+  }
+
+  return score;
+}
+
+function pickDistinctImages(imageCandidates, desiredCount) {
+  const sorted = [...imageCandidates].sort(
+    (left, right) =>
+      right.relevantScore - left.relevantScore ||
+      left.seriesId - right.seriesId ||
+      left.sliceIndex - right.sliceIndex,
+  );
+
+  const selected = [];
+  const usedFrames = new Set();
+  const usedSeries = new Set();
+  const usedViews = new Set();
+
+  const pick = (predicate) => {
+    for (const candidate of sorted) {
+      if (selected.length >= desiredCount) {
+        return;
+      }
+      if (usedFrames.has(candidate.frameId) || !predicate(candidate)) {
+        continue;
+      }
+
+      selected.push(candidate);
+      usedFrames.add(candidate.frameId);
+      usedSeries.add(candidate.seriesId);
+      usedViews.add(candidate.viewSignature);
+    }
+  };
+
+  pick((candidate) => candidate.relevantScore >= 150 && !usedSeries.has(candidate.seriesId));
+  pick((candidate) => candidate.relevantScore >= 150 && !usedViews.has(candidate.viewSignature));
+  pick((candidate) => candidate.relevantScore >= 150);
+  pick((candidate) => !usedSeries.has(candidate.seriesId));
+  pick((candidate) => !usedViews.has(candidate.viewSignature));
+  pick(() => true);
+
+  return selected.slice(0, desiredCount);
+}
+
+function selectRelevantImages(imageCandidates, desiredCount, { excludeFrameIds = [] } = {}) {
+  const excluded = new Set((excludeFrameIds ?? []).map((value) => String(value)));
+  const candidatePool = excluded.size
+    ? imageCandidates.filter((candidate) => !excluded.has(String(candidate.frameId)))
+    : imageCandidates;
+  const effectivePool = candidatePool.length ? candidatePool : imageCandidates;
+
+  const annotatedCandidates = effectivePool.filter((candidate) => candidate.isAnnotated);
+  if (annotatedCandidates.length) {
+    return pickDistinctImages(annotatedCandidates, Math.min(desiredCount, annotatedCandidates.length));
+  }
+
+  const strongCandidates = effectivePool.filter(
+    (candidate) => candidate.isKeyImage || candidate.isCurrent || candidate.relevantScore >= 40,
+  );
+  const selected = pickDistinctImages(strongCandidates.length ? strongCandidates : effectivePool, desiredCount);
+
+  while (
+    selected.length > 1 &&
+    !selected[selected.length - 1].isAnnotated &&
+    !selected[selected.length - 1].isKeyImage &&
+    selected[selected.length - 1].relevantScore < 40
+  ) {
+    selected.pop();
+  }
+
+  return selected.slice(0, desiredCount);
+}
+
+function imageStrengthScore(image) {
+  const ollamaBonus = Number.isFinite(image.ollamaScore) ? image.ollamaScore * 8 : 0;
+  return image.relevantScore + ollamaBonus + (image.isAnnotated ? 120 : 0) + (image.isKeyImage ? 40 : 0);
+}
+
+function evaluateSelectedImages(images, requestedCount, difficulty = "") {
+  const strongImages = images.filter((image) => image.isAnnotated || image.isKeyImage || imageStrengthScore(image) >= 180);
+  const adequateImages = images.filter((image) => image.isAnnotated || image.isKeyImage || imageStrengthScore(image) >= 120);
+  const warnings = [];
+  const difficultyMode = normalizedDifficulty(difficulty);
+
+  if (images.length < Math.min(requestedCount, 2)) {
+    warnings.push(`Only ${images.length} clearly relevant image${images.length === 1 ? "" : "s"} found.`);
+  }
+  if (!adequateImages.length) {
+    warnings.push("Selected images do not convincingly show the relevant pathology.");
+  } else if (difficultyMode !== "hard" && requestedCount >= 3 && strongImages.length < 2) {
+    warnings.push("The image set is still weak for a 3-image teaching slide.");
+  }
+  if (difficultyMode === "easy" && strongImages.length < Math.min(requestedCount, 2)) {
+    warnings.push("Easy mode prefers cases with at least two very conspicuous teaching images.");
+  }
+
+  return {
+    requestedCount,
+    selectedCount: images.length,
+    strongCount: strongImages.length,
+    adequateCount: adequateImages.length,
+    overallScore:
+      images.reduce((sum, image) => sum + imageStrengthScore(image), 0) +
+      strongImages.length * 120 +
+      adequateImages.length * 40,
+    shouldReroll: warnings.length > 0,
+    warnings,
+    summary: warnings.length
+      ? warnings.join(" ")
+      : `${images.length} relevant image${images.length === 1 ? "" : "s"} selected.`,
+  };
+}
+
+async function maybeScoreSelectedImagesWithOllama(images, request, caseTitle) {
+  if (!request.useOllamaAssist) {
+    return images;
+  }
+
+  const visionModel = await discoverOllamaVisionModel();
+  if (!visionModel) {
+    return images;
+  }
+
+  for (const image of images) {
+    const review = await scoreImageWithOllama(image.localPath, {
+      visionModel,
+      caseTitle,
+      diagnosisQuery: request.diagnosis || request.rawInput,
+    });
+    if (!review || !Number.isFinite(review.score)) {
+      continue;
+    }
+    image.ollamaScore = review.score;
+    image.ollamaReason = review.reason || "";
+  }
+
+  return images.sort(
+    (left, right) =>
+      (Number.isFinite(right.ollamaScore) ? right.ollamaScore : -1) -
+      (Number.isFinite(left.ollamaScore) ? left.ollamaScore : -1) ||
+      right.relevantScore - left.relevantScore,
+  );
+}
+
+function buildClinicalHistoryText({ request, description, findings, diagnosis, caseTitle }) {
+  if (!request.includeClinicalHistory) {
+    return request.studyHint || "";
+  }
+  if (normalizedDifficulty(request.difficulty) === "hard") {
+    return request.studyHint || "";
+  }
+
+  const candidateSentences = [description, findings]
+    .filter(Boolean)
+    .flatMap((text) => cleanText(text).split(/(?<=[.!?])\s+/));
+
+  for (const sentence of candidateSentences) {
+    const scrubbed = redactTerms(sentence, [diagnosis, caseTitle])
+      .replace(/\[[^\]]*hidden[^\]]*\]/gi, " ")
+      .replace(/\s+,/g, ",")
+      .replace(/\s+\./g, ".");
+    const redacted = truncate(
+      cleanText(scrubbed)
+        .replace(/^[,.;:\-\s]+/g, "")
+        .replace(/\bPublished\b.*$/i, "")
+        .trim(),
+      88,
+    );
+    if (!redacted) {
+      continue;
+    }
+    if (redacted.length < 10) {
+      continue;
+    }
+    return collapseWhitespace([redacted, request.studyHint].filter(Boolean).join(" • "));
+  }
+
+  return request.studyHint || "";
+}
+
+function buildTeachingPoints({ request, description, findings, diagnosis, caseTitle, modalitySummary, images }) {
+  const bullets = [];
+  const seen = new Set();
+
+  const candidateSentences = [findings, description]
+    .filter(Boolean)
+    .flatMap((text) => cleanText(text).split(/(?<=[.!?])\s+/));
+
+  for (const sentence of candidateSentences) {
+    const bullet = truncate(
+      cleanText(
+        redactTerms(sentence, [diagnosis, caseTitle])
+          .replace(/\[[^\]]*hidden[^\]]*\]/gi, " ")
+          .replace(/\s+,/g, ",")
+          .replace(/\s+\./g, "."),
+      ),
+      135,
+    ).replace(/^[,.;:\-\s]+/g, "");
+    const key = normalizePhrase(bullet);
+    if (!bullet || bullet.length < 18 || seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    bullets.push(bullet);
+    if (bullets.length >= 3) {
+      break;
+    }
+  }
+
+  if (bullets.length < 2 && request.studyHint) {
+    const studyBullet = `Focus on the ${request.studyHint} images where the abnormality is most conspicuous.`;
+    const key = normalizePhrase(studyBullet);
+    if (!seen.has(key)) {
+      seen.add(key);
+      bullets.push(studyBullet);
+    }
+  }
+
+  if (bullets.length < 3 && modalitySummary) {
+    const modalityBullet = `This case is best reviewed as a ${modalitySummary} teaching example with ${images.length} selected image${images.length === 1 ? "" : "s"}.`;
+    const key = normalizePhrase(modalityBullet);
+    if (!seen.has(key)) {
+      seen.add(key);
+      bullets.push(modalityBullet);
+    }
+  }
+
+  return bullets.slice(0, 3);
+}
+
+function buildPromptText(rawText, diagnosis, caseTitle) {
+  const cleaned = cleanText(rawText);
+  if (!cleaned) {
+    return "Review the images on the next slide and identify the most likely diagnosis.";
+  }
+
+  const redacted = redactTerms(cleaned, [diagnosis, caseTitle]);
+  if (!redacted || redacted === cleaned || redacted.length < 50) {
+    return "Review the images on the next slide and identify the most likely diagnosis.";
+  }
+
+  return truncate(redacted, 430);
+}
+
+function createFooterText(caseData) {
+  const parts = [
+    "Radiopaedia",
+    caseData.rid,
+    caseData.author,
+    caseData.licenseName,
+    caseData.displayUrl,
+  ].filter(Boolean);
+
+  return parts.join(" • ");
+}
+
+function orderStudiesByPreference(studies, preferredModalities) {
+  if (!preferredModalities.length) {
+    return studies;
+  }
+
+  const matching = studies.filter((study) => preferredModalities.includes(study.modality));
+  const other = studies.filter((study) => !preferredModalities.includes(study.modality));
+  return matching.length ? matching.concat(other) : studies;
+}
+
+async function fetchRadiopaediaCaseByPath(request, casePath, { cacheDir, imagesPerCase = 3, caseTitleHint = "" }) {
+  const caseUrl = absoluteUrl(casePath.includes("?") ? casePath : `${casePath}?lang=us`);
+  const html = await fetchText(caseUrl);
+  const displayUrl = (() => {
+    const parsed = new URL(caseUrl);
+    return `${parsed.host}${parsed.pathname}`;
+  })();
+
+  const caseTitle =
+    cleanText(extractFirst(/<title>(.*?)\s+\|\s+Radiology Case\s+\|\s+Radiopaedia\.org<\/title>/i, html)) ||
+    cleanText(caseTitleHint) ||
+    request.diagnosis;
+  const author = cleanText(extractFirst(/<meta\s+name="author"\s+content="([^"]+)"/i, html));
+  const licenseUrl = extractFirst(/<link\s+rel="license"[^>]+href="([^"]+)"/i, html);
+  const licenseName = licenseNameFromUrl(licenseUrl);
+  const description = cleanText(
+    extractFirst(/<meta\s+property="og:description"\s+content="([^"]+)"/i, html),
+  );
+  const ridMatch = extractFirst(/<meta\s+name='dc\.identifier'\s+content='[^']*(rID-\d+)'/i, html);
+  const rid = ridMatch || "rID unavailable";
+  const studyIds = dedupe([...html.matchAll(/\/studies\/(\d+)/g)].map((match) => match[1]));
+  const caseSlug = slugify(caseTitle) || slugify(request.rawInput) || "radiopaedia-case";
+
+  const studies = [];
+  for (const studyId of studyIds.slice(0, 8)) {
+    try {
+      studies.push(await fetchStudy(studyId, caseUrl));
+    } catch (error) {
+      console.warn(`Warning: unable to load study ${studyId} for ${caseTitle}: ${error.message}`);
+    }
+  }
+
+  const orderedStudies = orderStudiesByPreference(studies, request.preferredModalities);
+  const preferredStudies = request.preferredModalities.length
+    ? orderedStudies.filter((study) => request.preferredModalities.includes(study.modality))
+    : orderedStudies;
+  if (request.preferredModalities.length && !preferredStudies.length) {
+    throw new Error(`No ${request.preferredModalities.join("/")} studies were found for "${caseTitle}".`);
+  }
+
+  const imageCandidates = [];
+  for (const study of preferredStudies) {
+    imageCandidates.push(...buildImageCandidates(study));
+  }
+
+  const fallbackOgImage = extractFirst(/<meta\s+property="og:image"\s+content="([^"]+)"/i, html);
+  if (!imageCandidates.length && fallbackOgImage) {
+    imageCandidates.push({
+      url: fallbackOgImage,
+      label: "Key image",
+      studyId: null,
+      seriesId: null,
+      modality: orderedStudies[0]?.modality ?? null,
+    });
+  }
+
+  if (!imageCandidates.length) {
+    throw new Error(`No usable images were found for "${caseTitle}".`);
+  }
+
+  const selectedImages = selectRelevantImages(imageCandidates, Math.max(1, imagesPerCase), {
+    excludeFrameIds: request.excludeFrameIds || [],
+  });
+  const imageDir = path.join(cacheDir, "images", caseSlug);
+  const images = [];
+  const variantTag = [canonicalCropMode(request.cropMode || ""), canonicalMarkupStyle(request.markupStyle || "")]
+    .filter((value) => value && value !== "default" && value !== "none")
+    .join("-");
+
+  for (let index = 0; index < selectedImages.length; index += 1) {
+    const image = selectedImages[index];
+    const parsedUrl = new URL(image.url);
+    const extension = path.extname(parsedUrl.pathname) || ".jpg";
+    const localPath = path.join(
+      imageDir,
+      `${String(index + 1).padStart(2, "0")}-${image.frameId}${variantTag ? `-${variantTag}` : ""}${extension}`,
+    );
+
+    await downloadFile(image.url, localPath);
+    const focusedPath = await applyFocusCrop(localPath, image.focusPoints, {
+      cropMode: request.cropMode,
+      markupStyle: request.markupStyle,
+    });
+    images.push({
+      ...image,
+      localPath: focusedPath,
+    });
+  }
+
+  await maybeScoreSelectedImagesWithOllama(images, request, caseTitle);
+  const quality = evaluateSelectedImages(images, Math.max(1, imagesPerCase), request.difficulty);
+
+  const findings = orderedStudies.map((study) => study.findings).find(Boolean) || "";
+  const revealSummary = truncate(cleanText(findings || description), 440);
+  const effectiveDiagnosis = request.originalInput ? caseTitle : request.diagnosis;
+  const effectiveRawInput = request.originalInput
+    ? collapseWhitespace([caseTitle, request.studyHint].filter(Boolean).join(", "))
+    : request.rawInput;
+  const promptText = buildPromptText(findings || description, effectiveDiagnosis, caseTitle);
+  const modalitySummary = dedupe(orderedStudies.map((study) => study.modality).filter(Boolean)).join(", ") || "Unknown";
+  const caseIntro = buildClinicalHistoryText({
+    request,
+    description,
+    findings,
+    diagnosis: effectiveDiagnosis,
+    caseTitle,
+  });
+  const teachingPoints = buildTeachingPoints({
+    request,
+    description,
+    findings,
+    diagnosis: effectiveDiagnosis,
+    caseTitle,
+    modalitySummary,
+    images,
+  });
+
+  return {
+    casePath: casePath.includes("?") ? casePath : `${casePath}?lang=us`,
+    rawInput: effectiveRawInput,
+    originalInput: request.originalInput || null,
+    requestId: request.requestId || null,
+    diagnosisQuery: effectiveDiagnosis,
+    studyHint: request.studyHint,
+    caseTitle,
+    caseUrl,
+    author,
+    licenseUrl,
+    licenseName,
+    rid,
+    description,
+    promptText,
+    revealSummary: revealSummary || "Diagnosis sourced from the linked Radiopaedia case.",
+    footerText: createFooterText({
+      author,
+      displayUrl,
+      licenseName,
+      rid,
+    }),
+    displayUrl,
+    modalitySummary,
+    studyCount: orderedStudies.length,
+    caseIntro,
+    teachingPoints,
+    quality,
+    images,
+  };
+}
+
+export async function fetchRadiopaediaCase(input, { cacheDir, imagesPerCase = 3 }) {
+  const request = parseCaseRequest(input);
+  const fallbackCandidates = Array.isArray(request.fallbackCandidates) ? request.fallbackCandidates : [];
+  const excludedPaths = new Set((request.excludeCasePaths ?? []).map((value) => collapseWhitespace(value)).filter(Boolean));
+  const candidateQueue = [];
+
+  if (request.selectedCasePath && !excludedPaths.has(request.selectedCasePath)) {
+    candidateQueue.push(request.selectedCasePath);
+  }
+
+  for (const candidate of fallbackCandidates) {
+    if (candidate?.casePath && !excludedPaths.has(candidate.casePath)) {
+      candidateQueue.push(candidate.casePath);
+    }
+  }
+
+  if (!candidateQueue.length || !request.selectedCasePath) {
+    const probe = await inspectRadiopaediaCaseCandidates(request, { limit: 6 });
+    for (const candidate of probe.candidates) {
+      if (!excludedPaths.has(candidate.casePath)) {
+        candidateQueue.push(candidate.casePath);
+      }
+    }
+  }
+
+  const dedupedQueue = dedupe(candidateQueue);
+  if (!dedupedQueue.length) {
+    throw new Error(`No Radiopaedia case results found for "${request.rawInput}".`);
+  }
+
+  let lastError = null;
+  let bestCase = null;
+  for (const candidatePath of dedupedQueue) {
+    const caseTitleHint =
+      candidatePath === request.selectedCasePath
+        ? request.selectedCaseTitle || request.diagnosis
+        : fallbackCandidates.find((candidate) => candidate.casePath === candidatePath)?.title || "";
+
+    try {
+      const caseData = await fetchRadiopaediaCaseByPath(request, candidatePath, {
+        cacheDir,
+        imagesPerCase,
+        caseTitleHint,
+      });
+      if (!bestCase || caseData.quality.overallScore > bestCase.quality.overallScore) {
+        bestCase = caseData;
+      }
+      if (!caseData.quality.shouldReroll) {
+        return caseData;
+      }
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  if (bestCase) {
+    return bestCase;
+  }
+
+  throw lastError || new Error(`No Radiopaedia case results found for "${request.rawInput}".`);
+}
