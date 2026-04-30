@@ -17,9 +17,8 @@ const APP_ROOT = process.env.RADIOLOGY_PPT_APP_ROOT || RESOURCE_ROOT;
 
 function usage() {
   return [
-    "Usage:",
-    '  node src/cli.mjs --diagnosis "multiple sclerosis, mri brain"',
-    "  node src/cli.mjs --input diagnoses.txt [--title \"Resident Review\"] [--out outputs\\deck.pptx]",
+    "This file is an internal GUI backend.",
+    "Supported internal commands:",
     "  node src/cli.mjs --probe-input diagnoses.json",
     "  node src/cli.mjs --prepare-input requests.json [--images-per-case 3]",
     "  node src/cli.mjs --render-input prepared.json [--title \"Resident Review\"] [--out outputs\\deck.pptx] [--theme classic] [--include-teaching-points]",
@@ -28,30 +27,11 @@ function usage() {
 
 function parseArgs(argv) {
   const args = {
-    diagnoses: [],
     imagesPerCase: 3,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
-    if (arg === "--diagnosis") {
-      const value = argv[index + 1];
-      if (!value) {
-        throw new Error("Missing value for --diagnosis");
-      }
-      args.diagnoses.push(value);
-      index += 1;
-      continue;
-    }
-    if (arg === "--input") {
-      const value = argv[index + 1];
-      if (!value) {
-        throw new Error("Missing value for --input");
-      }
-      args.input = value;
-      index += 1;
-      continue;
-    }
     if (arg === "--probe-input") {
       const value = argv[index + 1];
       if (!value) {
@@ -400,41 +380,7 @@ async function main() {
     return;
   }
 
-  let entries = normalizeEntries(args.diagnoses);
-  if (args.input) {
-    const fromFile = normalizeEntries(await loadEntries(path.resolve(args.input)));
-    entries = normalizeEntries(entries.concat(fromFile));
-  }
-
-  if (!entries.length) {
-    throw new Error(`No diagnoses provided.\n\n${usage()}`);
-  }
-
-  const prepared = await prepareCaseItems(entries, args, {
-    readRandomHistory: true,
-    writeRandomHistory: false,
-  });
-  const cases = prepared.items.map((item) => item.caseData);
-
-  if (!cases.length) {
-    throw new Error("No cases could be built from the supplied diagnoses.");
-  }
-
-  const tempPath = path.join(APP_ROOT, "scratch", `prepared-${formatTimestamp()}.json`);
-  await fs.mkdir(path.dirname(tempPath), { recursive: true });
-  await fs.writeFile(tempPath, `${JSON.stringify({ items: prepared.items }, null, 2)}\n`, "utf8");
-  try {
-    await runRender(tempPath, args);
-  } finally {
-    await fs.rm(tempPath, { force: true });
-  }
-
-  if (prepared.failures.length) {
-    console.log("Warnings:");
-    for (const failure of prepared.failures) {
-      console.log(`- ${failure}`);
-    }
-  }
+  throw new Error(`No internal GUI command was provided.\n\n${usage()}`);
 }
 
 main().catch((error) => {

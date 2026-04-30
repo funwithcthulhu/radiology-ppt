@@ -24,7 +24,6 @@ APP_ROOT = Path(sys.executable).resolve().parent if IS_FROZEN else Path(__file__
 RESOURCE_ROOT = Path(getattr(sys, "_MEIPASS", APP_ROOT)).resolve() if IS_FROZEN else APP_ROOT
 PROJECT_ROOT = APP_ROOT
 CLI_SCRIPT = RESOURCE_ROOT / "src" / "cli.mjs"
-GENERATE_SCRIPT = RESOURCE_ROOT / "generate-case-deck.ps1"
 OUTPUTS_DIR = APP_ROOT / "outputs"
 STATE_PATH = APP_ROOT / "gui_state.json"
 LIBRARY_DIR = APP_ROOT / "library"
@@ -599,14 +598,14 @@ class CaseReviewDialog(tk.Toplevel):
         favorite_callback,
         block_callback,
         save_callback,
+        log_callback=None,
     ) -> None:
         super().__init__(parent)
         self.title("Review Prepared Cases")
         self.transient(parent)
         self.grab_set()
         self.configure(bg="#eef4f8")
-        self.geometry("1320x900")
-        self.minsize(1140, 780)
+        self._configure_window(parent)
 
         self.items = list(items)
         self.reroll_callback = reroll_callback
@@ -614,63 +613,82 @@ class CaseReviewDialog(tk.Toplevel):
         self.favorite_callback = favorite_callback
         self.block_callback = block_callback
         self.save_callback = save_callback
+        self.log_callback = log_callback
         self.result: list[dict] | None = None
         self.index = 0
         self.kept_items: list[dict] = []
         self.image_refs: list[ImageTk.PhotoImage] = []
+        self._resize_after_id: str | None = None
+        self._action_thread: threading.Thread | None = None
 
         self.image_count_var = tk.IntVar(value=3)
         self.crop_mode_var = tk.StringVar(value=CROP_MODE_DEFAULT)
         self.markup_style_var = tk.StringVar(value=MARKUP_STYLE_NONE)
+        self.case_title_var = tk.StringVar()
+        self.case_intro_var = tk.StringVar()
+        self.quality_var = tk.StringVar()
+        self.source_var = tk.StringVar()
+        self.ollama_var = tk.StringVar()
 
         root = ttk.Frame(self, padding=18)
         root.pack(fill="both", expand=True)
         root.columnconfigure(0, weight=1)
-        root.rowconfigure(1, weight=1)
+        root.rowconfigure(2, weight=1)
 
         header = ttk.Frame(root)
         header.grid(row=0, column=0, sticky="ew")
-        header.columnconfigure(1, weight=1)
+        header.columnconfigure(0, weight=1)
 
         self.step_var = tk.StringVar()
-        ttk.Label(header, textvariable=self.step_var, font=("Segoe UI Semibold", 18)).grid(row=0, column=0, sticky="w")
+        ttk.Label(header, textvariable=self.step_var, font=("Segoe UI Semibold", 17)).grid(row=0, column=0, sticky="w")
+        ttk.Label(header, textvariable=self.case_title_var, font=("Segoe UI Semibold", 15), wraplength=1080).grid(
+            row=1, column=0, sticky="w", pady=(6, 0)
+        )
         ttk.Label(
             header,
-            text="Review each case, then keep it, reroll it, repick images, favorite it, or skip it before export.",
+            text="Keep, reroll, repick, favorite, or skip each case before export.",
             foreground="#4c6477",
-        ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(4, 0))
+        ).grid(row=2, column=0, sticky="w", pady=(4, 0))
+        ttk.Label(header, textvariable=self.case_intro_var, foreground="#123046", wraplength=1080).grid(
+            row=3, column=0, sticky="w", pady=(6, 0)
+        )
 
-        content = ttk.Frame(root)
-        content.grid(row=1, column=0, sticky="nsew", pady=(12, 0))
-        content.columnconfigure(0, weight=1)
-        content.rowconfigure(3, weight=1)
+        actions = ttk.Frame(root)
+        actions.grid(row=1, column=0, sticky="ew", pady=(12, 0))
 
-        summary = ttk.LabelFrame(content, text="Current Case", padding=14)
-        summary.grid(row=0, column=0, sticky="ew")
-        summary.columnconfigure(1, weight=1)
+        self.keep_button = ttk.Button(actions, text="Keep and Next", command=self._keep_current)
+        self.keep_button.pack(side="left")
+        self.reroll_button = ttk.Button(actions, text="Re-roll Case", command=self._reroll_current)
+        self.reroll_button.pack(side="left", padx=(8, 0))
+        self.repick_button = ttk.Button(actions, text="Re-pick Images", command=self._repick_current)
+        self.repick_button.pack(side="left", padx=(8, 0))
+        self.favorite_button = ttk.Button(actions, text="Favorite", command=self._favorite_current)
+        self.favorite_button.pack(side="left", padx=(8, 0))
+        self.block_button = ttk.Button(actions, text="Never Use Again", command=self._block_current)
+        self.block_button.pack(side="left", padx=(8, 0))
+        self.skip_button = ttk.Button(actions, text="Skip Case", command=self._skip_current)
+        self.skip_button.pack(side="left", padx=(8, 0))
+        self.cancel_button = ttk.Button(actions, text="Cancel Build", command=self._cancel)
+        self.cancel_button.pack(side="right")
+        ttk.Label(
+            actions,
+            text="Enter keeps this case. Delete skips it.",
+            foreground="#4c6477",
+        ).pack(side="right", padx=(0, 12))
 
-        ttk.Label(summary, text="Selected case", foreground="#4c6477").grid(row=0, column=0, sticky="nw", padx=(0, 12))
-        self.case_title_var = tk.StringVar()
-        ttk.Label(summary, textvariable=self.case_title_var, font=("Segoe UI Semibold", 16), wraplength=980).grid(row=0, column=1, sticky="w")
+        self.review_tabs = ttk.Notebook(root)
+        self.review_tabs.grid(row=2, column=0, sticky="nsew", pady=(12, 0))
 
-        ttk.Label(summary, text="Prompt line", foreground="#4c6477").grid(row=1, column=0, sticky="nw", padx=(0, 12), pady=(8, 0))
-        self.case_intro_var = tk.StringVar()
-        ttk.Label(summary, textvariable=self.case_intro_var, wraplength=980, foreground="#123046").grid(row=1, column=1, sticky="w", pady=(8, 0))
+        self.images_tab = ttk.Frame(self.review_tabs, padding=12)
+        self.details_tab = ttk.Frame(self.review_tabs, padding=12)
+        self.review_tabs.add(self.images_tab, text="Images")
+        self.review_tabs.add(self.details_tab, text="Details")
 
-        ttk.Label(summary, text="Quality", foreground="#4c6477").grid(row=2, column=0, sticky="nw", padx=(0, 12), pady=(8, 0))
-        self.quality_var = tk.StringVar()
-        ttk.Label(summary, textvariable=self.quality_var, wraplength=980, foreground="#123046").grid(row=2, column=1, sticky="w", pady=(8, 0))
+        self.images_tab.columnconfigure(0, weight=1)
+        self.images_tab.rowconfigure(1, weight=1)
 
-        ttk.Label(summary, text="Source", foreground="#4c6477").grid(row=3, column=0, sticky="nw", padx=(0, 12), pady=(8, 0))
-        self.source_var = tk.StringVar()
-        ttk.Label(summary, textvariable=self.source_var, wraplength=980, foreground="#123046").grid(row=3, column=1, sticky="w", pady=(8, 0))
-
-        ttk.Label(summary, text="Ollama", foreground="#4c6477").grid(row=4, column=0, sticky="nw", padx=(0, 12), pady=(8, 0))
-        self.ollama_var = tk.StringVar()
-        ttk.Label(summary, textvariable=self.ollama_var, wraplength=980, foreground="#123046").grid(row=4, column=1, sticky="w", pady=(8, 0))
-
-        controls = ttk.LabelFrame(content, text="Review Controls", padding=14)
-        controls.grid(row=1, column=0, sticky="ew", pady=(12, 0))
+        controls = ttk.LabelFrame(self.images_tab, text="Quick Adjustments", padding=12)
+        controls.grid(row=0, column=0, sticky="ew")
         for column in range(6):
             controls.columnconfigure(column, weight=1 if column in {1, 3, 5} else 0)
 
@@ -700,39 +718,82 @@ class CaseReviewDialog(tk.Toplevel):
 
         ttk.Label(
             controls,
-            text="Use these controls to repick the same case with fewer images, tighter crops, or focus-ring overlays.",
+            text="Use these settings when you click Re-pick Images.",
             foreground="#4c6477",
         ).grid(row=1, column=0, columnspan=6, sticky="w", pady=(8, 0))
 
-        image_frame = ttk.LabelFrame(content, text="Images", padding=14)
-        image_frame.grid(row=3, column=0, sticky="nsew", pady=(12, 0))
-        image_frame.columnconfigure(0, weight=1)
-        image_frame.rowconfigure(0, weight=1)
+        self.image_frame = ttk.LabelFrame(self.images_tab, text="Selected Images", padding=12)
+        self.image_frame.grid(row=1, column=0, sticky="nsew", pady=(12, 0))
+        self.image_frame.columnconfigure(0, weight=1)
+        self.image_frame.rowconfigure(0, weight=1)
 
-        self.image_grid = ttk.Frame(image_frame)
+        self.image_grid = ttk.Frame(self.image_frame)
         self.image_grid.grid(row=0, column=0, sticky="nsew")
 
-        buttons = ttk.Frame(root)
-        buttons.grid(row=2, column=0, sticky="ew", pady=(14, 0))
+        self.details_tab.columnconfigure(0, weight=1)
+        details = ttk.LabelFrame(self.details_tab, text="Case Details", padding=14)
+        details.grid(row=0, column=0, sticky="nsew")
+        details.columnconfigure(1, weight=1)
 
-        self.keep_button = ttk.Button(buttons, text="Keep This Case", command=self._keep_current)
-        self.keep_button.pack(side="left")
-        self.reroll_button = ttk.Button(buttons, text="Re-roll Case", command=self._reroll_current)
-        self.reroll_button.pack(side="left", padx=(8, 0))
-        self.repick_button = ttk.Button(buttons, text="Re-pick Images", command=self._repick_current)
-        self.repick_button.pack(side="left", padx=(8, 0))
-        self.favorite_button = ttk.Button(buttons, text="Favorite", command=self._favorite_current)
-        self.favorite_button.pack(side="left", padx=(8, 0))
-        self.block_button = ttk.Button(buttons, text="Never Use Again", command=self._block_current)
-        self.block_button.pack(side="left", padx=(8, 0))
-        self.skip_button = ttk.Button(buttons, text="Skip Case", command=self._skip_current)
-        self.skip_button.pack(side="left", padx=(8, 0))
-        ttk.Button(buttons, text="Cancel Build", command=self._cancel).pack(side="right")
+        ttk.Label(details, text="Quality", foreground="#4c6477").grid(row=0, column=0, sticky="nw", padx=(0, 12))
+        ttk.Label(details, textvariable=self.quality_var, wraplength=940, foreground="#123046").grid(
+            row=0, column=1, sticky="w"
+        )
 
+        ttk.Label(details, text="Source", foreground="#4c6477").grid(row=1, column=0, sticky="nw", padx=(0, 12), pady=(10, 0))
+        ttk.Label(details, textvariable=self.source_var, wraplength=940, foreground="#123046").grid(
+            row=1, column=1, sticky="w", pady=(10, 0)
+        )
+
+        ttk.Label(details, text="Ollama", foreground="#4c6477").grid(row=2, column=0, sticky="nw", padx=(0, 12), pady=(10, 0))
+        ttk.Label(details, textvariable=self.ollama_var, wraplength=940, foreground="#123046").grid(
+            row=2, column=1, sticky="w", pady=(10, 0)
+        )
+
+        self.protocol("WM_DELETE_WINDOW", self._cancel)
         self.bind("<Escape>", lambda _event: self._cancel())
+        self.bind("<Return>", lambda _event: self._keep_current())
+        self.bind("<Delete>", lambda _event: self._skip_current())
+        self.bind("<Configure>", self._queue_resize_refresh)
         self._show_current()
+        self.after_idle(self._refresh_current_images)
+
+    def _configure_window(self, parent: tk.Tk) -> None:
+        screen_w = max(1100, self.winfo_screenwidth())
+        screen_h = max(760, self.winfo_screenheight())
+        width = min(1440, max(1120, screen_w - 80))
+        height = min(960, max(720, screen_h - 140))
+        x = max(0, (screen_w - width) // 2)
+        y = max(0, (screen_h - height) // 2)
+        self.geometry(f"{width}x{height}+{x}+{y}")
+        self.minsize(min(width, 1080), min(height, 700))
+
+        if os.name == "nt" and screen_h <= 1100:
+            try:
+                self.state("zoomed")
+            except Exception:
+                pass
+
+    def _queue_resize_refresh(self, event: tk.Event) -> None:
+        if event.widget is not self or not self.items:
+            return
+        if self._resize_after_id is not None:
+            try:
+                self.after_cancel(self._resize_after_id)
+            except Exception:
+                pass
+        self._resize_after_id = self.after(120, self._refresh_current_images)
+
+    def _refresh_current_images(self) -> None:
+        self._resize_after_id = None
+        if not self.items or self.index >= len(self.items):
+            return
+        self._render_image_cards(self._current_item().get("caseData", {}))
 
     def _cancel(self) -> None:
+        if self._action_thread and self._action_thread.is_alive():
+            messagebox.showinfo(APP_TITLE, "Wait for the current review action to finish.")
+            return
         self.result = None
         self.destroy()
 
@@ -773,6 +834,7 @@ class CaseReviewDialog(tk.Toplevel):
             self.favorite_button,
             self.block_button,
             self.skip_button,
+            self.cancel_button,
         ]:
             widget.configure(state=button_state)
         self.image_count_spin.configure(state="normal" if enabled else "disabled")
@@ -798,60 +860,91 @@ class CaseReviewDialog(tk.Toplevel):
         self._advance()
 
     def _reroll_current(self) -> None:
-        self._store_current_review_options()
-        self._set_action_state(False)
-        self.quality_var.set("Fetching another case...")
-        self.update_idletasks()
-        try:
-            refreshed = self.reroll_callback(self._current_item())
-        except Exception as exc:
-            messagebox.showerror(APP_TITLE, f"Could not reroll this case.\n\n{exc}")
-            refreshed = None
-        if refreshed:
-            self.items[self.index] = refreshed
-        self._set_action_state(True)
-        self._show_current()
+        self._run_case_action_async(
+            "Fetching another case...",
+            "Could not reroll this case.",
+            self.reroll_callback,
+        )
 
     def _repick_current(self) -> None:
-        self._store_current_review_options()
-        self._set_action_state(False)
-        self.quality_var.set("Repicking images from the same case...")
-        self.update_idletasks()
-        try:
-            refreshed = self.repick_callback(self._current_item())
-        except Exception as exc:
-            messagebox.showerror(APP_TITLE, f"Could not repick images for this case.\n\n{exc}")
-            refreshed = None
-        if refreshed:
-            self.items[self.index] = refreshed
-        self._set_action_state(True)
-        self._show_current()
+        self._run_case_action_async(
+            "Repicking images from the same case...",
+            "Could not repick images for this case.",
+            self.repick_callback,
+        )
 
     def _favorite_current(self) -> None:
         self.favorite_callback(self._current_item())
         messagebox.showinfo(APP_TITLE, "This case was added to your favorites.")
 
     def _block_current(self) -> None:
-        self._store_current_review_options()
-        self._set_action_state(False)
-        self.quality_var.set("Blocking this case and finding another one...")
-        self.update_idletasks()
-        try:
-            refreshed = self.block_callback(self._current_item())
-        except Exception as exc:
-            self._set_action_state(True)
-            messagebox.showerror(APP_TITLE, f"Could not block this case.\n\n{exc}")
+        self._run_case_action_async(
+            "Blocking this case and finding another one...",
+            "Could not block this case.",
+            self.block_callback,
+            no_result_message="This case was blocked. There were no replacement cases, so it will be skipped.",
+            skip_on_none=True,
+        )
+
+    def _run_case_action_async(
+        self,
+        status_text: str,
+        error_title: str,
+        action_callback,
+        *,
+        no_result_message: str | None = None,
+        skip_on_none: bool = False,
+    ) -> None:
+        if self._action_thread and self._action_thread.is_alive():
             return
 
-        if refreshed:
-            self.items[self.index] = refreshed
-            self._set_action_state(True)
+        self._store_current_review_options()
+        item = self._current_item()
+        self._set_action_state(False)
+        self.quality_var.set(status_text)
+        self.update_idletasks()
+
+        def runner() -> None:
+            try:
+                refreshed = action_callback(item)
+            except Exception as exc:
+                self.after(0, lambda err=exc: self._finish_case_action(error_title, None, err, no_result_message, skip_on_none))
+                return
+            self.after(0, lambda result=refreshed: self._finish_case_action(error_title, result, None, no_result_message, skip_on_none))
+
+        self._action_thread = threading.Thread(target=runner, daemon=True)
+        self._action_thread.start()
+
+    def _finish_case_action(
+        self,
+        error_title: str,
+        refreshed: dict | None,
+        error: Exception | None,
+        no_result_message: str | None,
+        skip_on_none: bool,
+    ) -> None:
+        self._action_thread = None
+        self._set_action_state(True)
+
+        if error is not None:
+            messagebox.showerror(APP_TITLE, f"{error_title}\n\n{error}")
             self._show_current()
             return
 
-        self._set_action_state(True)
-        messagebox.showinfo(APP_TITLE, "This case was blocked. There were no replacement cases, so it will be skipped.")
-        self._skip_current()
+        if refreshed:
+            for line in refreshed.pop("_logMessages", []):
+                if self.log_callback:
+                    self.log_callback(line)
+            self.items[self.index] = refreshed
+            self._show_current()
+            return
+
+        if no_result_message:
+            messagebox.showinfo(APP_TITLE, no_result_message)
+        if skip_on_none:
+            self._skip_current()
+        else:
+            self._show_current()
 
     def _show_current(self) -> None:
         item = self._current_item()
@@ -878,19 +971,31 @@ class CaseReviewDialog(tk.Toplevel):
         self.image_count_var.set(review_options["requestedImagesPerCase"])
         self.crop_mode_var.set(review_options["cropModeLabel"])
         self.markup_style_var.set(review_options["markupStyleLabel"])
+        self.review_tabs.select(self.images_tab)
+        self._render_image_cards(case_data)
 
+    def _render_image_cards(self, case_data: dict) -> None:
         for child in self.image_grid.winfo_children():
             child.destroy()
         self.image_refs = []
 
-        for column, image_data in enumerate(case_data.get("images", [])):
+        images = case_data.get("images", [])
+        if not images:
+            ttk.Label(self.image_grid, text="No preview images were prepared for this case.", foreground="#4c6477").grid(
+                row=0, column=0, sticky="w"
+            )
+            return
+
+        thumb_width, thumb_height = self._thumbnail_dimensions(len(images))
+
+        for column, image_data in enumerate(images):
             card = ttk.Frame(self.image_grid)
             card.grid(row=0, column=column, sticky="nsew", padx=(0 if column == 0 else 12, 0))
             self.image_grid.columnconfigure(column, weight=1)
 
             image_label = ttk.Label(card)
             image_label.pack(fill="both", expand=True)
-            preview = self._thumbnail_for(image_data.get("localPath", ""))
+            preview = self._thumbnail_for(image_data.get("localPath", ""), thumb_width, thumb_height)
             if preview:
                 image_label.configure(image=preview)
                 self.image_refs.append(preview)
@@ -900,9 +1005,20 @@ class CaseReviewDialog(tk.Toplevel):
             notes = [image_data.get("label", "Image")]
             if image_data.get("ollamaScore") is not None:
                 notes.append(f"Ollama: {image_data['ollamaScore']}/10")
-            ttk.Label(card, text=" | ".join(notes), wraplength=320, foreground="#123046").pack(anchor="w", pady=(8, 0))
+            ttk.Label(card, text=" | ".join(notes), wraplength=thumb_width, foreground="#123046").pack(anchor="w", pady=(8, 0))
 
-    def _thumbnail_for(self, image_path: str) -> ImageTk.PhotoImage | None:
+    def _thumbnail_dimensions(self, image_count: int) -> tuple[int, int]:
+        self.update_idletasks()
+        frame_width = self.image_frame.winfo_width() or self.winfo_width() or 1200
+        frame_height = self.image_frame.winfo_height() or self.winfo_height() or 720
+        horizontal_gap = 12 * max(0, image_count - 1)
+        usable_width = max(220, frame_width - 48 - horizontal_gap)
+        usable_height = max(220, frame_height - 84)
+        max_width = max(220, min(420, usable_width // max(1, image_count)))
+        max_height = max(220, min(420, usable_height))
+        return max_width, max_height
+
+    def _thumbnail_for(self, image_path: str, max_width: int, max_height: int) -> ImageTk.PhotoImage | None:
         if not image_path:
             return None
 
@@ -912,7 +1028,7 @@ class CaseReviewDialog(tk.Toplevel):
 
         try:
             with Image.open(path) as image:
-                preview = ImageOps.contain(image.convert("RGB"), (360, 360))
+                preview = ImageOps.contain(image.convert("RGB"), (max_width, max_height))
                 return ImageTk.PhotoImage(preview)
         except Exception:
             return None
@@ -1417,7 +1533,7 @@ class DeckBuilderApp(tk.Tk):
         self.configure(bg="#eef4f8")
         self._configure_initial_window()
 
-        self.log_queue: Queue[tuple[str, str | int]] = Queue()
+        self.log_queue: Queue[tuple[str, object]] = Queue()
         self.worker: threading.Thread | None = None
         self.current_process: subprocess.Popen[str] | None = None
         self.request_rows: list[RequestRow] = []
@@ -2675,13 +2791,8 @@ class DeckBuilderApp(tk.Tk):
                 except Exception:
                     pass
 
-    def _resolve_entries_for_generation(self, requested_entries: list[dict]) -> list[dict] | None:
+    def _resolve_entries_from_probe_result(self, requested_entries: list[dict], probe_result: dict) -> list[dict] | None:
         source_request_map = {entry.get("requestId"): entry for entry in requested_entries if entry.get("requestId")}
-        self.status_var.set("Checking matches...")
-        self.append_log("Checking Radiopaedia matches...")
-        self.update_idletasks()
-
-        probe_result = self._probe_entries(requested_entries)
         probed_entries = probe_result.get("entries", [])
 
         missing = [entry for entry in probed_entries if not entry.get("candidates")]
@@ -2745,6 +2856,75 @@ class DeckBuilderApp(tk.Tk):
 
         return resolved_entries
 
+    def _start_probe_generation(self, requested_entries: list[dict], images_per_case: int) -> None:
+        self.status_var.set("Checking matches...")
+        self.append_log("Checking Radiopaedia matches...")
+        self.worker = threading.Thread(
+            target=self._run_probe_stage,
+            args=(requested_entries, images_per_case),
+            daemon=True,
+        )
+        self.worker.start()
+
+    def _run_probe_stage(self, requested_entries: list[dict], images_per_case: int) -> None:
+        try:
+            probe_result = self._probe_entries(requested_entries)
+            self.log_queue.put(
+                (
+                    "probe_ready",
+                    {
+                        "requested_entries": requested_entries,
+                        "images_per_case": images_per_case,
+                        "probe_result": probe_result,
+                    },
+                )
+            )
+        except Exception as exc:
+            self.log_queue.put(("stage_error", {"stage": "probe", "message": str(exc)}))
+
+    def _handle_probe_ready(self, payload: dict) -> None:
+        requested_entries = list(payload.get("requested_entries") or [])
+        images_per_case = max(1, safe_int(payload.get("images_per_case"), 3))
+        probe_result = dict(payload.get("probe_result") or {})
+
+        try:
+            resolved_entries = self._resolve_entries_from_probe_result(requested_entries, probe_result)
+        except Exception as exc:
+            self.set_busy(False)
+            self.status_var.set("Build failed")
+            self.append_log(str(exc))
+            messagebox.showerror(APP_TITLE, f"Could not check case matches.\n\n{exc}")
+            return
+
+        if not resolved_entries:
+            self.set_busy(False)
+            self.status_var.set("Ready")
+            return
+
+        self.status_var.set("Preparing case previews...")
+        self.append_log("Preparing preview images...")
+        self.worker = threading.Thread(
+            target=self._run_prepare_stage,
+            args=(resolved_entries, images_per_case),
+            daemon=True,
+        )
+        self.worker.start()
+
+    def _run_prepare_stage(self, resolved_entries: list[dict], images_per_case: int) -> None:
+        try:
+            prepared = self._prepare_entries(resolved_entries, images_per_case)
+            self.log_queue.put(
+                (
+                    "prepare_ready",
+                    {
+                        "images_per_case": images_per_case,
+                        "prepared": prepared,
+                    },
+                )
+            )
+        except Exception as exc:
+            self.log_queue.put(("stage_error", {"stage": "prepare", "message": str(exc)}))
+
     def _request_with_review_options(self, item: dict, *, force_same_case: bool = False, exclude_case_paths: list[str] | None = None, exclude_frame_ids: list[str] | None = None) -> dict:
         request = dict(item.get("request") or {})
         source_request = dict(request.get("sourceRequest") or request)
@@ -2795,9 +2975,7 @@ class DeckBuilderApp(tk.Tk):
 
         refreshed = items[0]
         refreshed["rejectedCasePaths"] = source_request["excludeCasePaths"]
-        if prepared.get("failures"):
-            for failure in prepared["failures"]:
-                self.append_log(failure)
+        refreshed["_logMessages"] = list(prepared.get("failures") or [])
         return refreshed
 
     def _repick_prepared_images(self, item: dict, images_per_case: int) -> dict:
@@ -2826,75 +3004,14 @@ class DeckBuilderApp(tk.Tk):
         refreshed = items[0]
         refreshed["reviewOptions"] = dict(item.get("reviewOptions") or {})
         refreshed["rejectedFrameIds"] = source_request.get("excludeFrameIds", [])
-        if prepared.get("failures"):
-            for failure in prepared["failures"]:
-                self.append_log(failure)
+        refreshed["_logMessages"] = list(prepared.get("failures") or [])
         return refreshed
 
     def _block_and_reroll_prepared_case(self, item: dict, images_per_case: int) -> dict | None:
         self.block_prepared_case(item)
         return self._reroll_prepared_case(item, images_per_case)
 
-    def start_generation(self) -> None:
-        if self.worker and self.worker.is_alive():
-            messagebox.showinfo(APP_TITLE, "A deck is already being generated.")
-            return
-
-        try:
-            requested_entries = self.request_entries()
-        except ValueError as exc:
-            messagebox.showwarning(APP_TITLE, str(exc))
-            return
-
-        if not requested_entries:
-            messagebox.showwarning(APP_TITLE, "Add at least one case request before generating.")
-            return
-
-        if not CLI_SCRIPT.exists():
-            messagebox.showerror(
-                APP_TITLE,
-                f"The app could not find its bundled generator files.\n\nLooked for:\n{CLI_SCRIPT}",
-            )
-            return
-
-        self._save_state()
-        self.set_busy(True)
-        self.append_log("")
-        self.append_log("Starting generation...")
-
-        try:
-            resolved_entries = self._resolve_entries_for_generation(requested_entries)
-        except Exception as exc:
-            self.set_busy(False)
-            self.status_var.set("Build failed")
-            self.append_log(str(exc))
-            messagebox.showerror(APP_TITLE, f"Could not check case matches.\n\n{exc}")
-            return
-
-        if not resolved_entries:
-            self.set_busy(False)
-            self.status_var.set("Ready")
-            return
-
-        try:
-            images_per_case = max(1, int(self.images_var.get()))
-        except Exception:
-            messagebox.showerror(APP_TITLE, "Images per case must be a whole number.")
-            self.set_busy(False)
-            return
-
-        self.status_var.set("Preparing case previews...")
-        self.append_log("Preparing preview images...")
-
-        try:
-            prepared = self._prepare_entries(resolved_entries, images_per_case)
-        except Exception as exc:
-            self.set_busy(False)
-            self.status_var.set("Build failed")
-            self.append_log(str(exc))
-            messagebox.showerror(APP_TITLE, f"Could not prepare case previews.\n\n{exc}")
-            return
-
+    def _begin_review_and_render(self, prepared: dict, images_per_case: int) -> None:
         prepared_items = prepared.get("items", [])
         if prepared.get("failures"):
             for failure in prepared["failures"]:
@@ -2915,6 +3032,7 @@ class DeckBuilderApp(tk.Tk):
             self.favorite_prepared_case,
             lambda item: self._block_and_reroll_prepared_case(item, images_per_case),
             self.save_prepared_case,
+            self.append_log,
         )
         self.wait_window(review_dialog)
 
@@ -2963,6 +3081,41 @@ class DeckBuilderApp(tk.Tk):
         self.worker = threading.Thread(target=self._run_generation, args=(command, temp_input_path), daemon=True)
         self.worker.start()
 
+    def start_generation(self) -> None:
+        if self.worker and self.worker.is_alive():
+            messagebox.showinfo(APP_TITLE, "A deck is already being generated.")
+            return
+
+        try:
+            requested_entries = self.request_entries()
+        except ValueError as exc:
+            messagebox.showwarning(APP_TITLE, str(exc))
+            return
+
+        if not requested_entries:
+            messagebox.showwarning(APP_TITLE, "Add at least one case request before generating.")
+            return
+
+        if not CLI_SCRIPT.exists():
+            messagebox.showerror(
+                APP_TITLE,
+                f"The app could not find its bundled generator files.\n\nLooked for:\n{CLI_SCRIPT}",
+            )
+            return
+
+        self._save_state()
+        self.set_busy(True)
+        self.append_log("")
+        self.append_log("Starting generation...")
+
+        try:
+            images_per_case = max(1, int(self.images_var.get()))
+        except Exception:
+            messagebox.showerror(APP_TITLE, "Images per case must be a whole number.")
+            self.set_busy(False)
+            return
+        self._start_probe_generation(requested_entries, images_per_case)
+
     def _run_generation(self, command: list[str], temp_input_path: str | None = None) -> None:
         try:
             self.current_process = subprocess.Popen(
@@ -3007,6 +3160,25 @@ class DeckBuilderApp(tk.Tk):
                 kind, payload = self.log_queue.get_nowait()
                 if kind == "log":
                     self.append_log(str(payload))
+                elif kind == "probe_ready":
+                    self._handle_probe_ready(dict(payload))
+                elif kind == "prepare_ready":
+                    prepared_payload = dict(payload)
+                    self._begin_review_and_render(
+                        dict(prepared_payload.get("prepared") or {}),
+                        max(1, safe_int(prepared_payload.get("images_per_case"), 3)),
+                    )
+                elif kind == "stage_error":
+                    stage_payload = dict(payload)
+                    stage = str(stage_payload.get("stage") or "prepare")
+                    message = str(stage_payload.get("message") or "Unknown error.")
+                    self.set_busy(False)
+                    self.status_var.set("Build failed")
+                    self.append_log(message)
+                    if stage == "probe":
+                        messagebox.showerror(APP_TITLE, f"Could not check case matches.\n\n{message}")
+                    else:
+                        messagebox.showerror(APP_TITLE, f"Could not prepare case previews.\n\n{message}")
                 elif kind == "error":
                     self.set_busy(False)
                     self.status_var.set("Build failed")

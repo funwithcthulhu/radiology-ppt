@@ -87,7 +87,6 @@ Invoke-Python -Runtime $pythonRuntime -Args @(
   "--add-data", "$projectRoot\node_modules;node_modules",
   "--add-data", "$projectRoot\package.json;.",
   "--add-data", "$projectRoot\README.md;.",
-  "--add-data", "$projectRoot\generate-case-deck.ps1;.",
   "--add-data", "$projectRoot\create-desktop-shortcut.ps1;.",
   (Join-Path $projectRoot "gui_app.py")
 )
