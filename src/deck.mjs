@@ -248,6 +248,94 @@ function truncateText(value, maxLength) {
   return `${text.slice(0, Math.max(0, maxLength - 1)).trimEnd()}.`;
 }
 
+function normalizeText(value) {
+  return String(value ?? "").replace(/\s+/g, " ").trim();
+}
+
+function patientAgeIntro(age) {
+  const text = normalizeText(age).replace(/[.;:,]+$/g, "");
+  if (!text) {
+    return "";
+  }
+  const numericOnly = /^(\d+(?:\.\d+)?)$/.exec(text);
+  if (numericOnly) {
+    return `${numericOnly[1]}-year-old`;
+  }
+
+  const unitMatch = /^(\d+(?:\.\d+)?)\s*(years?|yrs?|y|months?|mos?|m|weeks?|wks?|w|days?|d)(?:\s*old)?$/i.exec(text);
+  if (unitMatch) {
+    const unitMap = {
+      y: "year",
+      yr: "year",
+      yrs: "year",
+      year: "year",
+      years: "year",
+      m: "month",
+      mo: "month",
+      mos: "month",
+      month: "month",
+      months: "month",
+      w: "week",
+      wk: "week",
+      wks: "week",
+      week: "week",
+      weeks: "week",
+      d: "day",
+      day: "day",
+      days: "day",
+    };
+    return `${unitMatch[1]}-${unitMap[unitMatch[2].toLowerCase()] || unitMatch[2].toLowerCase()}-old`;
+  }
+
+  if (/^(adult|pediatric|paediatric|neonatal|infant|child|adolescent|elderly)$/i.test(text)) {
+    return text.toLowerCase().replace("paediatric", "pediatric");
+  }
+  return "";
+}
+
+function patientGenderIntro(gender) {
+  const text = normalizeText(gender).replace(/[.;:,]+$/g, "").toLowerCase();
+  if (/^m(?:ale)?$/.test(text)) {
+    return "male";
+  }
+  if (/^f(?:emale)?$/.test(text)) {
+    return "female";
+  }
+  return "";
+}
+
+function articleForPhrase(phrase) {
+  return /^(?:8|11|18|adult|elderly|infant|adolescent|[aeiou])/i.test(phrase) ? "an" : "a";
+}
+
+function demographicIntro(caseData) {
+  const patientData = caseData.patientData || {};
+  const age = patientAgeIntro(patientData.age);
+  const gender = patientGenderIntro(patientData.gender);
+  if (age && gender) {
+    return `The patient is ${articleForPhrase(age)} ${age} ${gender}.`;
+  }
+  if (age) {
+    return `The patient is ${articleForPhrase(age)} ${age} patient.`;
+  }
+  if (gender) {
+    return `The patient is ${gender}.`;
+  }
+  return "";
+}
+
+function safeCaseIntro(caseData) {
+  const fromPatientData = demographicIntro(caseData);
+  if (fromPatientData) {
+    return fromPatientData;
+  }
+
+  const existing = normalizeText(caseData.caseIntro);
+  const allowedPattern =
+    /^The patient is (?:(?:a|an) (?:(?:\d+(?:\.\d+)?-(?:year|month|week|day)-old|adult|pediatric|neonatal|infant|child|adolescent|elderly)(?: (?:male|female|patient))?|(?:male|female))|(?:male|female))\.$/i;
+  return allowedPattern.test(existing) ? existing : "";
+}
+
 function addSpeakerNotes(slide, caseData, caseNumber) {
   slide.speakerNotes.setText(
     [
@@ -294,6 +382,7 @@ function imageLayouts(count) {
 function addCaseSlide(slide, caseData, caseNumber, deckTitle, theme) {
   slide.background.fill = theme.colors.caseBg;
   addTopBar(slide, deckTitle, theme, { dark: theme === THEMES["conference-dark"] });
+  const caseIntro = safeCaseIntro(caseData);
 
   addText(
     slide,
@@ -309,10 +398,10 @@ function addCaseSlide(slide, caseData, caseNumber, deckTitle, theme) {
     },
   );
 
-  if (caseData.caseIntro) {
+  if (caseIntro) {
     addText(
       slide,
-      caseData.caseIntro,
+      caseIntro,
       { left: 88, top: 326, width: 780, height: 48 },
       theme,
       {
@@ -325,13 +414,14 @@ function addCaseSlide(slide, caseData, caseNumber, deckTitle, theme) {
   }
 
   addShape(slide, "rect", { left: 84, top: 406, width: 420, height: 4 }, theme.colors.accent, TRANSPARENT, 0);
-  addFooter(slide, `Case ${caseNumber}${caseData.caseIntro ? ` • ${caseData.caseIntro}` : ""}`, theme);
+  addFooter(slide, `Case ${caseNumber}${caseIntro ? ` • ${caseIntro}` : ""}`, theme);
   addSpeakerNotes(slide, caseData, caseNumber);
 }
 
 async function addImagesSlide(slide, caseData, caseNumber, deckTitle, theme) {
   slide.background.fill = theme.colors.imageBg;
   addTopBar(slide, deckTitle, theme, { dark: true });
+  const caseIntro = safeCaseIntro(caseData);
 
   addText(
     slide,
@@ -347,10 +437,10 @@ async function addImagesSlide(slide, caseData, caseNumber, deckTitle, theme) {
     },
   );
 
-  if (caseData.caseIntro) {
+  if (caseIntro) {
     addText(
       slide,
-      truncateText(caseData.caseIntro, 92),
+      truncateText(caseIntro, 92),
       { left: 630, top: 57, width: 604, height: 14 },
       theme,
       {
