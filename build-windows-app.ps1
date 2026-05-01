@@ -47,20 +47,9 @@ function Invoke-NativeCommand {
     [string]$Label
   )
 
-  $processStartInfo = [System.Diagnostics.ProcessStartInfo]::new()
-  $processStartInfo.FileName = $Command
-  $processStartInfo.WorkingDirectory = $projectRoot
-  $processStartInfo.UseShellExecute = $false
-
-  foreach ($arg in $Args) {
-    [void]$processStartInfo.ArgumentList.Add($arg)
-  }
-
-  $process = [System.Diagnostics.Process]::Start($processStartInfo)
-  $process.WaitForExit()
-
-  if ($process.ExitCode -ne 0) {
-    throw "$Label failed with exit code $($process.ExitCode): $Command $($Args -join ' ')"
+  & $Command @Args
+  if ($LASTEXITCODE -ne 0) {
+    throw "$Label failed with exit code ${LASTEXITCODE}: $Command $($Args -join ' ')"
   }
 }
 
