@@ -56,6 +56,7 @@ CROP_MODE_OPTIONS = [CROP_MODE_DEFAULT, CROP_MODE_TIGHTER, CROP_MODE_WIDER]
 MARKUP_STYLE_NONE = "None"
 MARKUP_STYLE_RING = "Focus Ring"
 MARKUP_STYLE_OPTIONS = [MARKUP_STYLE_NONE, MARKUP_STYLE_RING]
+OLLAMA_AUTO_MODEL = "Auto-detect vision model"
 THEME_CLASSIC = "Radiopaedia Classic"
 THEME_CLEAN = "Clean Light"
 THEME_DARK = "Conference Dark"
@@ -295,6 +296,34 @@ def hidden_subprocess_kwargs() -> dict[str, object]:
         "creationflags": CREATE_NO_WINDOW,
         "startupinfo": startupinfo,
     }
+
+
+def list_ollama_models() -> list[str]:
+    try:
+        completed = subprocess.run(
+            ["ollama", "list"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=8,
+            **hidden_subprocess_kwargs(),
+        )
+    except Exception:
+        return []
+
+    if completed.returncode != 0:
+        return []
+
+    models = []
+    for line in completed.stdout.splitlines():
+        clean = collapse_text(line)
+        if not clean:
+            continue
+        name = clean.split()[0]
+        if name and name.lower() != "name" and name not in models:
+            models.append(name)
+    return models
 
 
 def collapse_text(value: object) -> str:
@@ -1798,12 +1827,15 @@ class DeckBuilderApp(tk.Tk):
         self.auto_open_var = tk.BooleanVar(value=True)
         self.clinical_history_var = tk.BooleanVar(value=True)
         self.ollama_assist_var = tk.BooleanVar(value=False)
+        self.ollama_model_var = tk.StringVar(value=OLLAMA_AUTO_MODEL)
+        self.ollama_models_loading = False
         self.theme_var = tk.StringVar(value=THEME_CLASSIC)
         self.crop_mode_var = tk.StringVar(value=CROP_MODE_DEFAULT)
         self.markup_style_var = tk.StringVar(value=MARKUP_STYLE_NONE)
         self.teaching_points_var = tk.BooleanVar(value=False)
         self.library_state = default_library_state()
         self.deck_advanced_visible = False
+        self.form_busy = False
         self.deck_advanced_button_var = tk.StringVar(value="Show Advanced Options")
 
         self._configure_style()
@@ -2262,10 +2294,29 @@ class DeckBuilderApp(tk.Tk):
             self.deck_advanced_frame,
             text="Use Ollama image review when a vision model is installed (slower)",
             variable=self.ollama_assist_var,
+            command=self._sync_ollama_model_controls,
             style="Card.TCheckbutton",
         )
         ollama_assist.grid(row=3, column=0, columnspan=4, sticky="w", pady=(4, 0))
         self._track_widget(ollama_assist)
+
+        self.ollama_model_label = ttk.Label(self.deck_advanced_frame, text="Ollama vision model", style="CardSub.TLabel")
+        self.ollama_model_label.grid(row=4, column=0, sticky="w", pady=(8, 0))
+        self.ollama_model_combo = ttk.Combobox(
+            self.deck_advanced_frame,
+            values=[OLLAMA_AUTO_MODEL],
+            textvariable=self.ollama_model_var,
+            state="disabled",
+        )
+        self.ollama_model_combo.grid(row=4, column=1, columnspan=2, sticky="ew", padx=(0, 12), pady=(8, 0))
+        self.ollama_refresh_button = ttk.Button(
+            self.deck_advanced_frame,
+            text="Refresh Models",
+            command=self.refresh_ollama_models,
+            style="Secondary.TButton",
+        )
+        self.ollama_refresh_button.grid(row=4, column=3, sticky="ew", pady=(8, 0))
+        self._track_widget(self.ollama_refresh_button)
 
         action_panel = ttk.Frame(self.build_tab, style="Card.TFrame", padding=14)
         action_panel.grid(row=1, column=1, sticky="nsew")
@@ -2354,6 +2405,8 @@ class DeckBuilderApp(tk.Tk):
         ttk.Label(status_row, textvariable=self.last_output_var, style="PageSub.TLabel").pack(side="right")
 
         self._set_deck_advanced_visible(False)
+        self._sync_ollama_model_controls()
+        self.after(250, self.refresh_ollama_models)
         self._show_nav_tab("cases")
 
     def _set_deck_advanced_visible(self, visible: bool) -> None:
@@ -2366,6 +2419,49 @@ class DeckBuilderApp(tk.Tk):
 
     def _toggle_deck_advanced(self) -> None:
         self._set_deck_advanced_visible(not self.deck_advanced_visible)
+
+    def selected_ollama_model(self) -> str:
+        model = collapse_text(self.ollama_model_var.get())
+        return "" if not model or model == OLLAMA_AUTO_MODEL else model
+
+    def _sync_ollama_model_controls(self) -> None:
+        if not hasattr(self, "ollama_model_combo"):
+            return
+        enabled = bool(self.ollama_assist_var.get()) and not self.form_busy
+        self.ollama_model_combo.configure(state="normal" if enabled else "disabled")
+        self.ollama_refresh_button.configure(state="normal" if not self.form_busy else "disabled")
+
+    def _set_ollama_model_values(self, models: list[str]) -> None:
+        current = collapse_text(self.ollama_model_var.get()) or OLLAMA_AUTO_MODEL
+        values = [OLLAMA_AUTO_MODEL]
+        for model in models:
+            clean = collapse_text(model)
+            if clean and clean not in values:
+                values.append(clean)
+        if current and current not in values:
+            values.append(current)
+        self.ollama_model_combo.configure(values=values)
+        if not collapse_text(self.ollama_model_var.get()):
+            self.ollama_model_var.set(OLLAMA_AUTO_MODEL)
+        self.ollama_models_loading = False
+        self.ollama_refresh_button.configure(text="Refresh Models")
+        self._sync_ollama_model_controls()
+
+    def refresh_ollama_models(self) -> None:
+        if self.ollama_models_loading:
+            return
+        self.ollama_models_loading = True
+        if hasattr(self, "ollama_refresh_button"):
+            self.ollama_refresh_button.configure(text="Checking...", state="disabled")
+
+        def worker() -> None:
+            models = list_ollama_models()
+            try:
+                self.after(0, lambda: self._set_ollama_model_values(models))
+            except tk.TclError:
+                pass
+
+        threading.Thread(target=worker, daemon=True).start()
 
     def _set_log_visible(self, visible: bool) -> None:
         if visible:
@@ -2677,10 +2773,12 @@ class DeckBuilderApp(tk.Tk):
         self.auto_open_var.set(bool(state.get("auto_open", True)))
         self.clinical_history_var.set(bool(state.get("clinical_history", True)))
         self.ollama_assist_var.set(bool(state.get("ollama_assist", False)))
+        self.ollama_model_var.set(collapse_text(state.get("ollama_model", "")) or OLLAMA_AUTO_MODEL)
         self.theme_var.set(theme_label_from_cli(state.get("theme", "classic")))
         self.crop_mode_var.set(crop_label_from_cli(state.get("crop_mode", "default")))
         self.markup_style_var.set(markup_label_from_cli(state.get("markup_style", "none")))
         self.teaching_points_var.set(bool(state.get("teaching_points", False)))
+        self._sync_ollama_model_controls()
 
         request_rows = state.get("requests", [])
         if isinstance(request_rows, list) and request_rows:
@@ -2705,6 +2803,7 @@ class DeckBuilderApp(tk.Tk):
             "auto_open": self.auto_open_var.get(),
             "clinical_history": self.clinical_history_var.get(),
             "ollama_assist": self.ollama_assist_var.get(),
+            "ollama_model": self.selected_ollama_model(),
             "theme": theme_cli_value(self.theme_var.get()),
             "crop_mode": crop_cli_value(self.crop_mode_var.get()),
             "markup_style": markup_cli_value(self.markup_style_var.get()),
@@ -2974,11 +3073,14 @@ class DeckBuilderApp(tk.Tk):
         entries = []
         blocked_paths = self._blocked_case_paths()
         requested_images = max(1, safe_int(self.images_var.get(), 3))
+        ollama_model = self.selected_ollama_model()
         for index, row in enumerate(self.request_rows, start=1):
             payload = row.to_request_payload(index)
             payload["requestId"] = f"request-{index}"
             payload["includeClinicalHistory"] = self.clinical_history_var.get()
             payload["useOllamaAssist"] = self.ollama_assist_var.get()
+            if self.ollama_assist_var.get() and ollama_model:
+                payload["ollamaModel"] = ollama_model
             payload["cropMode"] = crop_cli_value(self.crop_mode_var.get())
             payload["markupStyle"] = markup_cli_value(self.markup_style_var.get())
             payload["requestedImagesPerCase"] = requested_images
@@ -2988,10 +3090,12 @@ class DeckBuilderApp(tk.Tk):
         return entries
 
     def set_busy(self, busy: bool) -> None:
+        self.form_busy = busy
         state = "disabled" if busy else "normal"
         for widget, normal_state in self.form_widgets:
             widget.configure(state=state if busy else normal_state)
 
+        self._sync_ollama_model_controls()
         self.generate_button.configure(state="disabled" if busy else "normal")
         self.cancel_run_button.configure(state="normal" if busy else "disabled")
         for row in self.request_rows:
@@ -3106,6 +3210,9 @@ class DeckBuilderApp(tk.Tk):
                 command.append("--use-clinical-history")
             if self.ollama_assist_var.get():
                 command.append("--use-ollama-assist")
+                ollama_model = self.selected_ollama_model()
+                if ollama_model:
+                    command.extend(["--ollama-model", ollama_model])
 
             completed = self._run_cli_capture(command)
             if completed.returncode != 0:
@@ -3270,6 +3377,11 @@ class DeckBuilderApp(tk.Tk):
         source_request["markupStyle"] = collapse_text(review_options.get("markupStyle") or source_request.get("markupStyle") or markup_cli_value(self.markup_style_var.get())) or "none"
         source_request["includeClinicalHistory"] = self.clinical_history_var.get()
         source_request["useOllamaAssist"] = self.ollama_assist_var.get()
+        ollama_model = self.selected_ollama_model()
+        if source_request["useOllamaAssist"] and ollama_model:
+            source_request["ollamaModel"] = ollama_model
+        else:
+            source_request.pop("ollamaModel", None)
 
         blocked_paths = set(self._blocked_case_paths())
         if exclude_case_paths:

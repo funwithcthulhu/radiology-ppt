@@ -1440,6 +1440,7 @@ export async function expandCaseRequests(
           requestId: request.requestId,
           includeClinicalHistory: request.includeClinicalHistory,
           useOllamaAssist: request.useOllamaAssist,
+          ollamaModel: request.ollamaModel,
         }),
       );
     }
@@ -1851,7 +1852,7 @@ async function maybeScoreSelectedImagesWithOllama(images, request, caseTitle) {
     return images;
   }
 
-  const visionModel = await discoverOllamaVisionModel();
+  const visionModel = collapseWhitespace(request.ollamaModel || "") || (await discoverOllamaVisionModel());
   if (!visionModel) {
     return images;
   }

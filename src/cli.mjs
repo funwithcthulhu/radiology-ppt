@@ -20,7 +20,7 @@ function usage() {
     "This file is an internal GUI backend.",
     "Supported internal commands:",
     "  node src/cli.mjs --probe-input diagnoses.json",
-    "  node src/cli.mjs --prepare-input requests.json [--images-per-case 3]",
+    "  node src/cli.mjs --prepare-input requests.json [--images-per-case 3] [--use-ollama-assist] [--ollama-model llama3.2-vision]",
     "  node src/cli.mjs --render-input prepared.json [--title \"Resident Review\"] [--out outputs\\deck.pptx] [--theme classic] [--include-teaching-points]",
   ].join("\n");
 }
@@ -92,6 +92,15 @@ function parseArgs(argv) {
     }
     if (arg === "--use-ollama-assist") {
       args.useOllamaAssist = true;
+      continue;
+    }
+    if (arg === "--ollama-model") {
+      const value = argv[index + 1];
+      if (!value) {
+        throw new Error("Missing value for --ollama-model");
+      }
+      args.ollamaModel = value;
+      index += 1;
       continue;
     }
     if (arg === "--theme") {
@@ -256,11 +265,12 @@ function normalizePreparedItems(payload) {
 
 async function prepareCaseItems(rawEntries, args, { readRandomHistory = true, writeRandomHistory = false } = {}) {
   let entries = normalizeEntries(rawEntries).map((entry) =>
-    parseCaseRequest({
-      ...entry,
-      includeClinicalHistory: Boolean(args.useClinicalHistory),
-      useOllamaAssist: Boolean(args.useOllamaAssist),
-    }),
+      parseCaseRequest({
+        ...entry,
+        includeClinicalHistory: Boolean(args.useClinicalHistory),
+        useOllamaAssist: Boolean(args.useOllamaAssist || entry.useOllamaAssist),
+        ollamaModel: collapseWhitespace(args.ollamaModel || entry.ollamaModel || ""),
+      }),
   );
   entries = await expandCaseRequests(entries, {
     readRandomHistory,
