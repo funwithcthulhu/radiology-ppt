@@ -1394,44 +1394,16 @@ class RequestRow:
         self.random_frame = ttk.Frame(self.content, style="Card.TFrame")
         self.random_frame.grid(row=2, column=0, sticky="ew", pady=(8, 0))
         self.random_frame.columnconfigure(1, weight=1)
-        self.random_frame.columnconfigure(3, weight=1)
 
-        ttk.Label(self.random_frame, text="Random Mode", style="CardSub.TLabel").grid(row=0, column=0, sticky="w")
-        self.random_mode_frame = tk.Frame(self.random_frame, bg="#ffffff", bd=0, highlightthickness=0)
-        self.random_mode_frame.grid(row=0, column=1, sticky="w", padx=(8, 16))
-        self.random_mode_buttons: list[tk.Radiobutton] = []
-        for column, option in enumerate(RANDOM_STYLE_OPTIONS):
-            button = tk.Radiobutton(
-                self.random_mode_frame,
-                text=option,
-                value=option,
-                variable=self.random_style_var,
-                command=self._apply_state,
-                indicatoron=False,
-                bd=1,
-                relief="solid",
-                padx=12,
-                pady=4,
-                bg="#ffffff",
-                fg="#123046",
-                activebackground="#edf8f7",
-                activeforeground="#123046",
-                selectcolor="#d9f0ed",
-                disabledforeground="#8ca5b7",
-                font=("Segoe UI Semibold", 9),
-            )
-            button.grid(row=0, column=column, sticky="w", padx=(0 if column == 0 else 4, 0))
-            self.random_mode_buttons.append(button)
-
-        ttk.Label(self.random_frame, text="Radiopaedia System", style="CardSub.TLabel").grid(row=0, column=2, sticky="w")
+        ttk.Label(self.random_frame, text="Radiology Area", style="CardSub.TLabel").grid(row=0, column=0, sticky="w")
         self.subspecialty_combo = ttk.Combobox(
             self.random_frame,
             values=SUBSPECIALTY_OPTIONS,
             textvariable=self.subspecialty_var,
             state="readonly",
-            width=18,
+            width=24,
         )
-        self.subspecialty_combo.grid(row=0, column=3, sticky="ew", padx=(8, 0))
+        self.subspecialty_combo.grid(row=0, column=1, sticky="ew", padx=(8, 0))
 
         footer = ttk.Frame(self.content, style="Card.TFrame")
         footer.grid(row=3, column=0, sticky="ew", pady=(6, 0))
@@ -1565,8 +1537,8 @@ class RequestRow:
             update_summary()
 
     def _set_random_mode_state(self, state: str) -> None:
-        for button in self.random_mode_buttons:
-            button.configure(state=state)
+        # Random modes are no longer exposed in the GUI; this keeps older state calls harmless.
+        return
 
     def clear_filters(self) -> None:
         self.modality_var.set("Any")
@@ -1606,10 +1578,9 @@ class RequestRow:
         if state["mode"] == REQUEST_MODE_RANDOM:
             count = max(1, min(20, safe_int(state["count"], 1)))
             case_word = "case" if count == 1 else "cases"
-            mode_part = f"{state['random_style']} mode"
-            pieces = [f"Random {count} {case_word}", mode_part, *filters]
-            if state["random_style"] == RANDOM_STYLE_SUBSPECIALTY and state["subspecialty"] == "Any":
-                pieces.append("choose a system")
+            pieces = [f"Random {count} {case_word}", *filters]
+            if not filters:
+                pieces.append("all areas")
             self.selection_preview_var.set("Selection: " + " • ".join(pieces))
             return
 
@@ -1627,7 +1598,7 @@ class RequestRow:
             "mode": self.mode_var.get(),
             "diagnosis": collapse_text(self.diagnosis_var.get()),
             "count": max(1, safe_int(self.count_var.get(), 1)),
-            "random_style": normalize_random_style(self.random_style_var.get()),
+            "random_style": RANDOM_STYLE_ANY,
             "subspecialty": self.subspecialty_var.get() if self.subspecialty_var.get() in SUBSPECIALTY_OPTIONS else "Any",
             "modality": self.modality_var.get() if self.modality_var.get() in MODALITY_OPTIONS else "Any",
             "secondary_modality": self.secondary_modality_var.get() if self.secondary_modality_var.get() in MODALITY_OPTIONS else "Any",
@@ -1693,7 +1664,6 @@ class RequestRow:
             return payload
 
         count = max(1, min(20, safe_int(state["count"], 1)))
-        random_style = state["random_style"]
         filter_config = SUBSPECIALTY_FILTERS.get(state["subspecialty"], SUBSPECIALTY_FILTERS["Any"])
         parts = ["Random"]
         if count > 1:
@@ -1712,7 +1682,7 @@ class RequestRow:
             payload["randomSystems"] = list(filter_config["systems"])
         if filter_config["systems"] and filter_config.get("mode") == "any":
             payload["randomSystemMode"] = "any"
-        if random_style == RANDOM_STYLE_MIXED:
+        if count > 1 and state["subspecialty"] == "Any":
             payload["randomDiversity"] = "mixed"
         if state["modality"] != "Any":
             payload["modality"] = MODALITY_HINTS[state["modality"]]
@@ -1763,7 +1733,7 @@ class RequestRow:
 
         if mode == REQUEST_MODE_RANDOM:
             self.primary_input_label_var.set("Random Selection")
-            self.random_summary_var.set("No diagnosis text needed; use Count, Mode, and filters to shape the random pull.")
+            self.random_summary_var.set("No diagnosis text needed; choose a count and optional filters.")
             self.diagnosis_entry.grid_remove()
             self.random_summary_label.grid()
             self.random_frame.grid()
@@ -2930,7 +2900,7 @@ class DeckBuilderApp(tk.Tk):
                 "mode": item.get("mode", REQUEST_MODE_SPECIFIC) if item.get("mode") in REQUEST_MODE_OPTIONS else REQUEST_MODE_SPECIFIC,
                 "diagnosis": collapse_text(item.get("diagnosis", "")),
                 "count": max(1, safe_int(item.get("count", 1), 1)),
-                "random_style": normalize_random_style(item.get("random_style", RANDOM_STYLE_ANY)),
+                "random_style": RANDOM_STYLE_ANY,
                 "subspecialty": item.get("subspecialty", "Any") if item.get("subspecialty") in SUBSPECIALTY_OPTIONS else "Any",
                 "modality": item.get("modality", "Any") if item.get("modality") in MODALITY_OPTIONS else "Any",
                 "secondary_modality": item.get("secondary_modality", "Any") if item.get("secondary_modality") in MODALITY_OPTIONS else "Any",
@@ -2951,7 +2921,6 @@ class DeckBuilderApp(tk.Tk):
         return (
             not diagnosis
             and max(1, safe_int(state.get("count", 1), 1)) == 1
-            and state.get("random_style", RANDOM_STYLE_ANY) == RANDOM_STYLE_ANY
             and state.get("subspecialty", "Any") == "Any"
             and state.get("modality", "Any") == "Any"
             and state.get("secondary_modality", "Any") == "Any"
@@ -3040,7 +3009,7 @@ class DeckBuilderApp(tk.Tk):
             "mode": REQUEST_MODE_RANDOM,
             "diagnosis": "",
             "count": count,
-            "random_style": RANDOM_STYLE_SUBSPECIALTY if subspecialty != "Any" else RANDOM_STYLE_ANY,
+            "random_style": RANDOM_STYLE_ANY,
             "subspecialty": subspecialty,
             "modality": modality,
             "secondary_modality": "Any",
@@ -3093,11 +3062,7 @@ class DeckBuilderApp(tk.Tk):
                 "mode": REQUEST_MODE_RANDOM,
                 "diagnosis": "",
                 "count": max(1, min(20, safe_int(item.get("randomCount", 1), 1))),
-                "random_style": RANDOM_STYLE_MIXED
-                if normalized(item.get("randomDiversity", "")) == "mixed"
-                else RANDOM_STYLE_SUBSPECIALTY
-                if subspecialty != "Any"
-                else RANDOM_STYLE_ANY,
+                "random_style": RANDOM_STYLE_ANY,
                 "subspecialty": subspecialty,
                 "modality": modality,
                 "secondary_modality": first_match(str(item.get("secondaryModality", "")), MODALITY_PATTERNS),

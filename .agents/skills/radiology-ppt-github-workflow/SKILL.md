@@ -80,8 +80,8 @@ Known draft PR from the UI modernization work:
 Recent validated changes include:
 
 - Dark left navigation rail and cleaner desktop UI.
-- Simplified random modes: `Any`, `Subspecialty`, `Mixed`.
-- `Radiopaedia System` as a real random filter.
+- Single `Random Case` workflow with optional count, modality, anatomy, and radiology-area filters.
+- Multi-case random pulls diversify automatically when no specific radiology area is pinned.
 - Live selection summary and clear filters control.
 - Cancel current build.
 - Ollama review off by default.
