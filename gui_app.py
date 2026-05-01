@@ -492,7 +492,7 @@ class MatchReviewDialog(tk.Toplevel):
         ).pack(anchor="w")
         ttk.Label(
             root,
-            text="These requests were ambiguous. Pick the case you want for each one before the deck is built.",
+            text="These requests were ambiguous. Pick the case you want for each one before the PowerPoint is created.",
             foreground="#4c6477",
         ).pack(anchor="w", pady=(2, 12))
 
@@ -1796,7 +1796,7 @@ class DeckBuilderApp(tk.Tk):
         self.images_var = tk.IntVar(value=3)
         self.output_var = tk.StringVar()
         self.last_output_path = ""
-        self.last_output_var = tk.StringVar(value="No deck generated yet")
+        self.last_output_var = tk.StringVar(value="No PowerPoint created yet")
         self.status_var = tk.StringVar(value="Ready")
         self.auto_open_var = tk.BooleanVar(value=True)
         self.clinical_history_var = tk.BooleanVar(value=True)
@@ -1807,9 +1807,7 @@ class DeckBuilderApp(tk.Tk):
         self.teaching_points_var = tk.BooleanVar(value=False)
         self.library_state = default_library_state()
         self.deck_advanced_visible = False
-        self.log_visible = False
         self.deck_advanced_button_var = tk.StringVar(value="Show Advanced Options")
-        self.log_toggle_var = tk.StringVar(value="Open Activity")
 
         self._configure_style()
         self._build_ui()
@@ -2024,10 +2022,6 @@ class DeckBuilderApp(tk.Tk):
             self.main_notebook.select(tab)
             self._set_sidebar_active(key)
 
-    def _open_settings_view(self) -> None:
-        self._show_nav_tab("build")
-        self._set_deck_advanced_visible(True)
-
     def _build_ui(self) -> None:
         root = tk.Frame(self, bg="#f6f8fb", bd=0, highlightthickness=0)
         root.pack(fill="both", expand=True)
@@ -2065,12 +2059,9 @@ class DeckBuilderApp(tk.Tk):
         self._add_sidebar_button(sidebar, "cases", "Cases", lambda: self._show_nav_tab("cases"))
         self._add_sidebar_button(sidebar, "build", "Build", lambda: self._show_nav_tab("build"))
         self._add_sidebar_button(sidebar, "activity", "Activity", lambda: self._show_nav_tab("activity"))
-        self._add_sidebar_button(sidebar, "library", "Library", self.load_saved_library_cases)
 
         sidebar_footer = tk.Frame(sidebar, bg="#0b1f35", bd=0, highlightthickness=0)
         sidebar_footer.pack(side="bottom", fill="x", padx=18, pady=(12, 18))
-        self._add_sidebar_button(sidebar_footer, "settings", "Settings", self._open_settings_view)
-        tk.Frame(sidebar_footer, bg="#1d3b5d", height=1, bd=0, highlightthickness=0).pack(fill="x", pady=(8, 12))
         status_line = tk.Frame(sidebar_footer, bg="#0b1f35", bd=0, highlightthickness=0)
         status_line.pack(fill="x")
         tk.Label(status_line, text="●", bg="#0b1f35", fg="#35d07f", font=("Segoe UI", 11)).pack(side="left")
@@ -2084,54 +2075,10 @@ class DeckBuilderApp(tk.Tk):
         content = ttk.Frame(shell, padding=(28, 24, 28, 16), style="App.TFrame")
         content.pack(side="left", fill="both", expand=True)
         content.columnconfigure(0, weight=1)
-        content.rowconfigure(2, weight=1)
-
-        topbar = ttk.Frame(content, style="App.TFrame")
-        topbar.grid(row=0, column=0, sticky="ew")
-        topbar.columnconfigure(0, weight=1)
-        ttk.Label(topbar, text=APP_TITLE, style="PageTitle.TLabel").grid(row=0, column=0, sticky="w")
-        ttk.Label(
-            topbar,
-            text="Build case-based radiology decks from diagnoses, random categories, or exact Radiopaedia case URLs.",
-            style="PageSub.TLabel",
-        ).grid(row=1, column=0, sticky="w", pady=(2, 0))
-        open_activity_button = ttk.Button(topbar, text="Open Activity", command=lambda: self._show_nav_tab("activity"), style="Secondary.TButton")
-        open_activity_button.grid(row=0, column=1, rowspan=2, sticky="e")
-        self._track_widget(open_activity_button)
-
-        stepper = tk.Frame(content, bg="#f6f8fb", bd=0, highlightthickness=0)
-        stepper.grid(row=1, column=0, sticky="ew", pady=(28, 18))
-        for column in range(5):
-            stepper.columnconfigure(column, weight=1 if column in {1, 3} else 0)
-        for column, (number, label, active) in enumerate(
-            [("1", "Request Setup", True), ("2", "Filters", False), ("3", "Output", False)]
-        ):
-            circle_bg = "#2f6fdb" if active else "#e3eaf3"
-            circle_fg = "#ffffff" if active else "#123046"
-            circle = tk.Label(
-                stepper,
-                text=number,
-                bg=circle_bg,
-                fg=circle_fg,
-                width=3,
-                height=1,
-                font=("Segoe UI Semibold", 11),
-            )
-            circle.grid(row=0, column=column * 2, sticky="w")
-            tk.Label(
-                stepper,
-                text=label,
-                bg="#f6f8fb",
-                fg="#123046" if active else "#5a7182",
-                font=("Segoe UI Semibold", 10),
-            ).grid(row=0, column=column * 2, sticky="w", padx=(42, 12))
-            if column < 2:
-                tk.Frame(stepper, bg="#d8e3ec", height=1, bd=0, highlightthickness=0).grid(
-                    row=0, column=column * 2 + 1, sticky="ew", padx=(8, 18)
-                )
+        content.rowconfigure(0, weight=1)
 
         notebook = ttk.Notebook(content, style="Hidden.TNotebook")
-        notebook.grid(row=2, column=0, sticky="nsew")
+        notebook.grid(row=0, column=0, sticky="nsew")
         self.main_notebook = notebook
 
         self.cases_tab = ttk.Frame(notebook, padding=0, style="App.TFrame")
@@ -2147,7 +2094,7 @@ class DeckBuilderApp(tk.Tk):
 
         request_tools = ttk.Frame(self.cases_tab, style="App.TFrame")
         request_tools.grid(row=0, column=0, sticky="ew", pady=(0, 10))
-        request_tools.columnconfigure(4, weight=1)
+        request_tools.columnconfigure(3, weight=1)
 
         ttk.Label(
             request_tools,
@@ -2178,22 +2125,13 @@ class DeckBuilderApp(tk.Tk):
         self.load_button.grid(row=0, column=2, sticky="w", padx=(8, 0))
         self._track_widget(self.load_button)
 
-        self.library_button = ttk.Menubutton(request_tools, text="Library", style="Secondary.TMenubutton")
-        self.library_button.grid(row=0, column=3, sticky="w", padx=(8, 0))
-        self.library_menu = tk.Menu(self.library_button, tearoff=0)
-        self.library_menu.add_command(label="Load Favorite Cases", command=self.load_favorite_cases)
-        self.library_menu.add_command(label="Load Saved Library Cases", command=self.load_saved_library_cases)
-        self.library_button["menu"] = self.library_menu
-        self._track_widget(self.library_button)
-        self._track_widget(self.library_button)
-
         ttk.Label(
             request_tools,
-            text="Define cases first, then review the summary before building.",
+            text="Add cases, then continue to PowerPoint settings.",
             style="PageSub.TLabel",
             anchor="e",
             justify="right",
-        ).grid(row=0, column=4, sticky="e", padx=(16, 0))
+        ).grid(row=0, column=3, sticky="e", padx=(16, 0))
 
         request_canvas_frame = ttk.Frame(self.cases_tab, style="Card.TFrame", padding=8)
         request_canvas_frame.grid(row=1, column=0, sticky="nsew")
@@ -2229,10 +2167,10 @@ class DeckBuilderApp(tk.Tk):
         self.summary_request_var = tk.StringVar(value="No requests yet")
         self.summary_filter_var = tk.StringVar(value="No filters")
         self.summary_output_var = tk.StringVar(value="Not configured")
-        ttk.Label(summary_panel, text="Build Summary", font=("Segoe UI Semibold", 15), foreground="#123046").grid(
+        ttk.Label(summary_panel, text="Summary", font=("Segoe UI Semibold", 15), foreground="#123046").grid(
             row=0, column=0, sticky="w"
         )
-        ttk.Label(summary_panel, text="Review your selections before building.", style="CardSub.TLabel").grid(
+        ttk.Label(summary_panel, text="Review your selections before creating the PowerPoint.", style="CardSub.TLabel").grid(
             row=1, column=0, sticky="w", pady=(2, 14)
         )
         for row_index, (title, variable) in enumerate(
@@ -2254,7 +2192,7 @@ class DeckBuilderApp(tk.Tk):
             )
         self.summary_build_button = ttk.Button(
             summary_panel,
-            text="Build PowerPoint Deck",
+            text="PowerPoint Settings",
             command=lambda: self._show_nav_tab("build"),
             style="Primary.TButton",
         )
@@ -2274,7 +2212,7 @@ class DeckBuilderApp(tk.Tk):
         ).pack(anchor="w")
         ttk.Label(
             build_intro,
-            text="Keep this tab lean: title the deck, choose output options, and generate after your case review.",
+            text="Choose output options and create the PowerPoint after your case review.",
             style="PageSub.TLabel",
         ).pack(anchor="w", pady=(4, 0))
 
@@ -2283,7 +2221,7 @@ class DeckBuilderApp(tk.Tk):
         build_form.columnconfigure(1, weight=1)
         build_form.columnconfigure(3, weight=1)
 
-        ttk.Label(build_form, text="Deck title", style="CardSub.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(build_form, text="PowerPoint title", style="CardSub.TLabel").grid(row=0, column=0, sticky="w")
         title_entry = ttk.Entry(build_form, textvariable=self.title_var)
         title_entry.grid(row=0, column=1, columnspan=3, sticky="ew", pady=(4, 10))
         self._track_widget(title_entry)
@@ -2306,7 +2244,12 @@ class DeckBuilderApp(tk.Tk):
 
         options_row = ttk.Frame(build_form, style="Card.TFrame")
         options_row.grid(row=2, column=0, columnspan=4, sticky="ew", pady=(0, 0))
-        auto_open = ttk.Checkbutton(options_row, text="Open the generated deck when finished", variable=self.auto_open_var, style="Card.TCheckbutton")
+        auto_open = ttk.Checkbutton(
+            options_row,
+            text="Open the generated PowerPoint when finished",
+            variable=self.auto_open_var,
+            style="Card.TCheckbutton",
+        )
         auto_open.pack(side="left")
         self._track_widget(auto_open)
 
@@ -2372,13 +2315,13 @@ class DeckBuilderApp(tk.Tk):
 
         ttk.Label(
             action_panel,
-            text="Ready To Build",
+            text="Create PowerPoint",
             font=("Segoe UI Semibold", 14),
             foreground="#123046",
         ).grid(row=0, column=0, sticky="w")
         ttk.Label(
             action_panel,
-            text="Generate only after you are happy with the case requests on the Cases tab.",
+            text="Use this after the case list looks right.",
             style="CardSub.TLabel",
             wraplength=360,
             justify="left",
@@ -2396,7 +2339,7 @@ class DeckBuilderApp(tk.Tk):
         self.cancel_run_button.grid(row=3, column=0, sticky="ew", pady=(10, 0))
         self.cancel_run_button.configure(state="disabled")
 
-        open_last_button = ttk.Button(action_panel, text="Open Last Deck", command=self.open_last_output, style="Secondary.TButton")
+        open_last_button = ttk.Button(action_panel, text="Open Last PowerPoint", command=self.open_last_output, style="Secondary.TButton")
         open_last_button.grid(row=4, column=0, sticky="ew", pady=(10, 0))
         self._track_widget(open_last_button)
 
@@ -2404,7 +2347,6 @@ class DeckBuilderApp(tk.Tk):
         self.more_button.grid(row=5, column=0, sticky="ew", pady=(10, 0))
         self.more_menu = tk.Menu(self.more_button, tearoff=0)
         self.more_menu.add_command(label="Open Outputs Folder", command=self.open_outputs_folder)
-        self.more_menu.add_command(label="Open Library Folder", command=self.open_library_folder)
         self.more_menu.add_separator()
         self.more_menu.add_command(label="Clear Form", command=self.clear_form)
         self.more_button["menu"] = self.more_menu
@@ -2447,18 +2389,10 @@ class DeckBuilderApp(tk.Tk):
         self.log_text.configure(yscrollcommand=log_scroll.set)
 
         status_row = ttk.Frame(content, style="App.TFrame")
-        status_row.grid(row=3, column=0, sticky="ew", pady=(14, 0))
+        status_row.grid(row=1, column=0, sticky="ew", pady=(14, 0))
         self.progress = ttk.Progressbar(status_row, mode="indeterminate", length=180)
         self.progress.pack(side="left")
         ttk.Label(status_row, textvariable=self.status_var, style="Status.TLabel").pack(side="left", padx=(12, 0))
-        self.log_toggle_button = ttk.Button(
-            status_row,
-            textvariable=self.log_toggle_var,
-            command=self._toggle_log_visibility,
-            style="Ghost.TButton",
-        )
-        self.log_toggle_button.pack(side="left", padx=(16, 0))
-        self._track_widget(self.log_toggle_button)
         ttk.Label(status_row, textvariable=self.last_output_var, style="PageSub.TLabel").pack(side="right")
 
         for tracked_var in (
@@ -2474,7 +2408,6 @@ class DeckBuilderApp(tk.Tk):
             tracked_var.trace_add("write", lambda *_args: self._update_build_summary())
 
         self._set_deck_advanced_visible(False)
-        self._set_log_visible(False)
         self._show_nav_tab("cases")
 
     def _set_deck_advanced_visible(self, visible: bool) -> None:
@@ -2489,13 +2422,8 @@ class DeckBuilderApp(tk.Tk):
         self._set_deck_advanced_visible(not self.deck_advanced_visible)
 
     def _set_log_visible(self, visible: bool) -> None:
-        self.log_visible = bool(visible)
-        self.log_toggle_var.set("Open Activity")
-        if self.log_visible:
+        if visible:
             self._show_nav_tab("activity")
-
-    def _toggle_log_visibility(self) -> None:
-        self._set_log_visible(True)
 
     def _update_build_summary(self) -> None:
         if not hasattr(self, "summary_request_var"):
@@ -3100,8 +3028,8 @@ class DeckBuilderApp(tk.Tk):
 
     def _last_output_label(self, path_value: str) -> str:
         if not path_value:
-            return "No deck generated yet"
-        return f"Last deck: {Path(path_value).name}"
+            return "No PowerPoint created yet"
+        return f"Last PowerPoint: {Path(path_value).name}"
 
     def append_log(self, line: str) -> None:
         self.log_text.configure(state="normal")
@@ -3664,7 +3592,7 @@ class DeckBuilderApp(tk.Tk):
 
     def start_generation(self) -> None:
         if self.worker and self.worker.is_alive():
-            messagebox.showinfo(APP_TITLE, "A deck is already being generated.")
+            messagebox.showinfo(APP_TITLE, "A PowerPoint is already being generated.")
             return
 
         try:
@@ -3829,11 +3757,11 @@ class DeckBuilderApp(tk.Tk):
     def open_last_output(self) -> None:
         path = self.last_output_path
         if not path:
-            messagebox.showinfo(APP_TITLE, "No generated deck is recorded yet.")
+            messagebox.showinfo(APP_TITLE, "No generated PowerPoint is recorded yet.")
             return
         output_path = Path(path)
         if not output_path.exists():
-            messagebox.showwarning(APP_TITLE, f"The last deck could not be found:\n{output_path}")
+            messagebox.showwarning(APP_TITLE, f"The last PowerPoint could not be found:\n{output_path}")
             return
         os.startfile(str(output_path))
 
