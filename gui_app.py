@@ -663,7 +663,7 @@ class CaseReviewDialog(tk.Toplevel):
         )
         ttk.Label(
             header,
-            text="Keep, reroll, repick, favorite, or skip each case before export.",
+            text="Keep, reroll, repick, favorite, or skip each case before creating the PowerPoint.",
             foreground="#4c6477",
         ).grid(row=2, column=0, sticky="w", pady=(4, 0))
         ttk.Label(header, textvariable=self.case_intro_var, foreground="#123046", wraplength=1080).grid(
@@ -685,7 +685,7 @@ class CaseReviewDialog(tk.Toplevel):
         self.block_button.pack(side="left", padx=(8, 0))
         self.skip_button = ttk.Button(actions, text="Skip Case", command=self._skip_current)
         self.skip_button.pack(side="left", padx=(8, 0))
-        self.cancel_button = ttk.Button(actions, text="Cancel Build", command=self._cancel)
+        self.cancel_button = ttk.Button(actions, text="Cancel Generation", command=self._cancel)
         self.cancel_button.pack(side="right")
         ttk.Label(
             actions,
@@ -934,7 +934,7 @@ class CaseReviewDialog(tk.Toplevel):
         ]:
             widget.configure(state=button_state)
         self.cancel_button.configure(
-            text="Cancel Build" if enabled else "Cancel Action",
+            text="Cancel Generation" if enabled else "Cancel Action",
             state="normal" if enabled or not self._action_cancel_requested else "disabled",
         )
         self.image_count_spin.configure(state="normal" if enabled else "disabled")
@@ -1009,7 +1009,7 @@ class CaseReviewDialog(tk.Toplevel):
         self.image_count_var.set(len(kept_images))
         self._store_current_review_options()
         self._show_current()
-        self.quality_var.set(f"Removed {len(removed_images)} image(s). This case will export with {len(kept_images)} image(s).")
+        self.quality_var.set(f"Removed {len(removed_images)} image(s). This case will use {len(kept_images)} image(s).")
 
     def _replace_unchecked_images(self) -> None:
         if self._review_action_running():
@@ -2057,7 +2057,7 @@ class DeckBuilderApp(tk.Tk):
         tk.Frame(sidebar, bg="#1d3b5d", height=1, bd=0, highlightthickness=0).pack(fill="x", pady=(0, 18))
         self.nav_buttons: dict[str, tk.Button] = {}
         self._add_sidebar_button(sidebar, "cases", "Cases", lambda: self._show_nav_tab("cases"))
-        self._add_sidebar_button(sidebar, "build", "Build", lambda: self._show_nav_tab("build"))
+        self._add_sidebar_button(sidebar, "build", "PowerPoint", lambda: self._show_nav_tab("build"))
         self._add_sidebar_button(sidebar, "activity", "Activity", lambda: self._show_nav_tab("activity"))
 
         sidebar_footer = tk.Frame(sidebar, bg="#0b1f35", bd=0, highlightthickness=0)
@@ -2206,7 +2206,7 @@ class DeckBuilderApp(tk.Tk):
         build_intro.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 10))
         ttk.Label(
             build_intro,
-            text="Build Settings",
+            text="PowerPoint Settings",
             font=("Segoe UI Semibold", 16),
             foreground="#123046",
         ).pack(anchor="w")
@@ -2335,7 +2335,7 @@ class DeckBuilderApp(tk.Tk):
         )
         self.generate_button.grid(row=2, column=0, sticky="ew")
 
-        self.cancel_run_button = ttk.Button(action_panel, text="Cancel Current Build", command=self.cancel_generation, style="Secondary.TButton")
+        self.cancel_run_button = ttk.Button(action_panel, text="Cancel Generation", command=self.cancel_generation, style="Secondary.TButton")
         self.cancel_run_button.grid(row=3, column=0, sticky="ew", pady=(10, 0))
         self.cancel_run_button.configure(state="disabled")
 
@@ -3106,7 +3106,7 @@ class DeckBuilderApp(tk.Tk):
                 self.status_var.set("Working...")
         else:
             self.progress.stop()
-            if self.status_var.get() in {"Working...", "Building PowerPoint...", "Checking matches..."}:
+            if self.status_var.get() in {"Working...", "Creating PowerPoint...", "Checking matches..."}:
                 self.status_var.set("Ready")
 
     def cancel_generation(self) -> None:
@@ -3133,7 +3133,7 @@ class DeckBuilderApp(tk.Tk):
     def _clear_operation_cancel(self) -> None:
         self.cancel_requested = False
         if self.status_var.get() == "Cancelling...":
-            self.status_var.set("Review cases before export")
+            self.status_var.set("Review cases before creating PowerPoint")
 
     def _run_cli_capture(self, command: list[str]) -> subprocess.CompletedProcess[str]:
         if self.cancel_requested:
@@ -3258,7 +3258,7 @@ class DeckBuilderApp(tk.Tk):
 
         ambiguous = [entry for entry in probed_entries if entry.get("needsReview")]
         if ambiguous:
-            self.append_log("Some requests need review before building.")
+            self.append_log("Some requests need review before creating the PowerPoint.")
             dialog = MatchReviewDialog(self, ambiguous)
             self.wait_window(dialog)
             if dialog.result is None:
@@ -3326,7 +3326,7 @@ class DeckBuilderApp(tk.Tk):
             resolved_entries = self._resolve_entries_from_probe_result(requested_entries, probe_result)
         except Exception as exc:
             self.set_busy(False)
-            self.status_var.set("Build failed")
+            self.status_var.set("Failed")
             self.append_log(str(exc))
             messagebox.showerror(APP_TITLE, f"Could not check case matches.\n\n{exc}")
             return
@@ -3519,12 +3519,12 @@ class DeckBuilderApp(tk.Tk):
                 self.append_log(failure)
         if not prepared_items:
             self.set_busy(False)
-            self.status_var.set("Build failed")
+            self.status_var.set("Failed")
             messagebox.showerror(APP_TITLE, "No cases could be prepared for preview.")
             return
 
         self.set_busy(False)
-        self.status_var.set("Review cases before export")
+        self.status_var.set("Review cases before creating PowerPoint")
         review_dialog = CaseReviewDialog(
             self,
             prepared_items,
@@ -3553,11 +3553,11 @@ class DeckBuilderApp(tk.Tk):
         approved_items = review_dialog.result
         if not approved_items:
             self.status_var.set("Ready")
-            messagebox.showinfo(APP_TITLE, "No cases were kept for export.")
+            messagebox.showinfo(APP_TITLE, "No cases were kept.")
             return
 
         self.set_busy(True)
-        self.status_var.set("Building PowerPoint...")
+        self.status_var.set("Creating PowerPoint...")
 
         with tempfile.NamedTemporaryFile(
             mode="w",
@@ -3695,7 +3695,7 @@ class DeckBuilderApp(tk.Tk):
                         self.append_log("Generation cancelled.")
                         continue
                     self.set_busy(False)
-                    self.status_var.set("Build failed")
+                    self.status_var.set("Failed")
                     self.append_log(message)
                     if stage == "probe":
                         messagebox.showerror(APP_TITLE, f"Could not check case matches.\n\n{message}")
@@ -3703,7 +3703,7 @@ class DeckBuilderApp(tk.Tk):
                         messagebox.showerror(APP_TITLE, f"Could not prepare case previews.\n\n{message}")
                 elif kind == "error":
                     self.set_busy(False)
-                    self.status_var.set("Build failed")
+                    self.status_var.set("Failed")
                     self._set_log_visible(True)
                     self.append_log(str(payload))
                     messagebox.showerror(APP_TITLE, str(payload))
@@ -3731,7 +3731,7 @@ class DeckBuilderApp(tk.Tk):
         pptx_path = Path(pptx_match.group(1).strip()) if pptx_match else None
 
         if return_code == 0 and pptx_path and pptx_path.exists():
-            self.status_var.set("Build complete")
+            self.status_var.set("PowerPoint created")
             self.last_output_path = str(pptx_path)
             self.last_output_var.set(self._last_output_label(self.last_output_path))
             self._save_state()
@@ -3739,7 +3739,7 @@ class DeckBuilderApp(tk.Tk):
             if self.auto_open_var.get():
                 os.startfile(str(pptx_path))
         else:
-            self.status_var.set("Build failed")
+            self.status_var.set("Failed")
             self._set_log_visible(True)
             messagebox.showerror(APP_TITLE, "Generation finished with an error.\n\nSee the activity log for details.")
 
