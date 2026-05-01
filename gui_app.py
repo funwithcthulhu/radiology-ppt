@@ -608,6 +608,8 @@ class CaseReviewDialog(tk.Toplevel):
         block_callback,
         save_callback,
         log_callback=None,
+        cancel_action_callback=None,
+        cancel_action_complete_callback=None,
     ) -> None:
         super().__init__(parent)
         self.title("Review Prepared Cases")
@@ -623,12 +625,15 @@ class CaseReviewDialog(tk.Toplevel):
         self.block_callback = block_callback
         self.save_callback = save_callback
         self.log_callback = log_callback
+        self.cancel_action_callback = cancel_action_callback
+        self.cancel_action_complete_callback = cancel_action_complete_callback
         self.result: list[dict] | None = None
         self.index = 0
         self.kept_items: list[dict] = []
         self.image_refs: list[ImageTk.PhotoImage] = []
         self._resize_after_id: str | None = None
         self._action_thread: threading.Thread | None = None
+        self._action_cancel_requested = False
 
         self.image_count_var = tk.IntVar(value=3)
         self.crop_mode_var = tk.StringVar(value=CROP_MODE_DEFAULT)
@@ -801,13 +806,20 @@ class CaseReviewDialog(tk.Toplevel):
 
     def _cancel(self) -> None:
         if self._action_thread and self._action_thread.is_alive():
-            messagebox.showinfo(APP_TITLE, "Wait for the current review action to finish.")
+            self._action_cancel_requested = True
+            self.quality_var.set("Cancelling current review action...")
+            self.cancel_button.configure(text="Cancelling...", state="disabled")
+            if self.cancel_action_callback:
+                self.cancel_action_callback()
             return
         self.result = None
         self.destroy()
 
     def _current_item(self) -> dict:
         return self.items[self.index]
+
+    def _review_action_running(self) -> bool:
+        return bool(self._action_thread and self._action_thread.is_alive())
 
     def _review_options_for(self, item: dict) -> dict:
         review_options = dict(item.get("reviewOptions") or {})
@@ -843,14 +855,19 @@ class CaseReviewDialog(tk.Toplevel):
             self.favorite_button,
             self.block_button,
             self.skip_button,
-            self.cancel_button,
         ]:
             widget.configure(state=button_state)
+        self.cancel_button.configure(
+            text="Cancel Build" if enabled else "Cancel Action",
+            state="normal" if enabled or not self._action_cancel_requested else "disabled",
+        )
         self.image_count_spin.configure(state="normal" if enabled else "disabled")
         self.crop_combo.configure(state="readonly" if enabled else "disabled")
         self.markup_combo.configure(state="readonly" if enabled else "disabled")
 
     def _advance(self) -> None:
+        if self._review_action_running():
+            return
         self.index += 1
         if self.index >= len(self.items):
             self.result = self.kept_items
@@ -859,6 +876,8 @@ class CaseReviewDialog(tk.Toplevel):
         self._show_current()
 
     def _keep_current(self) -> None:
+        if self._review_action_running():
+            return
         self._store_current_review_options()
         kept_item = self._current_item()
         self.save_callback(kept_item)
@@ -869,6 +888,8 @@ class CaseReviewDialog(tk.Toplevel):
         self._advance()
 
     def _reroll_current(self) -> None:
+        if self._review_action_running():
+            return
         self._run_case_action_async(
             "Fetching another case...",
             "Could not reroll this case.",
@@ -876,6 +897,8 @@ class CaseReviewDialog(tk.Toplevel):
         )
 
     def _repick_current(self) -> None:
+        if self._review_action_running():
+            return
         self._run_case_action_async(
             "Repicking images from the same case...",
             "Could not repick images for this case.",
@@ -883,10 +906,14 @@ class CaseReviewDialog(tk.Toplevel):
         )
 
     def _favorite_current(self) -> None:
+        if self._review_action_running():
+            return
         self.favorite_callback(self._current_item())
         messagebox.showinfo(APP_TITLE, "This case was added to your favorites.")
 
     def _block_current(self) -> None:
+        if self._review_action_running():
+            return
         self._run_case_action_async(
             "Blocking this case and finding another one...",
             "Could not block this case.",
@@ -909,6 +936,7 @@ class CaseReviewDialog(tk.Toplevel):
 
         self._store_current_review_options()
         item = self._current_item()
+        self._action_cancel_requested = False
         self._set_action_state(False)
         self.quality_var.set(status_text)
         self.update_idletasks()
@@ -932,8 +960,18 @@ class CaseReviewDialog(tk.Toplevel):
         no_result_message: str | None,
         skip_on_none: bool,
     ) -> None:
+        was_cancelled = self._action_cancel_requested or (
+            error is not None and str(error).strip() == "Generation cancelled."
+        )
         self._action_thread = None
+        self._action_cancel_requested = False
         self._set_action_state(True)
+
+        if was_cancelled:
+            if self.cancel_action_complete_callback:
+                self.cancel_action_complete_callback()
+            self.quality_var.set("Review action cancelled. Current case is unchanged.")
+            return
 
         if error is not None:
             messagebox.showerror(APP_TITLE, f"{error_title}\n\n{error}")
@@ -3030,8 +3068,13 @@ class DeckBuilderApp(tk.Tk):
                 self.status_var.set("Ready")
 
     def cancel_generation(self) -> None:
-        if not (self.worker and self.worker.is_alive()):
+        has_worker = bool(self.worker and self.worker.is_alive())
+        has_process = bool(self.current_process and self.current_process.poll() is None)
+        if not (has_worker or has_process):
             return
+        self._request_operation_cancel()
+
+    def _request_operation_cancel(self) -> None:
         self.cancel_requested = True
         self.status_var.set("Cancelling...")
         self.append_log("Cancellation requested.")
@@ -3045,7 +3088,14 @@ class DeckBuilderApp(tk.Tk):
                 except Exception:
                     pass
 
+    def _clear_operation_cancel(self) -> None:
+        self.cancel_requested = False
+        if self.status_var.get() == "Cancelling...":
+            self.status_var.set("Review cases before export")
+
     def _run_cli_capture(self, command: list[str]) -> subprocess.CompletedProcess[str]:
+        if self.cancel_requested:
+            raise RuntimeError("Generation cancelled.")
         self.current_process = subprocess.Popen(
             command,
             cwd=str(PROJECT_ROOT),
@@ -3379,6 +3429,8 @@ class DeckBuilderApp(tk.Tk):
             lambda item: self._block_and_reroll_prepared_case(item, images_per_case),
             self.save_prepared_case,
             self.append_log,
+            self._request_operation_cancel,
+            self._clear_operation_cancel,
         )
         self.wait_window(review_dialog)
 

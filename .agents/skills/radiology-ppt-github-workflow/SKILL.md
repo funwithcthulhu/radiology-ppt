@@ -8,10 +8,10 @@ description: Use for the radiology-ppt repository when publishing, pushing, open
 ## Canonical Repo
 
 - GitHub: `https://github.com/funwithcthulhu/radiology-ppt`
-- Local clone for GitHub work: `C:\Users\Chase\Documents\New project\radiology-ppt`
-- Older working copy may exist at: `C:\Users\Chase\Documents\New project\radiology-ppt-main\radiology-ppt-main`
+- Work from the active checkout reported by `git rev-parse --show-toplevel`; do not assume a fixed user profile path.
+- If multiple local copies exist, prefer the checkout whose `origin` remote resolves to `funwithcthulhu/radiology-ppt`.
 - Do not rename the repo or project. Keep the name `radiology-ppt`.
-- Do not push from the parent `C:\Users\Chase\Documents\New project` git root.
+- Do not push from a parent directory or unrelated git root.
 
 ## Shell Rules
 
@@ -23,7 +23,7 @@ description: Use for the radiology-ppt repository when publishing, pushing, open
 
 ## GitHub Publish Flow
 
-1. Work in `C:\Users\Chase\Documents\New project\radiology-ppt`.
+1. Work in the repository root from `git rev-parse --show-toplevel`.
 2. Verify auth:
    `gh.exe auth status`
 3. Create a branch with the `codex/` prefix unless the user asks otherwise.
@@ -75,7 +75,6 @@ The repo `.gitignore` already covers the main generated directories.
 Known draft PR from the UI modernization work:
 
 - Branch: `codex/radiology-ppt-ui-redesign`
-- Commit: `cc92709`
 - PR: `https://github.com/funwithcthulhu/radiology-ppt/pull/1`
 
 Recent validated changes include:
