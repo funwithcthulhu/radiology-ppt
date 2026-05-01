@@ -1532,9 +1532,6 @@ class RequestRow:
 
     def _on_row_state_changed(self, *_args) -> None:
         self._update_selection_preview()
-        update_summary = getattr(self.app, "_update_build_summary", None)
-        if callable(update_summary):
-            update_summary()
 
     def _set_random_mode_state(self, state: str) -> None:
         # Random modes are no longer exposed in the GUI; this keeps older state calls harmless.
@@ -2089,7 +2086,6 @@ class DeckBuilderApp(tk.Tk):
         notebook.add(self.activity_tab, text="Activity")
 
         self.cases_tab.columnconfigure(0, weight=1)
-        self.cases_tab.columnconfigure(1, weight=0)
         self.cases_tab.rowconfigure(1, weight=1)
 
         request_tools = ttk.Frame(self.cases_tab, style="App.TFrame")
@@ -2160,44 +2156,6 @@ class DeckBuilderApp(tk.Tk):
         self.bind_all("<MouseWheel>", self._on_global_mousewheel, add="+")
         self.bind_all("<Button-4>", self._on_global_mousewheel_linux, add="+")
         self.bind_all("<Button-5>", self._on_global_mousewheel_linux, add="+")
-
-        summary_panel = ttk.Frame(self.cases_tab, style="Card.TFrame", padding=16)
-        summary_panel.grid(row=0, column=1, rowspan=2, sticky="nsew", padx=(18, 0))
-        summary_panel.columnconfigure(0, weight=1)
-        self.summary_request_var = tk.StringVar(value="No requests yet")
-        self.summary_filter_var = tk.StringVar(value="No filters")
-        self.summary_output_var = tk.StringVar(value="Not configured")
-        ttk.Label(summary_panel, text="Summary", font=("Segoe UI Semibold", 15), foreground="#123046").grid(
-            row=0, column=0, sticky="w"
-        )
-        ttk.Label(summary_panel, text="Review your selections before creating the PowerPoint.", style="CardSub.TLabel").grid(
-            row=1, column=0, sticky="w", pady=(2, 14)
-        )
-        for row_index, (title, variable) in enumerate(
-            [
-                ("Request", self.summary_request_var),
-                ("Filters", self.summary_filter_var),
-                ("Output", self.summary_output_var),
-            ],
-            start=2,
-        ):
-            card = ttk.Frame(summary_panel, style="Card.TFrame", padding=12)
-            card.grid(row=row_index, column=0, sticky="ew", pady=(0, 10))
-            card.columnconfigure(0, weight=1)
-            ttk.Label(card, text=title, foreground="#245bb8", background="#ffffff", font=("Segoe UI Semibold", 10)).grid(
-                row=0, column=0, sticky="w"
-            )
-            ttk.Label(card, textvariable=variable, style="CardHint.TLabel", wraplength=285, justify="left").grid(
-                row=1, column=0, sticky="ew", pady=(8, 0)
-            )
-        self.summary_build_button = ttk.Button(
-            summary_panel,
-            text="PowerPoint Settings",
-            command=lambda: self._show_nav_tab("build"),
-            style="Primary.TButton",
-        )
-        self.summary_build_button.grid(row=5, column=0, sticky="ew", pady=(10, 0))
-        self._track_widget(self.summary_build_button)
 
         self.build_tab.columnconfigure(0, weight=3)
         self.build_tab.columnconfigure(1, weight=2)
@@ -2395,18 +2353,6 @@ class DeckBuilderApp(tk.Tk):
         ttk.Label(status_row, textvariable=self.status_var, style="Status.TLabel").pack(side="left", padx=(12, 0))
         ttk.Label(status_row, textvariable=self.last_output_var, style="PageSub.TLabel").pack(side="right")
 
-        for tracked_var in (
-            self.title_var,
-            self.images_var,
-            self.output_var,
-            self.theme_var,
-            self.crop_mode_var,
-            self.markup_style_var,
-            self.teaching_points_var,
-            self.ollama_assist_var,
-        ):
-            tracked_var.trace_add("write", lambda *_args: self._update_build_summary())
-
         self._set_deck_advanced_visible(False)
         self._show_nav_tab("cases")
 
@@ -2424,52 +2370,6 @@ class DeckBuilderApp(tk.Tk):
     def _set_log_visible(self, visible: bool) -> None:
         if visible:
             self._show_nav_tab("activity")
-
-    def _update_build_summary(self) -> None:
-        if not hasattr(self, "summary_request_var"):
-            return
-
-        rows = []
-        for row in getattr(self, "request_rows", []):
-            try:
-                rows.append(row.serialize())
-            except Exception:
-                pass
-
-        if rows:
-            mode_counts: dict[str, int] = {}
-            for row in rows:
-                mode_counts[row.get("mode", REQUEST_MODE_SPECIFIC)] = mode_counts.get(row.get("mode", REQUEST_MODE_SPECIFIC), 0) + 1
-            mode_bits = [f"{count} {mode.replace(' Case URL', ' URL')}" for mode, count in mode_counts.items()]
-            self.summary_request_var.set(f"{len(rows)} request{'s' if len(rows) != 1 else ''}\n" + "\n".join(mode_bits))
-        else:
-            self.summary_request_var.set("No requests yet")
-
-        filters = []
-        for row in rows:
-            filters.extend(
-                [
-                    row.get("modality", "Any"),
-                    row.get("secondary_modality", "Any"),
-                    row.get("anatomy", "Any"),
-                    row.get("subspecialty", "Any") if row.get("mode") == REQUEST_MODE_RANDOM else "Any",
-                    row.get("age_group", "Any"),
-                    row.get("topic_focus", "Any"),
-                    row.get("difficulty", "Any"),
-                ]
-            )
-        active_filters = []
-        for value in filters:
-            if value and value != "Any" and value not in active_filters:
-                active_filters.append(value)
-        self.summary_filter_var.set("None" if not active_filters else "\n".join(active_filters[:8]))
-
-        title = collapse_text(self.title_var.get()) or "Auto title"
-        output = collapse_text(self.output_var.get())
-        output_label = Path(output).name if output else "Auto-save to outputs"
-        self.summary_output_var.set(
-            f"{title}\n{max(1, safe_int(self.images_var.get(), 3))} image(s) per case\n{self.theme_var.get()}\n{output_label}"
-        )
 
     def _requests_container(self) -> tk.Widget:
         return self.requests_frame
@@ -2568,13 +2468,12 @@ class DeckBuilderApp(tk.Tk):
         row = RequestRow(self.request_body, self, len(self.request_rows) + 1, initial_state)
         self.request_rows.append(row)
         self._bind_request_focus_widgets(row.frame)
-        self._update_build_summary()
+
         def finalize() -> None:
             self.request_canvas.configure(scrollregion=self.request_canvas.bbox("all"))
             if scroll_into_view:
                 self._scroll_row_into_view(row)
                 self._focus_row_primary_input(row)
-            self._update_build_summary()
 
         self.request_canvas.after(10, finalize)
 
@@ -2586,7 +2485,6 @@ class DeckBuilderApp(tk.Tk):
         if not self.request_rows:
             self.add_request_row({"mode": REQUEST_MODE_SPECIFIC})
         self._refresh_request_rows()
-        self._update_build_summary()
 
     def _refresh_request_rows(self) -> None:
         for index, row in enumerate(self.request_rows, start=1):
@@ -2600,7 +2498,6 @@ class DeckBuilderApp(tk.Tk):
         if not self.request_rows:
             self.add_request_row({"mode": REQUEST_MODE_SPECIFIC}, scroll_into_view=False)
         self._refresh_request_rows()
-        self._update_build_summary()
         self.request_canvas.after(10, lambda: self.request_canvas.yview_moveto(0.0))
 
     def _load_library_state(self) -> None:
