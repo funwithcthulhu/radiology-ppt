@@ -28,6 +28,10 @@ const REQUEST_HEADERS = {
 const TEXT_CACHE = new Map();
 const RANDOM_HISTORY_LIMIT = 240;
 const RANDOM_HISTORY_PATH = path.join(APP_ROOT, "cache", "random-selection-history.json");
+const RANDOM_SEARCH_QUERY_LIMIT = 5;
+const RANDOM_SEARCH_PAGE_LIMIT = 3;
+const RANDOM_CANDIDATE_REVIEW_LIMIT = 48;
+const RANDOM_SEARCH_TIME_LIMIT_MS = 45000;
 let PYTHON_RUNTIME_PROMISE = null;
 let OLLAMA_MODELS_PROMISE = null;
 
@@ -1236,7 +1240,7 @@ function buildRandomSearchQueries(request) {
 async function collectRandomCasePool(query, systems) {
   const pageOneHtml = await fetchText(buildCaseSearchUrl({ query, systems, page: 1 }));
   const pageNumbers = extractSearchPageNumbers(pageOneHtml);
-  const desiredPageCount = Math.min(pageNumbers.length || 1, 5);
+  const desiredPageCount = Math.min(pageNumbers.length || 1, RANDOM_SEARCH_PAGE_LIMIT);
   const extraPages = pageNumbers
     .filter((page) => page > 1)
     .slice(0, Math.max(0, desiredPageCount - 1));
@@ -1318,10 +1322,19 @@ async function pickRandomCaseCandidates(request, { excludePaths = new Set(), all
   const candidateMap = new Map();
   const htmlCache = new Map();
   const targetPoolSize = Math.max(request.randomSpec.count + 14, 24);
+  const startedAt = Date.now();
+  let reviewedCandidates = 0;
 
-  for (const query of buildRandomSearchQueries(request)) {
+  for (const query of buildRandomSearchQueries(request).slice(0, RANDOM_SEARCH_QUERY_LIMIT)) {
+    if (Date.now() - startedAt > RANDOM_SEARCH_TIME_LIMIT_MS) {
+      break;
+    }
     const pool = await collectRandomCasePool(query, systems);
     for (const candidate of shuffle(pool)) {
+      if (Date.now() - startedAt > RANDOM_SEARCH_TIME_LIMIT_MS || reviewedCandidates >= RANDOM_CANDIDATE_REVIEW_LIMIT) {
+        break;
+      }
+      reviewedCandidates += 1;
       if (excludePaths.has(candidate.casePath) || candidateMap.has(candidate.casePath)) {
         continue;
       }
@@ -1353,7 +1366,11 @@ async function pickRandomCaseCandidates(request, { excludePaths = new Set(), all
   if (!picks.length) {
     const filterBits = dedupe([...(request.randomSpec.systems || []), request.randomSpec.queryText, request.studyHint]).filter(Boolean);
     const filterText = filterBits.length ? ` (${filterBits.join(" | ")})` : "";
-    throw new Error(`No random Radiopaedia cases were found for "${request.rawInput}"${filterText}.`);
+    const stoppedText =
+      Date.now() - startedAt > RANDOM_SEARCH_TIME_LIMIT_MS || reviewedCandidates >= RANDOM_CANDIDATE_REVIEW_LIMIT
+        ? " within the search limits"
+        : "";
+    throw new Error(`No suitable random Radiopaedia cases were found for "${request.rawInput}"${filterText}${stoppedText}. Try broader filters or fewer constraints.`);
   }
 
   const fallbackCandidates = shuffledCandidates.slice(request.randomSpec.count).map((candidate) => ({
@@ -1873,15 +1890,9 @@ function buildClinicalHistoryText({ request, description, findings, diagnosis, c
     .flatMap((text) => cleanText(text).split(/(?<=[.!?])\s+/));
 
   for (const sentence of candidateSentences) {
-    const scrubbed = redactTerms(sentence, [diagnosis, caseTitle])
-      .replace(/\[[^\]]*hidden[^\]]*\]/gi, " ")
-      .replace(/\s+,/g, ",")
-      .replace(/\s+\./g, ".");
+    const scrubbed = cleanRedactedTeachingText(redactTerms(sentence, [diagnosis, caseTitle]));
     const redacted = truncate(
-      cleanText(scrubbed)
-        .replace(/^[,.;:\-\s]+/g, "")
-        .replace(/\bPublished\b.*$/i, "")
-        .trim(),
+      scrubbed.replace(/\bPublished\b.*$/i, "").trim(),
       88,
     );
     if (!redacted) {
@@ -1896,6 +1907,19 @@ function buildClinicalHistoryText({ request, description, findings, diagnosis, c
   return request.studyHint || "";
 }
 
+function cleanRedactedTeachingText(text) {
+  return cleanText(text)
+    .replace(/\[[^\]]*hidden[^\]]*\]/gi, " ")
+    .replace(/\bcase of\s+(?:acute|chronic|typical|classic)\s+(?=with\b|without\b|in\b|on\b|for\b|$)/gi, "case ")
+    .replace(/\bcase of\s+(?=with\b|without\b|in\b|on\b|for\b|$)/gi, "case ")
+    .replace(/\btypical\s+(?=with\b|without\b|in\b|on\b|for\b|$)/gi, "typical presentation ")
+    .replace(/\bconsistent\s+(?=with\b|without\b|in\b|on\b|for\b|$)/gi, "consistent appearance ")
+    .replace(/\s+([,.;:])/g, "$1")
+    .replace(/^[,.;:\-\s]+/g, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
 function buildTeachingPoints({ request, description, findings, diagnosis, caseTitle, modalitySummary, images }) {
   const bullets = [];
   const seen = new Set();
@@ -1906,14 +1930,9 @@ function buildTeachingPoints({ request, description, findings, diagnosis, caseTi
 
   for (const sentence of candidateSentences) {
     const bullet = truncate(
-      cleanText(
-        redactTerms(sentence, [diagnosis, caseTitle])
-          .replace(/\[[^\]]*hidden[^\]]*\]/gi, " ")
-          .replace(/\s+,/g, ",")
-          .replace(/\s+\./g, "."),
-      ),
+      cleanRedactedTeachingText(redactTerms(sentence, [diagnosis, caseTitle])),
       135,
-    ).replace(/^[,.;:\-\s]+/g, "");
+    );
     const key = normalizePhrase(bullet);
     if (!bullet || bullet.length < 18 || seen.has(key)) {
       continue;
@@ -1982,6 +2001,19 @@ function orderStudiesByPreference(studies, preferredModalities) {
   return matching.length ? matching.concat(other) : studies;
 }
 
+function validateCasePage({ request, caseTitle, rid, studyIds, description }) {
+  const hasRealRid = /^rID-\d+$/i.test(rid);
+  const hasStudies = studyIds.length > 0;
+  if (hasRealRid && hasStudies) {
+    return;
+  }
+
+  const requested = request.selectedCasePath || request.rawInput;
+  throw new Error(
+    `Could not validate "${requested}" as a real public Radiopaedia case with image studies. Check the URL, or pick the case again from search results.`,
+  );
+}
+
 async function fetchRadiopaediaCaseByPath(request, casePath, { cacheDir, imagesPerCase = 3, caseTitleHint = "" }) {
   const caseUrl = absoluteUrl(casePath.includes("?") ? casePath : `${casePath}?lang=us`);
   const html = await fetchText(caseUrl);
@@ -2004,6 +2036,8 @@ async function fetchRadiopaediaCaseByPath(request, casePath, { cacheDir, imagesP
   const rid = ridMatch || "rID unavailable";
   const studyIds = dedupe([...html.matchAll(/\/studies\/(\d+)/g)].map((match) => match[1]));
   const caseSlug = slugify(caseTitle) || slugify(request.rawInput) || "radiopaedia-case";
+
+  validateCasePage({ request, caseTitle, rid, studyIds, description });
 
   const studies = [];
   for (const studyId of studyIds.slice(0, 8)) {
@@ -2163,6 +2197,7 @@ export async function fetchRadiopaediaCase(input, { cacheDir, imagesPerCase = 3 
 
   let lastError = null;
   let bestCase = null;
+  const attemptErrors = [];
   for (const candidatePath of dedupedQueue) {
     const caseTitleHint =
       candidatePath === request.selectedCasePath
@@ -2183,11 +2218,23 @@ export async function fetchRadiopaediaCase(input, { cacheDir, imagesPerCase = 3 
       }
     } catch (error) {
       lastError = error;
+      attemptErrors.push({
+        casePath: candidatePath,
+        message: error.message,
+      });
     }
   }
 
   if (bestCase) {
     return bestCase;
+  }
+
+  if (attemptErrors.length) {
+    const reasons = dedupe(attemptErrors.map((attempt) => attempt.message).filter(Boolean)).slice(0, 3);
+    const reasonText = reasons.length ? ` ${reasons.join(" ")}` : "";
+    throw new Error(
+      `No suitable Radiopaedia case could be prepared for "${request.rawInput}" after trying ${attemptErrors.length} candidate${attemptErrors.length === 1 ? "" : "s"}.${reasonText}`,
+    );
   }
 
   throw lastError || new Error(`No Radiopaedia case results found for "${request.rawInput}".`);
