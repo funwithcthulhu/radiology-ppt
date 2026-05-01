@@ -34,18 +34,21 @@ REQUEST_MODE_SPECIFIC = "Specific Diagnosis"
 REQUEST_MODE_RANDOM = "Random Case"
 REQUEST_MODE_MANUAL = "Manual Case URL"
 REQUEST_MODE_OPTIONS = [REQUEST_MODE_SPECIFIC, REQUEST_MODE_RANDOM, REQUEST_MODE_MANUAL]
-RANDOM_STYLE_ANY = "Any Case"
-RANDOM_STYLE_SUBSPECIALTY = "Subspecialty Browser"
-RANDOM_STYLE_MODALITY = "Modality Browser"
-RANDOM_STYLE_ANATOMY = "Anatomy Browser"
-RANDOM_STYLE_MIXED = "Mixed Deck"
+RANDOM_STYLE_ANY = "Any"
+RANDOM_STYLE_SUBSPECIALTY = "Subspecialty"
+RANDOM_STYLE_MIXED = "Mixed"
 RANDOM_STYLE_OPTIONS = [
     RANDOM_STYLE_ANY,
     RANDOM_STYLE_SUBSPECIALTY,
-    RANDOM_STYLE_MODALITY,
-    RANDOM_STYLE_ANATOMY,
     RANDOM_STYLE_MIXED,
 ]
+LEGACY_RANDOM_STYLE_MAP = {
+    "Any Case": RANDOM_STYLE_ANY,
+    "Subspecialty Browser": RANDOM_STYLE_SUBSPECIALTY,
+    "Modality Browser": RANDOM_STYLE_ANY,
+    "Anatomy Browser": RANDOM_STYLE_ANY,
+    "Mixed Deck": RANDOM_STYLE_MIXED,
+}
 CROP_MODE_DEFAULT = "Default"
 CROP_MODE_TIGHTER = "Tighter"
 CROP_MODE_WIDER = "Wider"
@@ -263,7 +266,7 @@ SUBSPECIALTY_REVERSE = {
 
 
 def powershell_path() -> str:
-    return shutil.which("powershell.exe") or shutil.which("powershell") or "powershell.exe"
+    return shutil.which("pwsh.exe") or shutil.which("pwsh") or shutil.which("powershell.exe") or shutil.which("powershell") or "pwsh.exe"
 
 
 def node_path() -> str:
@@ -422,6 +425,12 @@ def infer_subspecialty(text: str) -> str:
             if re.search(rf"(?<!\w){re.escape(alias)}(?!\w)", lowered):
                 return label
     return "Any"
+
+
+def normalize_random_style(value: object) -> str:
+    text = collapse_text(value)
+    mapped = LEGACY_RANDOM_STYLE_MAP.get(text, text)
+    return mapped if mapped in RANDOM_STYLE_OPTIONS else RANDOM_STYLE_ANY
 
 
 def detect_random_legacy_request(text: str) -> bool:
@@ -1110,7 +1119,7 @@ class RequestRow:
         self.mode_var = tk.StringVar(value=state.get("mode", REQUEST_MODE_SPECIFIC))
         self.diagnosis_var = tk.StringVar(value=state.get("diagnosis", ""))
         self.count_var = tk.IntVar(value=max(1, safe_int(state.get("count", 1), 1)))
-        self.random_style_var = tk.StringVar(value=state.get("random_style", RANDOM_STYLE_ANY))
+        self.random_style_var = tk.StringVar(value=normalize_random_style(state.get("random_style", RANDOM_STYLE_ANY)))
         self.subspecialty_var = tk.StringVar(value=state.get("subspecialty", "Any"))
         self.modality_var = tk.StringVar(value=state.get("modality", "Any"))
         self.secondary_modality_var = tk.StringVar(value=state.get("secondary_modality", "Any"))
@@ -1122,6 +1131,7 @@ class RequestRow:
         self.random_summary_var = tk.StringVar()
         self.filters_visible = tk.BooleanVar(value=self._has_expanded_filters(state))
         self.filters_button_var = tk.StringVar()
+        self.selection_preview_var = tk.StringVar()
 
         self.frame = ttk.LabelFrame(parent, text="", padding=8, style="Section.TLabelframe")
         self.frame.pack(fill="x", expand=True, pady=(0, 8))
@@ -1174,7 +1184,7 @@ class RequestRow:
         self.primary_filters_frame.columnconfigure(1, weight=1)
         self.primary_filters_frame.columnconfigure(3, weight=1)
 
-        ttk.Label(self.primary_filters_frame, text="Primary Modality", style="CardSub.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(self.primary_filters_frame, text="Modality", style="CardSub.TLabel").grid(row=0, column=0, sticky="w")
         self.modality_combo = ttk.Combobox(
             self.primary_filters_frame,
             values=MODALITY_OPTIONS,
@@ -1199,18 +1209,34 @@ class RequestRow:
         self.random_frame.columnconfigure(1, weight=1)
         self.random_frame.columnconfigure(3, weight=1)
 
-        ttk.Label(self.random_frame, text="Random Browser", style="CardSub.TLabel").grid(row=0, column=0, sticky="w")
-        self.random_style_combo = ttk.Combobox(
-            self.random_frame,
-            values=RANDOM_STYLE_OPTIONS,
-            textvariable=self.random_style_var,
-            state="readonly",
-            width=18,
-        )
-        self.random_style_combo.grid(row=0, column=1, sticky="ew", padx=(8, 16))
-        self.random_style_combo.bind("<<ComboboxSelected>>", lambda _event: self._apply_state())
+        ttk.Label(self.random_frame, text="Random Mode", style="CardSub.TLabel").grid(row=0, column=0, sticky="w")
+        self.random_mode_frame = tk.Frame(self.random_frame, bg="#ffffff", bd=0, highlightthickness=0)
+        self.random_mode_frame.grid(row=0, column=1, sticky="w", padx=(8, 16))
+        self.random_mode_buttons: list[tk.Radiobutton] = []
+        for column, option in enumerate(RANDOM_STYLE_OPTIONS):
+            button = tk.Radiobutton(
+                self.random_mode_frame,
+                text=option,
+                value=option,
+                variable=self.random_style_var,
+                command=self._apply_state,
+                indicatoron=False,
+                bd=1,
+                relief="solid",
+                padx=12,
+                pady=4,
+                bg="#ffffff",
+                fg="#123046",
+                activebackground="#edf8f7",
+                activeforeground="#123046",
+                selectcolor="#d9f0ed",
+                disabledforeground="#8ca5b7",
+                font=("Segoe UI Semibold", 9),
+            )
+            button.grid(row=0, column=column, sticky="w", padx=(0 if column == 0 else 4, 0))
+            self.random_mode_buttons.append(button)
 
-        ttk.Label(self.random_frame, text="Subspecialty", style="CardSub.TLabel").grid(row=0, column=2, sticky="w")
+        ttk.Label(self.random_frame, text="Radiopaedia System", style="CardSub.TLabel").grid(row=0, column=2, sticky="w")
         self.subspecialty_combo = ttk.Combobox(
             self.random_frame,
             values=SUBSPECIALTY_OPTIONS,
@@ -1222,6 +1248,7 @@ class RequestRow:
 
         footer = ttk.Frame(self.content, style="Card.TFrame")
         footer.grid(row=3, column=0, sticky="ew", pady=(6, 0))
+        footer.columnconfigure(1, weight=1)
 
         self.filters_toggle_button = ttk.Button(
             footer,
@@ -1230,6 +1257,22 @@ class RequestRow:
             style="CardGhost.TButton",
         )
         self.filters_toggle_button.grid(row=0, column=0, sticky="w")
+
+        self.selection_preview_label = ttk.Label(
+            footer,
+            textvariable=self.selection_preview_var,
+            style="FilterSummary.TLabel",
+            anchor="w",
+        )
+        self.selection_preview_label.grid(row=0, column=1, sticky="ew", padx=(12, 12))
+
+        self.clear_filters_button = ttk.Button(
+            footer,
+            text="Clear Filters",
+            command=self.clear_filters,
+            style="CardGhost.TButton",
+        )
+        self.clear_filters_button.grid(row=0, column=2, sticky="e")
 
         self.help_var = tk.StringVar()
 
@@ -1284,6 +1327,20 @@ class RequestRow:
         )
         self.difficulty_combo.grid(row=0, column=7, sticky="ew", padx=(8, 0))
 
+        for tracked_var in (
+            self.mode_var,
+            self.count_var,
+            self.random_style_var,
+            self.subspecialty_var,
+            self.modality_var,
+            self.secondary_modality_var,
+            self.anatomy_var,
+            self.age_group_var,
+            self.topic_focus_var,
+            self.difficulty_var,
+        ):
+            tracked_var.trace_add("write", self._on_row_state_changed)
+
         self.update_index(index)
         self._set_filters_visible(self.filters_visible.get())
         self._apply_state()
@@ -1305,7 +1362,7 @@ class RequestRow:
     def _set_filters_visible(self, visible: bool) -> None:
         enabled = bool(visible)
         self.filters_visible.set(enabled)
-        self.filters_button_var.set("Hide More Filters" if enabled else "Show More Filters")
+        self.filters_button_var.set("Hide Advanced Filters" if enabled else "Advanced Filters")
         if enabled:
             self.extra_filters_frame.grid()
         else:
@@ -1313,6 +1370,63 @@ class RequestRow:
 
     def _toggle_filters(self) -> None:
         self._set_filters_visible(not self.filters_visible.get())
+
+    def _on_row_state_changed(self, *_args) -> None:
+        self._update_selection_preview()
+        update_summary = getattr(self.app, "_update_build_summary", None)
+        if callable(update_summary):
+            update_summary()
+
+    def _set_random_mode_state(self, state: str) -> None:
+        for button in self.random_mode_buttons:
+            button.configure(state=state)
+
+    def clear_filters(self) -> None:
+        self.modality_var.set("Any")
+        self.secondary_modality_var.set("Any")
+        self.anatomy_var.set("Any")
+        self.subspecialty_var.set("Any")
+        self.age_group_var.set("Any")
+        self.topic_focus_var.set("Any")
+        self.difficulty_var.set("Any")
+        if self.mode_var.get() == REQUEST_MODE_RANDOM:
+            self.random_style_var.set(RANDOM_STYLE_ANY)
+        self._apply_state()
+
+    def _active_filter_parts(self, state: dict) -> list[str]:
+        parts = []
+        if state["modality"] != "Any":
+            parts.append(state["modality"])
+        if state["secondary_modality"] != "Any":
+            parts.append(f"also {state['secondary_modality']}")
+        if state["anatomy"] != "Any":
+            parts.append(state["anatomy"])
+        if state["subspecialty"] != "Any" and state["mode"] == REQUEST_MODE_RANDOM:
+            parts.append(state["subspecialty"])
+        if state["age_group"] != "Any":
+            parts.append(state["age_group"])
+        if state["topic_focus"] != "Any":
+            parts.append(state["topic_focus"])
+        if state["difficulty"] != "Any":
+            parts.append(state["difficulty"])
+        return parts
+
+    def _update_selection_preview(self) -> None:
+        if not hasattr(self, "selection_preview_var"):
+            return
+        state = self.serialize()
+        filters = self._active_filter_parts(state)
+        if state["mode"] == REQUEST_MODE_RANDOM:
+            count = max(1, min(20, safe_int(state["count"], 1)))
+            case_word = "case" if count == 1 else "cases"
+            mode_part = f"{state['random_style']} mode"
+            pieces = [f"Random {count} {case_word}", mode_part, *filters]
+            if state["random_style"] == RANDOM_STYLE_SUBSPECIALTY and state["subspecialty"] == "Any":
+                pieces.append("choose a system")
+            self.selection_preview_var.set("Selection: " + " • ".join(pieces))
+            return
+
+        self.selection_preview_var.set("Filters: " + (" • ".join(filters) if filters else "none"))
 
     def set_busy(self, busy: bool) -> None:
         self.busy = busy
@@ -1326,7 +1440,7 @@ class RequestRow:
             "mode": self.mode_var.get(),
             "diagnosis": collapse_text(self.diagnosis_var.get()),
             "count": max(1, safe_int(self.count_var.get(), 1)),
-            "random_style": self.random_style_var.get() if self.random_style_var.get() in RANDOM_STYLE_OPTIONS else RANDOM_STYLE_ANY,
+            "random_style": normalize_random_style(self.random_style_var.get()),
             "subspecialty": self.subspecialty_var.get() if self.subspecialty_var.get() in SUBSPECIALTY_OPTIONS else "Any",
             "modality": self.modality_var.get() if self.modality_var.get() in MODALITY_OPTIONS else "Any",
             "secondary_modality": self.secondary_modality_var.get() if self.secondary_modality_var.get() in MODALITY_OPTIONS else "Any",
@@ -1397,7 +1511,7 @@ class RequestRow:
         parts = ["Random"]
         if count > 1:
             parts.append(str(count))
-        if random_style == RANDOM_STYLE_SUBSPECIALTY and state["subspecialty"] != "Any":
+        if state["subspecialty"] != "Any":
             parts.append(state["subspecialty"])
         if study_hint:
             parts.append(study_hint)
@@ -1407,9 +1521,9 @@ class RequestRow:
             "randomCount": count,
             "rawInput": " | ".join(parts),
         }
-        if random_style == RANDOM_STYLE_SUBSPECIALTY and filter_config["systems"]:
+        if filter_config["systems"]:
             payload["randomSystems"] = list(filter_config["systems"])
-        if random_style == RANDOM_STYLE_SUBSPECIALTY and filter_config.get("mode") == "any":
+        if filter_config["systems"] and filter_config.get("mode") == "any":
             payload["randomSystemMode"] = "any"
         if random_style == RANDOM_STYLE_MIXED:
             payload["randomDiversity"] = "mixed"
@@ -1434,7 +1548,7 @@ class RequestRow:
             self.mode_combo.configure(state="disabled")
             self.diagnosis_entry.configure(state="disabled")
             self.count_spin.configure(state="disabled")
-            self.random_style_combo.configure(state="disabled")
+            self._set_random_mode_state("disabled")
             self.subspecialty_combo.configure(state="disabled")
             self.modality_combo.configure(state="disabled")
             self.secondary_modality_combo.configure(state="disabled")
@@ -1444,6 +1558,8 @@ class RequestRow:
             self.difficulty_combo.configure(state="disabled")
             self.remove_button.configure(state="disabled")
             self.filters_toggle_button.configure(state="disabled")
+            self.clear_filters_button.configure(state="disabled")
+            self._update_selection_preview()
             return
 
         self.mode_combo.configure(state="readonly")
@@ -1455,45 +1571,23 @@ class RequestRow:
         self.difficulty_combo.configure(state="readonly")
         self.remove_button.configure(state="normal")
         self.filters_toggle_button.configure(state="normal")
+        self.clear_filters_button.configure(state="normal")
         self.help_var.set("")
 
         if mode == REQUEST_MODE_RANDOM:
             self.primary_input_label_var.set("Random Selection")
-            self.random_summary_var.set("No typed diagnosis is needed. Choose how many cases you want, then use the filters below to steer the random pull.")
+            self.random_summary_var.set("No diagnosis text needed; use Count, Mode, and filters to shape the random pull.")
             self.diagnosis_entry.grid_remove()
             self.random_summary_label.grid()
             self.random_frame.grid()
             self.count_label.grid()
             self.count_spin.grid()
             self.count_spin.configure(state="normal")
-            self.random_style_combo.configure(state="readonly")
-            random_style = self.random_style_var.get()
-
-            if random_style == RANDOM_STYLE_SUBSPECIALTY:
-                self.subspecialty_combo.configure(state="readonly")
-                self.modality_combo.configure(state="readonly")
-                self.secondary_modality_combo.configure(state="readonly")
-                self.anatomy_combo.configure(state="readonly")
-            elif random_style == RANDOM_STYLE_MODALITY:
-                self.subspecialty_combo.configure(state="disabled")
-                self.modality_combo.configure(state="readonly")
-                self.secondary_modality_combo.configure(state="readonly")
-                self.anatomy_combo.configure(state="readonly")
-            elif random_style == RANDOM_STYLE_ANATOMY:
-                self.subspecialty_combo.configure(state="disabled")
-                self.modality_combo.configure(state="readonly")
-                self.secondary_modality_combo.configure(state="readonly")
-                self.anatomy_combo.configure(state="readonly")
-            elif random_style == RANDOM_STYLE_MIXED:
-                self.subspecialty_combo.configure(state="disabled")
-                self.modality_combo.configure(state="readonly")
-                self.secondary_modality_combo.configure(state="readonly")
-                self.anatomy_combo.configure(state="readonly")
-            else:
-                self.subspecialty_combo.configure(state="disabled")
-                self.modality_combo.configure(state="readonly")
-                self.secondary_modality_combo.configure(state="readonly")
-                self.anatomy_combo.configure(state="readonly")
+            self._set_random_mode_state("normal")
+            self.subspecialty_combo.configure(state="readonly")
+            self.modality_combo.configure(state="readonly")
+            self.secondary_modality_combo.configure(state="readonly")
+            self.anatomy_combo.configure(state="readonly")
         elif mode == REQUEST_MODE_MANUAL:
             self.primary_input_label_var.set("Radiopaedia Case URL")
             self.random_summary_label.grid_remove()
@@ -1502,7 +1596,7 @@ class RequestRow:
             self.count_label.grid_remove()
             self.count_spin.grid_remove()
             self.count_spin.configure(state="disabled")
-            self.random_style_combo.configure(state="disabled")
+            self._set_random_mode_state("disabled")
             self.subspecialty_combo.configure(state="disabled")
             self.modality_combo.configure(state="readonly")
             self.secondary_modality_combo.configure(state="readonly")
@@ -1516,7 +1610,7 @@ class RequestRow:
             self.count_label.grid_remove()
             self.count_spin.grid_remove()
             self.count_spin.configure(state="disabled")
-            self.random_style_combo.configure(state="disabled")
+            self._set_random_mode_state("disabled")
             self.subspecialty_combo.configure(state="disabled")
             self.modality_combo.configure(state="readonly")
             self.secondary_modality_combo.configure(state="readonly")
@@ -1524,18 +1618,20 @@ class RequestRow:
             self.random_frame.grid_remove()
 
         self._set_filters_visible(self.filters_visible.get())
+        self._update_selection_preview()
 
 
 class DeckBuilderApp(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
         self.title(APP_TITLE)
-        self.configure(bg="#eef4f8")
+        self.configure(bg="#f6f8fb")
         self._configure_initial_window()
 
         self.log_queue: Queue[tuple[str, object]] = Queue()
         self.worker: threading.Thread | None = None
         self.current_process: subprocess.Popen[str] | None = None
+        self.cancel_requested = False
         self.request_rows: list[RequestRow] = []
         self.form_widgets: list[tuple[tk.Widget, str]] = []
 
@@ -1547,7 +1643,7 @@ class DeckBuilderApp(tk.Tk):
         self.status_var = tk.StringVar(value="Ready")
         self.auto_open_var = tk.BooleanVar(value=True)
         self.clinical_history_var = tk.BooleanVar(value=True)
-        self.ollama_assist_var = tk.BooleanVar(value=True)
+        self.ollama_assist_var = tk.BooleanVar(value=False)
         self.theme_var = tk.StringVar(value=THEME_CLASSIC)
         self.crop_mode_var = tk.StringVar(value=CROP_MODE_DEFAULT)
         self.markup_style_var = tk.StringVar(value=MARKUP_STYLE_NONE)
@@ -1595,15 +1691,15 @@ class DeckBuilderApp(tk.Tk):
         if "clam" in style.theme_names():
             style.theme_use("clam")
 
-        app_bg = "#eef4f8"
+        app_bg = "#f6f8fb"
         card_bg = "#ffffff"
         ink = "#123046"
         muted = "#5a7182"
         border = "#d8e3ec"
-        accent = "#0f766e"
-        accent_active = "#115e59"
-        accent_disabled = "#a7c8c2"
-        subtle_active = "#f3f8fb"
+        accent = "#2f6fdb"
+        accent_active = "#245bb8"
+        accent_disabled = "#a8bee8"
+        subtle_active = "#edf4ff"
 
         style.configure("App.TFrame", background=app_bg)
         style.configure("Card.TFrame", background=card_bg)
@@ -1612,6 +1708,7 @@ class DeckBuilderApp(tk.Tk):
         style.configure("Sub.TLabel", background=card_bg, foreground=muted, font=("Segoe UI", 10))
         style.configure("CardSub.TLabel", background=card_bg, foreground=muted, font=("Segoe UI", 10))
         style.configure("CardHint.TLabel", background=card_bg, foreground=ink, font=("Segoe UI", 10))
+        style.configure("FilterSummary.TLabel", background=card_bg, foreground=ink, font=("Segoe UI Semibold", 9))
         style.configure("Card.TCheckbutton", background=card_bg, foreground=ink, font=("Segoe UI", 10))
         style.map(
             "Card.TCheckbutton",
@@ -1726,42 +1823,169 @@ class DeckBuilderApp(tk.Tk):
             background=[("selected", card_bg), ("active", "#edf4f8")],
             foreground=[("selected", ink)],
         )
+        style.configure("Hidden.TNotebook", background=app_bg, borderwidth=0, tabmargins=(0, 0, 0, 0))
+        try:
+            style.layout("Hidden.TNotebook.Tab", [])
+        except tk.TclError:
+            pass
+
+    def _add_sidebar_button(self, parent: tk.Widget, key: str, text: str, command) -> tk.Button:
+        button = tk.Button(
+            parent,
+            text=text,
+            command=command,
+            anchor="w",
+            padx=18,
+            pady=12,
+            bd=0,
+            highlightthickness=0,
+            relief="flat",
+            bg="#102b48",
+            fg="#dbeafe",
+            activebackground="#244a84",
+            activeforeground="#ffffff",
+            font=("Segoe UI Semibold", 10),
+        )
+        button.pack(fill="x", padx=10, pady=(0, 8))
+        self.nav_buttons[key] = button
+        return button
+
+    def _set_sidebar_active(self, key: str) -> None:
+        for nav_key, button in getattr(self, "nav_buttons", {}).items():
+            if nav_key == key:
+                button.configure(bg="#2f6fdb", fg="#ffffff", activebackground="#2f6fdb")
+            else:
+                button.configure(bg="#102b48", fg="#dbeafe", activebackground="#244a84")
+
+    def _show_nav_tab(self, key: str) -> None:
+        tab = {
+            "cases": getattr(self, "cases_tab", None),
+            "build": getattr(self, "build_tab", None),
+            "activity": getattr(self, "activity_tab", None),
+        }.get(key)
+        if tab is not None:
+            self.main_notebook.select(tab)
+            self._set_sidebar_active(key)
+
+    def _open_settings_view(self) -> None:
+        self._show_nav_tab("build")
+        self._set_deck_advanced_visible(True)
 
     def _build_ui(self) -> None:
-        root = ttk.Frame(self, padding=18, style="App.TFrame")
+        root = tk.Frame(self, bg="#f6f8fb", bd=0, highlightthickness=0)
         root.pack(fill="both", expand=True)
 
-        hero = tk.Frame(root, bg="#102132", bd=0, highlightthickness=0)
-        hero.pack(fill="x")
-        tk.Label(
-            hero,
-            text=APP_TITLE,
-            bg="#102132",
-            fg="#ffffff",
-            font=("Segoe UI Semibold", 20),
-            anchor="w",
-        ).pack(anchor="w", padx=18, pady=(14, 2))
-        tk.Label(
-            hero,
-            text="Build case-based radiology decks from diagnoses, random categories, or exact Radiopaedia case URLs.",
-            bg="#102132",
-            fg="#c6d5e1",
-            font=("Segoe UI", 10),
-            anchor="w",
-        ).pack(anchor="w", padx=18, pady=(0, 12))
+        shell = tk.Frame(root, bg="#f6f8fb", bd=0, highlightthickness=0)
+        shell.pack(fill="both", expand=True)
 
-        notebook = ttk.Notebook(root, style="App.TNotebook")
-        notebook.pack(fill="both", expand=True, pady=(10, 10))
+        sidebar = tk.Frame(shell, bg="#0b1f35", width=248, bd=0, highlightthickness=0)
+        sidebar.pack(side="left", fill="y")
+        sidebar.pack_propagate(False)
+
+        brand = tk.Frame(sidebar, bg="#0b1f35", bd=0, highlightthickness=0)
+        brand.pack(fill="x", padx=18, pady=(24, 18))
+        tk.Label(
+            brand,
+            text="RP",
+            bg="#173a63",
+            fg="#dbeafe",
+            font=("Segoe UI Semibold", 16),
+            width=4,
+            height=2,
+        ).pack(anchor="w")
+        tk.Label(
+            brand,
+            text="Radiopaedia Case\nPowerPoint Builder",
+            bg="#0b1f35",
+            fg="#ffffff",
+            font=("Segoe UI Semibold", 12),
+            justify="left",
+            anchor="w",
+        ).pack(anchor="w", pady=(10, 0))
+
+        tk.Frame(sidebar, bg="#1d3b5d", height=1, bd=0, highlightthickness=0).pack(fill="x", pady=(0, 18))
+        self.nav_buttons: dict[str, tk.Button] = {}
+        self._add_sidebar_button(sidebar, "cases", "Cases", lambda: self._show_nav_tab("cases"))
+        self._add_sidebar_button(sidebar, "build", "Build", lambda: self._show_nav_tab("build"))
+        self._add_sidebar_button(sidebar, "activity", "Activity", lambda: self._show_nav_tab("activity"))
+        self._add_sidebar_button(sidebar, "library", "Library", self.load_saved_library_cases)
+
+        sidebar_footer = tk.Frame(sidebar, bg="#0b1f35", bd=0, highlightthickness=0)
+        sidebar_footer.pack(side="bottom", fill="x", padx=18, pady=(12, 18))
+        self._add_sidebar_button(sidebar_footer, "settings", "Settings", self._open_settings_view)
+        tk.Frame(sidebar_footer, bg="#1d3b5d", height=1, bd=0, highlightthickness=0).pack(fill="x", pady=(8, 12))
+        status_line = tk.Frame(sidebar_footer, bg="#0b1f35", bd=0, highlightthickness=0)
+        status_line.pack(fill="x")
+        tk.Label(status_line, text="●", bg="#0b1f35", fg="#35d07f", font=("Segoe UI", 11)).pack(side="left")
+        tk.Label(status_line, textvariable=self.status_var, bg="#0b1f35", fg="#dbeafe", font=("Segoe UI Semibold", 9)).pack(
+            side="left", padx=(8, 0)
+        )
+        tk.Label(sidebar_footer, textvariable=self.last_output_var, bg="#0b1f35", fg="#8fb3d8", font=("Segoe UI", 8), wraplength=190).pack(
+            anchor="w", pady=(8, 0)
+        )
+
+        content = ttk.Frame(shell, padding=(28, 24, 28, 16), style="App.TFrame")
+        content.pack(side="left", fill="both", expand=True)
+        content.columnconfigure(0, weight=1)
+        content.rowconfigure(2, weight=1)
+
+        topbar = ttk.Frame(content, style="App.TFrame")
+        topbar.grid(row=0, column=0, sticky="ew")
+        topbar.columnconfigure(0, weight=1)
+        ttk.Label(topbar, text=APP_TITLE, style="PageTitle.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(
+            topbar,
+            text="Build case-based radiology decks from diagnoses, random categories, or exact Radiopaedia case URLs.",
+            style="PageSub.TLabel",
+        ).grid(row=1, column=0, sticky="w", pady=(2, 0))
+        open_activity_button = ttk.Button(topbar, text="Open Activity", command=lambda: self._show_nav_tab("activity"), style="Secondary.TButton")
+        open_activity_button.grid(row=0, column=1, rowspan=2, sticky="e")
+        self._track_widget(open_activity_button)
+
+        stepper = tk.Frame(content, bg="#f6f8fb", bd=0, highlightthickness=0)
+        stepper.grid(row=1, column=0, sticky="ew", pady=(28, 18))
+        for column in range(5):
+            stepper.columnconfigure(column, weight=1 if column in {1, 3} else 0)
+        for column, (number, label, active) in enumerate(
+            [("1", "Request Setup", True), ("2", "Filters", False), ("3", "Output", False)]
+        ):
+            circle_bg = "#2f6fdb" if active else "#e3eaf3"
+            circle_fg = "#ffffff" if active else "#123046"
+            circle = tk.Label(
+                stepper,
+                text=number,
+                bg=circle_bg,
+                fg=circle_fg,
+                width=3,
+                height=1,
+                font=("Segoe UI Semibold", 11),
+            )
+            circle.grid(row=0, column=column * 2, sticky="w")
+            tk.Label(
+                stepper,
+                text=label,
+                bg="#f6f8fb",
+                fg="#123046" if active else "#5a7182",
+                font=("Segoe UI Semibold", 10),
+            ).grid(row=0, column=column * 2, sticky="w", padx=(42, 12))
+            if column < 2:
+                tk.Frame(stepper, bg="#d8e3ec", height=1, bd=0, highlightthickness=0).grid(
+                    row=0, column=column * 2 + 1, sticky="ew", padx=(8, 18)
+                )
+
+        notebook = ttk.Notebook(content, style="Hidden.TNotebook")
+        notebook.grid(row=2, column=0, sticky="nsew")
         self.main_notebook = notebook
 
-        self.cases_tab = ttk.Frame(notebook, padding=14, style="App.TFrame")
-        self.build_tab = ttk.Frame(notebook, padding=14, style="App.TFrame")
-        self.activity_tab = ttk.Frame(notebook, padding=14, style="App.TFrame")
+        self.cases_tab = ttk.Frame(notebook, padding=0, style="App.TFrame")
+        self.build_tab = ttk.Frame(notebook, padding=0, style="App.TFrame")
+        self.activity_tab = ttk.Frame(notebook, padding=0, style="App.TFrame")
         notebook.add(self.cases_tab, text="Cases")
         notebook.add(self.build_tab, text="Build")
         notebook.add(self.activity_tab, text="Activity")
 
         self.cases_tab.columnconfigure(0, weight=1)
+        self.cases_tab.columnconfigure(1, weight=0)
         self.cases_tab.rowconfigure(1, weight=1)
 
         request_tools = ttk.Frame(self.cases_tab, style="App.TFrame")
@@ -1808,7 +2032,7 @@ class DeckBuilderApp(tk.Tk):
 
         ttk.Label(
             request_tools,
-            text="Build requests here first. A single request should fit cleanly; scrolling only kicks in once you add more.",
+            text="Define cases first, then review the summary before building.",
             style="PageSub.TLabel",
             anchor="e",
             justify="right",
@@ -1822,7 +2046,7 @@ class DeckBuilderApp(tk.Tk):
 
         self.request_canvas = tk.Canvas(
             request_canvas_frame,
-            background="#eef4f8",
+            background="#f6f8fb",
             highlightthickness=0,
             bd=0,
         )
@@ -1841,6 +2065,44 @@ class DeckBuilderApp(tk.Tk):
         self.bind_all("<MouseWheel>", self._on_global_mousewheel, add="+")
         self.bind_all("<Button-4>", self._on_global_mousewheel_linux, add="+")
         self.bind_all("<Button-5>", self._on_global_mousewheel_linux, add="+")
+
+        summary_panel = ttk.Frame(self.cases_tab, style="Card.TFrame", padding=16)
+        summary_panel.grid(row=0, column=1, rowspan=2, sticky="nsew", padx=(18, 0))
+        summary_panel.columnconfigure(0, weight=1)
+        self.summary_request_var = tk.StringVar(value="No requests yet")
+        self.summary_filter_var = tk.StringVar(value="No filters")
+        self.summary_output_var = tk.StringVar(value="Not configured")
+        ttk.Label(summary_panel, text="Build Summary", font=("Segoe UI Semibold", 15), foreground="#123046").grid(
+            row=0, column=0, sticky="w"
+        )
+        ttk.Label(summary_panel, text="Review your selections before building.", style="CardSub.TLabel").grid(
+            row=1, column=0, sticky="w", pady=(2, 14)
+        )
+        for row_index, (title, variable) in enumerate(
+            [
+                ("Request", self.summary_request_var),
+                ("Filters", self.summary_filter_var),
+                ("Output", self.summary_output_var),
+            ],
+            start=2,
+        ):
+            card = ttk.Frame(summary_panel, style="Card.TFrame", padding=12)
+            card.grid(row=row_index, column=0, sticky="ew", pady=(0, 10))
+            card.columnconfigure(0, weight=1)
+            ttk.Label(card, text=title, foreground="#245bb8", background="#ffffff", font=("Segoe UI Semibold", 10)).grid(
+                row=0, column=0, sticky="w"
+            )
+            ttk.Label(card, textvariable=variable, style="CardHint.TLabel", wraplength=285, justify="left").grid(
+                row=1, column=0, sticky="ew", pady=(8, 0)
+            )
+        self.summary_build_button = ttk.Button(
+            summary_panel,
+            text="Build PowerPoint Deck",
+            command=lambda: self._show_nav_tab("build"),
+            style="Primary.TButton",
+        )
+        self.summary_build_button.grid(row=5, column=0, sticky="ew", pady=(10, 0))
+        self._track_widget(self.summary_build_button)
 
         self.build_tab.columnconfigure(0, weight=3)
         self.build_tab.columnconfigure(1, weight=2)
@@ -1940,7 +2202,7 @@ class DeckBuilderApp(tk.Tk):
 
         ollama_assist = ttk.Checkbutton(
             self.deck_advanced_frame,
-            text="Use Ollama image review when a vision model is installed",
+            text="Use Ollama image review when a vision model is installed (slower)",
             variable=self.ollama_assist_var,
             style="Card.TCheckbutton",
         )
@@ -1973,12 +2235,16 @@ class DeckBuilderApp(tk.Tk):
         )
         self.generate_button.grid(row=2, column=0, sticky="ew")
 
+        self.cancel_run_button = ttk.Button(action_panel, text="Cancel Current Build", command=self.cancel_generation, style="Secondary.TButton")
+        self.cancel_run_button.grid(row=3, column=0, sticky="ew", pady=(10, 0))
+        self.cancel_run_button.configure(state="disabled")
+
         open_last_button = ttk.Button(action_panel, text="Open Last Deck", command=self.open_last_output, style="Secondary.TButton")
-        open_last_button.grid(row=3, column=0, sticky="ew", pady=(10, 0))
+        open_last_button.grid(row=4, column=0, sticky="ew", pady=(10, 0))
         self._track_widget(open_last_button)
 
         self.more_button = ttk.Menubutton(action_panel, text="More", style="Secondary.TMenubutton")
-        self.more_button.grid(row=4, column=0, sticky="ew", pady=(10, 0))
+        self.more_button.grid(row=5, column=0, sticky="ew", pady=(10, 0))
         self.more_menu = tk.Menu(self.more_button, tearoff=0)
         self.more_menu.add_command(label="Open Outputs Folder", command=self.open_outputs_folder)
         self.more_menu.add_command(label="Open Library Folder", command=self.open_library_folder)
@@ -2023,8 +2289,8 @@ class DeckBuilderApp(tk.Tk):
         log_scroll.grid(row=0, column=1, sticky="ns")
         self.log_text.configure(yscrollcommand=log_scroll.set)
 
-        status_row = ttk.Frame(root, style="App.TFrame")
-        status_row.pack(fill="x", pady=(0, 2))
+        status_row = ttk.Frame(content, style="App.TFrame")
+        status_row.grid(row=3, column=0, sticky="ew", pady=(14, 0))
         self.progress = ttk.Progressbar(status_row, mode="indeterminate", length=180)
         self.progress.pack(side="left")
         ttk.Label(status_row, textvariable=self.status_var, style="Status.TLabel").pack(side="left", padx=(12, 0))
@@ -2038,8 +2304,21 @@ class DeckBuilderApp(tk.Tk):
         self._track_widget(self.log_toggle_button)
         ttk.Label(status_row, textvariable=self.last_output_var, style="PageSub.TLabel").pack(side="right")
 
+        for tracked_var in (
+            self.title_var,
+            self.images_var,
+            self.output_var,
+            self.theme_var,
+            self.crop_mode_var,
+            self.markup_style_var,
+            self.teaching_points_var,
+            self.ollama_assist_var,
+        ):
+            tracked_var.trace_add("write", lambda *_args: self._update_build_summary())
+
         self._set_deck_advanced_visible(False)
         self._set_log_visible(False)
+        self._show_nav_tab("cases")
 
     def _set_deck_advanced_visible(self, visible: bool) -> None:
         self.deck_advanced_visible = bool(visible)
@@ -2056,13 +2335,56 @@ class DeckBuilderApp(tk.Tk):
         self.log_visible = bool(visible)
         self.log_toggle_var.set("Open Activity")
         if self.log_visible:
-            try:
-                self.main_notebook.select(self.activity_tab)
-            except Exception:
-                pass
+            self._show_nav_tab("activity")
 
     def _toggle_log_visibility(self) -> None:
         self._set_log_visible(True)
+
+    def _update_build_summary(self) -> None:
+        if not hasattr(self, "summary_request_var"):
+            return
+
+        rows = []
+        for row in getattr(self, "request_rows", []):
+            try:
+                rows.append(row.serialize())
+            except Exception:
+                pass
+
+        if rows:
+            mode_counts: dict[str, int] = {}
+            for row in rows:
+                mode_counts[row.get("mode", REQUEST_MODE_SPECIFIC)] = mode_counts.get(row.get("mode", REQUEST_MODE_SPECIFIC), 0) + 1
+            mode_bits = [f"{count} {mode.replace(' Case URL', ' URL')}" for mode, count in mode_counts.items()]
+            self.summary_request_var.set(f"{len(rows)} request{'s' if len(rows) != 1 else ''}\n" + "\n".join(mode_bits))
+        else:
+            self.summary_request_var.set("No requests yet")
+
+        filters = []
+        for row in rows:
+            filters.extend(
+                [
+                    row.get("modality", "Any"),
+                    row.get("secondary_modality", "Any"),
+                    row.get("anatomy", "Any"),
+                    row.get("subspecialty", "Any") if row.get("mode") == REQUEST_MODE_RANDOM else "Any",
+                    row.get("age_group", "Any"),
+                    row.get("topic_focus", "Any"),
+                    row.get("difficulty", "Any"),
+                ]
+            )
+        active_filters = []
+        for value in filters:
+            if value and value != "Any" and value not in active_filters:
+                active_filters.append(value)
+        self.summary_filter_var.set("None" if not active_filters else "\n".join(active_filters[:8]))
+
+        title = collapse_text(self.title_var.get()) or "Auto title"
+        output = collapse_text(self.output_var.get())
+        output_label = Path(output).name if output else "Auto-save to outputs"
+        self.summary_output_var.set(
+            f"{title}\n{max(1, safe_int(self.images_var.get(), 3))} image(s) per case\n{self.theme_var.get()}\n{output_label}"
+        )
 
     def _requests_container(self) -> tk.Widget:
         return self.requests_frame
@@ -2161,11 +2483,13 @@ class DeckBuilderApp(tk.Tk):
         row = RequestRow(self.request_body, self, len(self.request_rows) + 1, initial_state)
         self.request_rows.append(row)
         self._bind_request_focus_widgets(row.frame)
+        self._update_build_summary()
         def finalize() -> None:
             self.request_canvas.configure(scrollregion=self.request_canvas.bbox("all"))
             if scroll_into_view:
                 self._scroll_row_into_view(row)
                 self._focus_row_primary_input(row)
+            self._update_build_summary()
 
         self.request_canvas.after(10, finalize)
 
@@ -2177,6 +2501,7 @@ class DeckBuilderApp(tk.Tk):
         if not self.request_rows:
             self.add_request_row({"mode": REQUEST_MODE_SPECIFIC})
         self._refresh_request_rows()
+        self._update_build_summary()
 
     def _refresh_request_rows(self) -> None:
         for index, row in enumerate(self.request_rows, start=1):
@@ -2190,6 +2515,7 @@ class DeckBuilderApp(tk.Tk):
         if not self.request_rows:
             self.add_request_row({"mode": REQUEST_MODE_SPECIFIC}, scroll_into_view=False)
         self._refresh_request_rows()
+        self._update_build_summary()
         self.request_canvas.after(10, lambda: self.request_canvas.yview_moveto(0.0))
 
     def _load_library_state(self) -> None:
@@ -2368,7 +2694,7 @@ class DeckBuilderApp(tk.Tk):
         self.last_output_var.set(self._last_output_label(self.last_output_path))
         self.auto_open_var.set(bool(state.get("auto_open", True)))
         self.clinical_history_var.set(bool(state.get("clinical_history", True)))
-        self.ollama_assist_var.set(bool(state.get("ollama_assist", True)))
+        self.ollama_assist_var.set(bool(state.get("ollama_assist", False)))
         self.theme_var.set(theme_label_from_cli(state.get("theme", "classic")))
         self.crop_mode_var.set(crop_label_from_cli(state.get("crop_mode", "default")))
         self.markup_style_var.set(markup_label_from_cli(state.get("markup_style", "none")))
@@ -2417,7 +2743,7 @@ class DeckBuilderApp(tk.Tk):
                 "mode": item.get("mode", REQUEST_MODE_SPECIFIC) if item.get("mode") in REQUEST_MODE_OPTIONS else REQUEST_MODE_SPECIFIC,
                 "diagnosis": collapse_text(item.get("diagnosis", "")),
                 "count": max(1, safe_int(item.get("count", 1), 1)),
-                "random_style": item.get("random_style", RANDOM_STYLE_ANY) if item.get("random_style") in RANDOM_STYLE_OPTIONS else RANDOM_STYLE_ANY,
+                "random_style": normalize_random_style(item.get("random_style", RANDOM_STYLE_ANY)),
                 "subspecialty": item.get("subspecialty", "Any") if item.get("subspecialty") in SUBSPECIALTY_OPTIONS else "Any",
                 "modality": item.get("modality", "Any") if item.get("modality") in MODALITY_OPTIONS else "Any",
                 "secondary_modality": item.get("secondary_modality", "Any") if item.get("secondary_modality") in MODALITY_OPTIONS else "Any",
@@ -2580,17 +2906,11 @@ class DeckBuilderApp(tk.Tk):
                 "mode": REQUEST_MODE_RANDOM,
                 "diagnosis": "",
                 "count": max(1, min(20, safe_int(item.get("randomCount", 1), 1))),
-                "random_style": (
-                    RANDOM_STYLE_MIXED
-                    if normalized(item.get("randomDiversity", "")) == "mixed"
-                    else RANDOM_STYLE_SUBSPECIALTY
-                    if subspecialty != "Any"
-                    else RANDOM_STYLE_MODALITY
-                    if modality != "Any" and anatomy == "Any"
-                    else RANDOM_STYLE_ANATOMY
-                    if anatomy != "Any"
-                    else RANDOM_STYLE_ANY
-                ),
+                "random_style": RANDOM_STYLE_MIXED
+                if normalized(item.get("randomDiversity", "")) == "mixed"
+                else RANDOM_STYLE_SUBSPECIALTY
+                if subspecialty != "Any"
+                else RANDOM_STYLE_ANY,
                 "subspecialty": subspecialty,
                 "modality": modality,
                 "secondary_modality": first_match(str(item.get("secondaryModality", "")), MODALITY_PATTERNS),
@@ -2696,6 +3016,7 @@ class DeckBuilderApp(tk.Tk):
             widget.configure(state=state if busy else normal_state)
 
         self.generate_button.configure(state="disabled" if busy else "normal")
+        self.cancel_run_button.configure(state="normal" if busy else "disabled")
         for row in self.request_rows:
             row.set_busy(busy)
 
@@ -2707,6 +3028,43 @@ class DeckBuilderApp(tk.Tk):
             self.progress.stop()
             if self.status_var.get() in {"Working...", "Building PowerPoint...", "Checking matches..."}:
                 self.status_var.set("Ready")
+
+    def cancel_generation(self) -> None:
+        if not (self.worker and self.worker.is_alive()):
+            return
+        self.cancel_requested = True
+        self.status_var.set("Cancelling...")
+        self.append_log("Cancellation requested.")
+        process = self.current_process
+        if process and process.poll() is None:
+            try:
+                process.terminate()
+            except Exception:
+                try:
+                    process.kill()
+                except Exception:
+                    pass
+
+    def _run_cli_capture(self, command: list[str]) -> subprocess.CompletedProcess[str]:
+        self.current_process = subprocess.Popen(
+            command,
+            cwd=str(PROJECT_ROOT),
+            env=command_env(),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            **hidden_subprocess_kwargs(),
+        )
+        try:
+            stdout, stderr = self.current_process.communicate()
+            return_code = self.current_process.returncode
+            if self.cancel_requested:
+                raise RuntimeError("Generation cancelled.")
+            return subprocess.CompletedProcess(command, return_code, stdout, stderr)
+        finally:
+            self.current_process = None
 
     def _probe_entries(self, entries: list[dict]) -> dict:
         temp_path = None
@@ -2721,16 +3079,7 @@ class DeckBuilderApp(tk.Tk):
                 json.dump(entries, handle, indent=2)
                 temp_path = handle.name
 
-            completed = subprocess.run(
-                [node_path(), str(CLI_SCRIPT), "--probe-input", temp_path],
-                cwd=str(PROJECT_ROOT),
-                env=command_env(),
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                **hidden_subprocess_kwargs(),
-            )
+            completed = self._run_cli_capture([node_path(), str(CLI_SCRIPT), "--probe-input", temp_path])
             if completed.returncode != 0:
                 error_text = completed.stderr.strip() or completed.stdout.strip() or "Unknown probe error."
                 raise RuntimeError(error_text)
@@ -2769,16 +3118,7 @@ class DeckBuilderApp(tk.Tk):
             if self.ollama_assist_var.get():
                 command.append("--use-ollama-assist")
 
-            completed = subprocess.run(
-                command,
-                cwd=str(PROJECT_ROOT),
-                env=command_env(),
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                **hidden_subprocess_kwargs(),
-            )
+            completed = self._run_cli_capture(command)
             if completed.returncode != 0:
                 error_text = completed.stderr.strip() or completed.stdout.strip() or "Unknown prepare error."
                 raise RuntimeError(error_text)
@@ -2883,6 +3223,9 @@ class DeckBuilderApp(tk.Tk):
             self.log_queue.put(("stage_error", {"stage": "probe", "message": str(exc)}))
 
     def _handle_probe_ready(self, payload: dict) -> None:
+        if self.cancel_requested:
+            self.log_queue.put(("cancelled", None))
+            return
         requested_entries = list(payload.get("requested_entries") or [])
         images_per_case = max(1, safe_int(payload.get("images_per_case"), 3))
         probe_result = dict(payload.get("probe_result") or {})
@@ -3012,6 +3355,9 @@ class DeckBuilderApp(tk.Tk):
         return self._reroll_prepared_case(item, images_per_case)
 
     def _begin_review_and_render(self, prepared: dict, images_per_case: int) -> None:
+        if self.cancel_requested:
+            self.log_queue.put(("cancelled", None))
+            return
         prepared_items = prepared.get("items", [])
         if prepared.get("failures"):
             for failure in prepared["failures"]:
@@ -3103,6 +3449,7 @@ class DeckBuilderApp(tk.Tk):
             )
             return
 
+        self.cancel_requested = False
         self._save_state()
         self.set_busy(True)
         self.append_log("")
@@ -3139,10 +3486,16 @@ class DeckBuilderApp(tk.Tk):
 
             return_code = self.current_process.wait()
             full_output = "\n".join(output_lines)
+            if self.cancel_requested:
+                self.log_queue.put(("cancelled", None))
+                return
             self.log_queue.put(("done", return_code))
             self.log_queue.put(("result", full_output))
         except Exception as exc:
-            self.log_queue.put(("error", f"{type(exc).__name__}: {exc}"))
+            if self.cancel_requested:
+                self.log_queue.put(("cancelled", None))
+            else:
+                self.log_queue.put(("error", f"{type(exc).__name__}: {exc}"))
         finally:
             self.current_process = None
             if temp_input_path:
@@ -3172,6 +3525,12 @@ class DeckBuilderApp(tk.Tk):
                     stage_payload = dict(payload)
                     stage = str(stage_payload.get("stage") or "prepare")
                     message = str(stage_payload.get("message") or "Unknown error.")
+                    if self.cancel_requested or message == "Generation cancelled.":
+                        self.set_busy(False)
+                        self.cancel_requested = False
+                        self.status_var.set("Ready")
+                        self.append_log("Generation cancelled.")
+                        continue
                     self.set_busy(False)
                     self.status_var.set("Build failed")
                     self.append_log(message)
@@ -3189,6 +3548,11 @@ class DeckBuilderApp(tk.Tk):
                     saved_return_code = int(payload)
                 elif kind == "result":
                     saved_output = str(payload)
+                elif kind == "cancelled":
+                    self.set_busy(False)
+                    self.cancel_requested = False
+                    self.status_var.set("Ready")
+                    self.append_log("Generation cancelled.")
         except Empty:
             pass
 
@@ -3199,6 +3563,7 @@ class DeckBuilderApp(tk.Tk):
 
     def _handle_generation_finished(self, return_code: int, output: str) -> None:
         self.set_busy(False)
+        self.cancel_requested = False
         pptx_match = re.search(r"Created PowerPoint:\s*(.+)", output)
         pptx_path = Path(pptx_match.group(1).strip()) if pptx_match else None
 
@@ -3248,7 +3613,7 @@ class DeckBuilderApp(tk.Tk):
         self.append_log("Building packaged Windows app...")
         try:
             completed = subprocess.run(
-                [powershell_path(), "-ExecutionPolicy", "Bypass", "-File", str(script_path)],
+                [powershell_path(), "-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script_path)],
                 cwd=str(PROJECT_ROOT),
                 capture_output=True,
                 text=True,
@@ -3278,7 +3643,7 @@ class DeckBuilderApp(tk.Tk):
             return
 
         completed = subprocess.run(
-            [powershell_path(), "-ExecutionPolicy", "Bypass", "-File", str(script_path)],
+            [powershell_path(), "-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script_path)],
             cwd=str(PROJECT_ROOT),
             capture_output=True,
             text=True,
@@ -3301,7 +3666,7 @@ class DeckBuilderApp(tk.Tk):
         self.teaching_points_var.set(False)
         self.auto_open_var.set(True)
         self.clinical_history_var.set(True)
-        self.ollama_assist_var.set(True)
+        self.ollama_assist_var.set(False)
         self.status_var.set("Ready")
         self._populate_request_rows([{"mode": REQUEST_MODE_SPECIFIC}])
 

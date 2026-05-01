@@ -125,12 +125,21 @@ async function loadEntries(inputPath) {
     return [];
   }
 
-  if (trimmed.startsWith("[")) {
-    const parsed = JSON.parse(trimmed);
-    if (!Array.isArray(parsed)) {
-      throw new Error("JSON input must be an array.");
+  if (/^[\[{\"]/.test(trimmed)) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+      if (typeof parsed === "string" || (parsed && typeof parsed === "object")) {
+        return [parsed];
+      }
+      throw new Error("JSON input must be an array, object, or string.");
+    } catch (error) {
+      if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
+        throw error;
+      }
     }
-    return parsed;
   }
 
   return trimmed

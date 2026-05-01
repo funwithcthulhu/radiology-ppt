@@ -59,7 +59,7 @@ export function redactTerms(text, terms) {
         if (!normalized) {
           return [];
         }
-        const pieces = normalized.split(/\s+/).filter((item) => item.length >= 5);
+        const pieces = normalized.includes(" ") ? [] : normalized.split(/\s+/).filter((item) => item.length >= 5);
         return [normalized, ...pieces];
       })
       .filter((term) => term.length >= 5),

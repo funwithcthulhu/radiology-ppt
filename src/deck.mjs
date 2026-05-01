@@ -1,6 +1,42 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { Presentation, PresentationFile } from "@oai/artifact-tool";
+import { pathToFileURL } from "node:url";
+
+async function loadArtifactTool() {
+  try {
+    return await import("@oai/artifact-tool");
+  } catch (primaryError) {
+    const bundledRoot = process.env.USERPROFILE
+      ? path.join(
+          process.env.USERPROFILE,
+          ".cache",
+          "codex-runtimes",
+          "codex-primary-runtime",
+          "dependencies",
+          "node",
+          "node_modules",
+          "@oai",
+          "artifact-tool",
+        )
+      : "";
+    const candidates = [process.env.RADIOLOGY_PPT_ARTIFACT_TOOL_PATH, bundledRoot].filter(Boolean);
+
+    for (const candidate of candidates) {
+      const entryPath = candidate.endsWith(".mjs")
+        ? candidate
+        : path.join(candidate, "dist", "artifact_tool.mjs");
+      try {
+        return await import(pathToFileURL(entryPath).href);
+      } catch {
+        // try the next known location
+      }
+    }
+
+    throw primaryError;
+  }
+}
+
+const { Presentation, PresentationFile } = await loadArtifactTool();
 
 const W = 1280;
 const H = 720;
@@ -204,6 +240,14 @@ function addFooter(slide, text, theme, { dark = false } = {}) {
   );
 }
 
+function truncateText(value, maxLength) {
+  const text = String(value ?? "").replace(/\s+/g, " ").trim();
+  if (text.length <= maxLength) {
+    return text;
+  }
+  return `${text.slice(0, Math.max(0, maxLength - 1)).trimEnd()}.`;
+}
+
 function addSpeakerNotes(slide, caseData, caseNumber) {
   slide.speakerNotes.setText(
     [
@@ -306,15 +350,15 @@ async function addImagesSlide(slide, caseData, caseNumber, deckTitle, theme) {
   if (caseData.caseIntro) {
     addText(
       slide,
-      caseData.caseIntro,
-      { left: 920, top: 56, width: 314, height: 18 },
+      truncateText(caseData.caseIntro, 92),
+      { left: 630, top: 57, width: 604, height: 14 },
       theme,
       {
-        fontSize: 12,
+        fontSize: 10,
         color: theme.colors.footerDark,
         face: theme.fonts.mono,
         align: "right",
-        autoFit: null,
+        autoFit: "shrinkText",
       },
     );
   }
