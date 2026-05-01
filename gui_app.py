@@ -1005,6 +1005,10 @@ class CaseReviewDialog(tk.Toplevel):
     def _repick_current(self) -> None:
         if self._review_action_running():
             return
+        _, unchecked_indexes = self._image_indexes_by_keep_state()
+        if unchecked_indexes and self.replace_images_callback:
+            self._replace_unchecked_images()
+            return
         self._run_case_action_async(
             "Repicking images from the same case...",
             "Could not repick images for this case.",
@@ -1143,12 +1147,15 @@ class CaseReviewDialog(tk.Toplevel):
             return
 
         if refreshed:
+            review_notice = collapse_text(refreshed.pop("_reviewNotice", ""))
             for line in refreshed.pop("_logMessages", []):
                 if self.log_callback:
                     self.log_callback(line)
             refreshed.pop("_imageKeepSelection", None)
             self.items[self.index] = refreshed
             self._show_current()
+            if review_notice:
+                self.quality_var.set(review_notice)
             return
 
         if no_result_message:
@@ -3499,19 +3506,21 @@ class DeckBuilderApp(tk.Tk):
             if len(replacement_images) >= replacement_count:
                 break
 
-        if len(replacement_images) < replacement_count:
-            raise RuntimeError(
-                "No alternate image could be found for the unchecked slot. Try removing it, or re-pick all images."
-            )
-
         combined_images = [dict(image) for image in kept_images] + replacement_images
         refreshed_case_data = dict(refreshed.get("caseData") or item.get("caseData") or {})
         refreshed_case_data["images"] = combined_images
         refreshed["caseData"] = refreshed_case_data
         refreshed["reviewOptions"] = dict(item.get("reviewOptions") or {})
-        refreshed["reviewOptions"]["requestedImagesPerCase"] = len(combined_images)
+        refreshed["reviewOptions"]["requestedImagesPerCase"] = max(1, len(combined_images))
         refreshed["rejectedFrameIds"] = sorted(frame_id for frame_id in excluded_frame_ids if frame_id)
         refreshed["_logMessages"] = list(prepared.get("failures") or [])
+        missing_count = replacement_count - len(replacement_images)
+        if missing_count > 0:
+            refreshed["_reviewNotice"] = (
+                f"No alternate image was available for {missing_count} unchecked slot"
+                f"{'' if missing_count == 1 else 's'}. The rejected image"
+                f"{' was' if missing_count == 1 else 's were'} removed instead of reused."
+            )
         return refreshed
 
     def _block_and_reroll_prepared_case(self, item: dict, images_per_case: int) -> dict | None:

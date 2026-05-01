@@ -1783,7 +1783,10 @@ function selectRelevantImages(imageCandidates, desiredCount, { excludeFrameIds =
   const candidatePool = excluded.size
     ? imageCandidates.filter((candidate) => !excluded.has(String(candidate.frameId)))
     : imageCandidates;
-  const effectivePool = candidatePool.length ? candidatePool : imageCandidates;
+  const effectivePool = candidatePool;
+  if (!effectivePool.length) {
+    return [];
+  }
 
   const annotatedCandidates = effectivePool.filter((candidate) => candidate.isAnnotated);
   if (annotatedCandidates.length) {
