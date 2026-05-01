@@ -1877,34 +1877,115 @@ async function maybeScoreSelectedImagesWithOllama(images, request, caseTitle) {
   );
 }
 
-function buildClinicalHistoryText({ request, description, findings, diagnosis, caseTitle }) {
+function extractPatientData(html) {
+  const text = cleanText(html);
+  const patientSection = extractFirst(
+    /\bPatient Data\b(.*?)(?:\bFrom the case:|\bCase Discussion\b|\bDiscussion\b|\bFindings\b|\bImaging\b|$)/i,
+    text,
+  ) || "";
+  const source = patientSection || text;
+  const age = cleanText(extractFirst(/\bAge:\s*(.*?)(?=\s+(?:Gender|Sex):|$)/i, source));
+  const gender = cleanText(extractFirst(/\b(?:Gender|Sex):\s*(.*?)(?=\s+(?:From the case:|Case Discussion|Discussion|Findings|Imaging|CT|MRI|X-ray|Ultrasound|Fluoroscopy|PET|$))/i, source));
+  return {
+    age: scrubPatientDataValue(age),
+    gender: scrubPatientDataValue(gender),
+  };
+}
+
+function scrubPatientDataValue(value) {
+  return collapseWhitespace(value)
+    .replace(/\b(?:Presentation|From the case:|Case Discussion|Discussion|Findings|Imaging)\b.*$/i, "")
+    .replace(/[.;:,]+$/g, "")
+    .trim();
+}
+
+function formatPatientAgeForIntro(age) {
+  const text = scrubPatientDataValue(age);
+  if (!text) {
+    return "";
+  }
+
+  const numericOnly = /^(\d+(?:\.\d+)?)$/.exec(text);
+  if (numericOnly) {
+    return `${numericOnly[1]}-year-old`;
+  }
+
+  const unitMatch = /^(\d+(?:\.\d+)?)\s*(years?|yrs?|y|months?|mos?|m|weeks?|wks?|w|days?|d)(?:\s*old)?$/i.exec(text);
+  if (unitMatch) {
+    const unitMap = {
+      y: "year",
+      yr: "year",
+      yrs: "year",
+      year: "year",
+      years: "year",
+      m: "month",
+      mo: "month",
+      mos: "month",
+      month: "month",
+      months: "month",
+      w: "week",
+      wk: "week",
+      wks: "week",
+      week: "week",
+      weeks: "week",
+      d: "day",
+      day: "day",
+      days: "day",
+    };
+    const unit = unitMap[unitMatch[2].toLowerCase()] || unitMatch[2].toLowerCase();
+    return `${unitMatch[1]}-${unit}-old`;
+  }
+
+  if (/^(adult|pediatric|paediatric|neonatal|infant|child|adolescent|elderly)$/i.test(text)) {
+    return text.toLowerCase().replace("paediatric", "pediatric");
+  }
+
+  return text;
+}
+
+function formatPatientGenderForIntro(gender) {
+  const text = scrubPatientDataValue(gender).toLowerCase();
+  if (!text) {
+    return "";
+  }
+  if (/^m(?:ale)?$/.test(text)) {
+    return "male";
+  }
+  if (/^f(?:emale)?$/.test(text)) {
+    return "female";
+  }
+  return text;
+}
+
+function articleForPhrase(phrase) {
+  return /^(?:8|11|18|adult|elderly|infant|adolescent|[aeiou])/i.test(phrase) ? "an" : "a";
+}
+
+function buildDemographicIntro(patientData) {
+  const age = formatPatientAgeForIntro(patientData?.age);
+  const gender = formatPatientGenderForIntro(patientData?.gender);
+
+  if (age && gender) {
+    return `The patient is ${articleForPhrase(age)} ${age} ${gender}.`;
+  }
+  if (age) {
+    return `The patient is ${articleForPhrase(age)} ${age} patient.`;
+  }
+  if (gender) {
+    return `The patient is ${gender}.`;
+  }
+  return "";
+}
+
+function buildClinicalHistoryText({ request, patientData }) {
   if (!request.includeClinicalHistory) {
-    return request.studyHint || "";
+    return "";
   }
   if (normalizedDifficulty(request.difficulty) === "hard") {
-    return request.studyHint || "";
+    return "";
   }
 
-  const candidateSentences = [description, findings]
-    .filter(Boolean)
-    .flatMap((text) => cleanText(text).split(/(?<=[.!?])\s+/));
-
-  for (const sentence of candidateSentences) {
-    const scrubbed = cleanRedactedTeachingText(redactTerms(sentence, [diagnosis, caseTitle]));
-    const redacted = truncate(
-      scrubbed.replace(/\bPublished\b.*$/i, "").trim(),
-      88,
-    );
-    if (!redacted) {
-      continue;
-    }
-    if (redacted.length < 10) {
-      continue;
-    }
-    return collapseWhitespace([redacted, request.studyHint].filter(Boolean).join(" • "));
-  }
-
-  return request.studyHint || "";
+  return buildDemographicIntro(patientData);
 }
 
 function cleanRedactedTeachingText(text) {
@@ -2032,6 +2113,7 @@ async function fetchRadiopaediaCaseByPath(request, casePath, { cacheDir, imagesP
   const description = cleanText(
     extractFirst(/<meta\s+property="og:description"\s+content="([^"]+)"/i, html),
   );
+  const patientData = extractPatientData(html);
   const ridMatch = extractFirst(/<meta\s+name='dc\.identifier'\s+content='[^']*(rID-\d+)'/i, html);
   const rid = ridMatch || "rID unavailable";
   const studyIds = dedupe([...html.matchAll(/\/studies\/(\d+)/g)].map((match) => match[1]));
@@ -2118,10 +2200,7 @@ async function fetchRadiopaediaCaseByPath(request, casePath, { cacheDir, imagesP
   const modalitySummary = dedupe(orderedStudies.map((study) => study.modality).filter(Boolean)).join(", ") || "Unknown";
   const caseIntro = buildClinicalHistoryText({
     request,
-    description,
-    findings,
-    diagnosis: effectiveDiagnosis,
-    caseTitle,
+    patientData,
   });
   const teachingPoints = buildTeachingPoints({
     request,
@@ -2158,6 +2237,7 @@ async function fetchRadiopaediaCaseByPath(request, casePath, { cacheDir, imagesP
     displayUrl,
     modalitySummary,
     studyCount: orderedStudies.length,
+    patientData,
     caseIntro,
     teachingPoints,
     quality,

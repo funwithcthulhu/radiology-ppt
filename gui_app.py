@@ -610,6 +610,7 @@ class CaseReviewDialog(tk.Toplevel):
         log_callback=None,
         cancel_action_callback=None,
         cancel_action_complete_callback=None,
+        replace_images_callback=None,
     ) -> None:
         super().__init__(parent)
         self.title("Review Prepared Cases")
@@ -627,10 +628,12 @@ class CaseReviewDialog(tk.Toplevel):
         self.log_callback = log_callback
         self.cancel_action_callback = cancel_action_callback
         self.cancel_action_complete_callback = cancel_action_complete_callback
+        self.replace_images_callback = replace_images_callback
         self.result: list[dict] | None = None
         self.index = 0
         self.kept_items: list[dict] = []
         self.image_refs: list[ImageTk.PhotoImage] = []
+        self.image_keep_vars: list[tk.BooleanVar] = []
         self._resize_after_id: str | None = None
         self._action_thread: threading.Thread | None = None
         self._action_cancel_requested = False
@@ -732,9 +735,30 @@ class CaseReviewDialog(tk.Toplevel):
 
         ttk.Label(
             controls,
-            text="Use these settings when you click Re-pick Images.",
+            text="Uncheck images below to replace or remove specific images. Crop/markup apply when you re-pick or replace.",
             foreground="#4c6477",
         ).grid(row=1, column=0, columnspan=6, sticky="w", pady=(8, 0))
+
+        selection_controls = ttk.Frame(controls)
+        selection_controls.grid(row=2, column=0, columnspan=6, sticky="ew", pady=(10, 0))
+        self.replace_unchecked_button = ttk.Button(
+            selection_controls,
+            text="Replace Unchecked",
+            command=self._replace_unchecked_images,
+        )
+        self.replace_unchecked_button.pack(side="left")
+        self.remove_unchecked_button = ttk.Button(
+            selection_controls,
+            text="Remove Unchecked",
+            command=self._remove_unchecked_images,
+        )
+        self.remove_unchecked_button.pack(side="left", padx=(8, 0))
+        self.keep_all_images_button = ttk.Button(
+            selection_controls,
+            text="Keep All Images",
+            command=self._keep_all_images,
+        )
+        self.keep_all_images_button.pack(side="left", padx=(8, 0))
 
         self.image_frame = ttk.LabelFrame(self.images_tab, text="Selected Images", padding=12)
         self.image_frame.grid(row=1, column=0, sticky="nsew", pady=(12, 0))
@@ -821,6 +845,55 @@ class CaseReviewDialog(tk.Toplevel):
     def _review_action_running(self) -> bool:
         return bool(self._action_thread and self._action_thread.is_alive())
 
+    def _image_selection_key(self, image_data: dict, index: int) -> str:
+        return collapse_text(
+            image_data.get("frameId")
+            or image_data.get("localPath")
+            or image_data.get("url")
+            or f"image-{index}"
+        )
+
+    def _image_keep_state(self) -> dict:
+        item = self._current_item()
+        state = item.get("_imageKeepSelection")
+        if not isinstance(state, dict):
+            state = {}
+            item["_imageKeepSelection"] = state
+        return state
+
+    def _set_image_keep_state(self, key: str, variable: tk.BooleanVar) -> None:
+        self._image_keep_state()[key] = bool(variable.get())
+
+    def _image_indexes_by_keep_state(self) -> tuple[list[int], list[int]]:
+        item = self._current_item()
+        images = item.get("caseData", {}).get("images", [])
+        keep_state = self._image_keep_state()
+        kept_indexes = []
+        unchecked_indexes = []
+        for index, image_data in enumerate(images):
+            key = self._image_selection_key(image_data, index)
+            if keep_state.get(key, True):
+                kept_indexes.append(index)
+            else:
+                unchecked_indexes.append(index)
+        return kept_indexes, unchecked_indexes
+
+    def _frame_ids_for_images(self, images: list[dict]) -> list[str]:
+        return [
+            collapse_text(image.get("frameId", ""))
+            for image in images
+            if collapse_text(image.get("frameId", ""))
+        ]
+
+    def _keep_all_images(self) -> None:
+        if self._review_action_running():
+            return
+        item = self._current_item()
+        keep_state = self._image_keep_state()
+        for index, image_data in enumerate(item.get("caseData", {}).get("images", [])):
+            keep_state[self._image_selection_key(image_data, index)] = True
+        self._render_image_cards(item.get("caseData", {}))
+
     def _review_options_for(self, item: dict) -> dict:
         review_options = dict(item.get("reviewOptions") or {})
         request = dict(item.get("request") or {})
@@ -855,6 +928,9 @@ class CaseReviewDialog(tk.Toplevel):
             self.favorite_button,
             self.block_button,
             self.skip_button,
+            self.replace_unchecked_button,
+            self.remove_unchecked_button,
+            self.keep_all_images_button,
         ]:
             widget.configure(state=button_state)
         self.cancel_button.configure(
@@ -880,6 +956,7 @@ class CaseReviewDialog(tk.Toplevel):
             return
         self._store_current_review_options()
         kept_item = self._current_item()
+        kept_item.pop("_imageKeepSelection", None)
         self.save_callback(kept_item)
         self.kept_items.append(kept_item)
         self._advance()
@@ -903,6 +980,64 @@ class CaseReviewDialog(tk.Toplevel):
             "Repicking images from the same case...",
             "Could not repick images for this case.",
             self.repick_callback,
+        )
+
+    def _remove_unchecked_images(self) -> None:
+        if self._review_action_running():
+            return
+        kept_indexes, unchecked_indexes = self._image_indexes_by_keep_state()
+        if not unchecked_indexes:
+            messagebox.showinfo(APP_TITLE, "Uncheck one or more images first.")
+            return
+        if not kept_indexes:
+            messagebox.showwarning(APP_TITLE, "Keep at least one image, or skip this case instead.")
+            return
+
+        item = self._current_item()
+        case_data = dict(item.get("caseData") or {})
+        images = list(case_data.get("images") or [])
+        kept_images = [dict(images[index]) for index in kept_indexes]
+        removed_images = [dict(images[index]) for index in unchecked_indexes]
+
+        case_data["images"] = kept_images
+        item["caseData"] = case_data
+        rejected_frame_ids = set(item.get("rejectedFrameIds") or [])
+        rejected_frame_ids.update(self._frame_ids_for_images(removed_images))
+        item["rejectedFrameIds"] = sorted(frame_id for frame_id in rejected_frame_ids if frame_id)
+        item.pop("_imageKeepSelection", None)
+
+        self.image_count_var.set(len(kept_images))
+        self._store_current_review_options()
+        self._show_current()
+        self.quality_var.set(f"Removed {len(removed_images)} image(s). This case will export with {len(kept_images)} image(s).")
+
+    def _replace_unchecked_images(self) -> None:
+        if self._review_action_running():
+            return
+        if not self.replace_images_callback:
+            messagebox.showinfo(APP_TITLE, "Image replacement is not available in this build.")
+            return
+        kept_indexes, unchecked_indexes = self._image_indexes_by_keep_state()
+        if not unchecked_indexes:
+            messagebox.showinfo(APP_TITLE, "Uncheck one or more images first.")
+            return
+
+        item = self._current_item()
+        images = list(item.get("caseData", {}).get("images") or [])
+        kept_images = [dict(images[index]) for index in kept_indexes]
+        unchecked_images = [dict(images[index]) for index in unchecked_indexes]
+        replace_frame_ids = self._frame_ids_for_images(unchecked_images)
+        replacement_count = len(unchecked_images)
+
+        self._run_case_action_async(
+            f"Replacing {replacement_count} image(s) from the same case...",
+            "Could not replace selected images.",
+            lambda current_item: self.replace_images_callback(
+                current_item,
+                kept_images,
+                replace_frame_ids,
+                replacement_count,
+            ),
         )
 
     def _favorite_current(self) -> None:
@@ -982,6 +1117,7 @@ class CaseReviewDialog(tk.Toplevel):
             for line in refreshed.pop("_logMessages", []):
                 if self.log_callback:
                     self.log_callback(line)
+            refreshed.pop("_imageKeepSelection", None)
             self.items[self.index] = refreshed
             self._show_current()
             return
@@ -1025,6 +1161,7 @@ class CaseReviewDialog(tk.Toplevel):
         for child in self.image_grid.winfo_children():
             child.destroy()
         self.image_refs = []
+        self.image_keep_vars = []
 
         images = case_data.get("images", [])
         if not images:
@@ -1034,11 +1171,23 @@ class CaseReviewDialog(tk.Toplevel):
             return
 
         thumb_width, thumb_height = self._thumbnail_dimensions(len(images))
+        keep_state = self._image_keep_state()
 
         for column, image_data in enumerate(images):
             card = ttk.Frame(self.image_grid)
             card.grid(row=0, column=column, sticky="nsew", padx=(0 if column == 0 else 12, 0))
             self.image_grid.columnconfigure(column, weight=1)
+
+            image_key = self._image_selection_key(image_data, column)
+            keep_var = tk.BooleanVar(value=keep_state.get(image_key, True))
+            self.image_keep_vars.append(keep_var)
+            keep_check = ttk.Checkbutton(
+                card,
+                text=f"Keep image {column + 1}",
+                variable=keep_var,
+                command=lambda key=image_key, var=keep_var: self._set_image_keep_state(key, var),
+            )
+            keep_check.pack(anchor="w", pady=(0, 6))
 
             image_label = ttk.Label(card)
             image_label.pack(fill="both", expand=True)
@@ -2193,7 +2342,7 @@ class DeckBuilderApp(tk.Tk):
 
         clinical_history = ttk.Checkbutton(
             options_row,
-            text="Use minimal clinical history when available",
+            text="Show patient age/sex when available",
             variable=self.clinical_history_var,
             style="Card.TCheckbutton",
         )
@@ -3400,6 +3549,69 @@ class DeckBuilderApp(tk.Tk):
         refreshed["_logMessages"] = list(prepared.get("failures") or [])
         return refreshed
 
+    def _replace_prepared_images(
+        self,
+        item: dict,
+        kept_images: list[dict],
+        replace_frame_ids: list[str],
+        replacement_count: int,
+    ) -> dict:
+        request = dict(item.get("request") or {})
+        current_case_path = request.get("selectedCasePath") or item.get("caseData", {}).get("casePath")
+        current_images = list(item.get("caseData", {}).get("images") or [])
+        kept_frame_ids = {
+            collapse_text(image.get("frameId", ""))
+            for image in kept_images
+            if collapse_text(image.get("frameId", ""))
+        }
+        excluded_frame_ids = set(item.get("rejectedFrameIds") or [])
+        excluded_frame_ids.update(
+            collapse_text(image.get("frameId", ""))
+            for image in current_images
+            if collapse_text(image.get("frameId", ""))
+        )
+        excluded_frame_ids.update(collapse_text(frame_id) for frame_id in replace_frame_ids if collapse_text(frame_id))
+
+        source_request = self._request_with_review_options(
+            item,
+            force_same_case=True,
+            exclude_frame_ids=sorted(frame_id for frame_id in excluded_frame_ids if frame_id),
+        )
+        source_request["requestedImagesPerCase"] = max(1, replacement_count)
+        if current_case_path:
+            source_request["selectedCasePath"] = current_case_path
+
+        prepared = self._prepare_entries([source_request], max(1, replacement_count))
+        items = prepared.get("items", [])
+        if not items:
+            failures = prepared.get("failures", [])
+            raise RuntimeError("\n".join(failures) if failures else "No replacement images could be prepared from this case.")
+
+        refreshed = items[0]
+        replacement_images = []
+        for image in refreshed.get("caseData", {}).get("images", []):
+            frame_id = collapse_text(image.get("frameId", ""))
+            if frame_id and frame_id in kept_frame_ids:
+                continue
+            replacement_images.append(dict(image))
+            if len(replacement_images) >= replacement_count:
+                break
+
+        if len(replacement_images) < replacement_count:
+            raise RuntimeError(
+                "No alternate image could be found for the unchecked slot. Try removing it, or re-pick all images."
+            )
+
+        combined_images = [dict(image) for image in kept_images] + replacement_images
+        refreshed_case_data = dict(refreshed.get("caseData") or item.get("caseData") or {})
+        refreshed_case_data["images"] = combined_images
+        refreshed["caseData"] = refreshed_case_data
+        refreshed["reviewOptions"] = dict(item.get("reviewOptions") or {})
+        refreshed["reviewOptions"]["requestedImagesPerCase"] = len(combined_images)
+        refreshed["rejectedFrameIds"] = sorted(frame_id for frame_id in excluded_frame_ids if frame_id)
+        refreshed["_logMessages"] = list(prepared.get("failures") or [])
+        return refreshed
+
     def _block_and_reroll_prepared_case(self, item: dict, images_per_case: int) -> dict | None:
         self.block_prepared_case(item)
         return self._reroll_prepared_case(item, images_per_case)
@@ -3423,14 +3635,20 @@ class DeckBuilderApp(tk.Tk):
         review_dialog = CaseReviewDialog(
             self,
             prepared_items,
-            lambda item: self._reroll_prepared_case(item, images_per_case),
-            lambda item: self._repick_prepared_images(item, images_per_case),
-            self.favorite_prepared_case,
-            lambda item: self._block_and_reroll_prepared_case(item, images_per_case),
-            self.save_prepared_case,
-            self.append_log,
-            self._request_operation_cancel,
-            self._clear_operation_cancel,
+            reroll_callback=lambda item: self._reroll_prepared_case(item, images_per_case),
+            repick_callback=lambda item: self._repick_prepared_images(item, images_per_case),
+            favorite_callback=self.favorite_prepared_case,
+            block_callback=lambda item: self._block_and_reroll_prepared_case(item, images_per_case),
+            save_callback=self.save_prepared_case,
+            log_callback=self.append_log,
+            cancel_action_callback=self._request_operation_cancel,
+            cancel_action_complete_callback=self._clear_operation_cancel,
+            replace_images_callback=lambda item, kept_images, replace_frame_ids, replacement_count: self._replace_prepared_images(
+                item,
+                kept_images,
+                replace_frame_ids,
+                replacement_count,
+            ),
         )
         self.wait_window(review_dialog)
 
