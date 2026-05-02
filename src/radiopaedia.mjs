@@ -980,6 +980,37 @@ function selectRelevantImages(imageCandidates, desiredCount, { excludeFrameIds =
   return selected.slice(0, desiredCount);
 }
 
+function serializeImageCandidate(candidate) {
+  return {
+    url: candidate.url,
+    label: candidate.label || "",
+    studyId: candidate.studyId ?? null,
+    seriesId: candidate.seriesId ?? null,
+    frameId: candidate.frameId ?? "",
+    modality: candidate.modality ?? null,
+    plane: candidate.plane ?? "",
+    sliceIndex: candidate.sliceIndex ?? null,
+    relevantScore: Number.isFinite(candidate.relevantScore) ? candidate.relevantScore : 0,
+    isAnnotated: Boolean(candidate.isAnnotated),
+    isKeyImage: Boolean(candidate.isKeyImage),
+    isCurrent: Boolean(candidate.isCurrent),
+    viewSignature: candidate.viewSignature || "",
+    focusPoints: Array.isArray(candidate.focusPoints) ? candidate.focusPoints : [],
+  };
+}
+
+function normalizeImageCandidateBank(candidates) {
+  if (!Array.isArray(candidates)) {
+    return [];
+  }
+  return candidates
+    .filter((candidate) => candidate && typeof candidate === "object" && candidate.url)
+    .map((candidate) => ({
+      ...serializeImageCandidate(candidate),
+      localPath: undefined,
+    }));
+}
+
 function imageStrengthScore(image) {
   const ollamaBonus = Number.isFinite(image.ollamaScore) ? image.ollamaScore * 8 : 0;
   return image.relevantScore + ollamaBonus + (image.isAnnotated ? 120 : 0) + (image.isKeyImage ? 40 : 0);
@@ -1312,9 +1343,13 @@ async function fetchRadiopaediaCaseByPath(request, casePath, { cacheDir, imagesP
     throw new Error(`No ${request.preferredModalities.join("/")} studies were found for "${caseTitle}".`);
   }
 
-  const imageCandidates = [];
+  let imageCandidates = [];
   for (const study of preferredStudies) {
     imageCandidates.push(...buildImageCandidates(study));
+  }
+  const requestCandidateBank = normalizeImageCandidateBank(request.imageCandidateBank);
+  if (requestCandidateBank.length) {
+    imageCandidates = requestCandidateBank;
   }
 
   const fallbackOgImage = extractFirst(/<meta\s+property="og:image"\s+content="([^"]+)"/i, html);
@@ -1332,6 +1367,7 @@ async function fetchRadiopaediaCaseByPath(request, casePath, { cacheDir, imagesP
     throw new Error(`No usable images were found for "${caseTitle}".`);
   }
 
+  const imageCandidateBank = normalizeImageCandidateBank(imageCandidates);
   const selectedImages = selectRelevantImages(imageCandidates, Math.max(1, imagesPerCase), {
     excludeFrameIds: request.excludeFrameIds || [],
   });
@@ -1416,6 +1452,7 @@ async function fetchRadiopaediaCaseByPath(request, casePath, { cacheDir, imagesP
     teachingPoints,
     quality,
     images,
+    imageCandidateBank,
   };
 }
 

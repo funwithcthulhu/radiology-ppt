@@ -238,6 +238,7 @@ function toManifest(cases, entries, deckTitle) {
       caseIntro: caseData.caseIntro,
       teachingPoints: caseData.teachingPoints || [],
       quality: caseData.quality,
+      imageCandidateCount: Array.isArray(caseData.imageCandidateBank) ? caseData.imageCandidateBank.length : null,
       images: caseData.images.map((image) => ({
         label: image.label,
         url: image.url,

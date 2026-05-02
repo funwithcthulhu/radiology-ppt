@@ -3405,6 +3405,9 @@ class DeckBuilderApp(tk.Tk):
                 source_request["selectedCaseTitle"] = selected_case_title or title_from_case_path(selected_case_path)
                 source_request["rawInput"] = selected_case_path
                 source_request["diagnosis"] = selected_case_title or title_from_case_path(selected_case_path)
+                candidate_bank = item.get("caseData", {}).get("imageCandidateBank")
+                if isinstance(candidate_bank, list) and candidate_bank:
+                    source_request["imageCandidateBank"] = candidate_bank
         if exclude_frame_ids:
             source_request["excludeFrameIds"] = [collapse_text(frame_id) for frame_id in exclude_frame_ids if collapse_text(frame_id)]
 
