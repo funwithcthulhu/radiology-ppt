@@ -6,9 +6,9 @@ import {
   expandCaseRequests,
   fetchRadiopaediaCase,
   inspectRadiopaediaCaseCandidates,
-  parseCaseRequest,
   saveRandomHistory,
 } from "./radiopaedia.mjs";
+import { parseCaseRequest } from "./request-parser.mjs";
 import { collapseWhitespace, formatTimestamp, slugify } from "./utils.mjs";
 
 const RESOURCE_ROOT =
