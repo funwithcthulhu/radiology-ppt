@@ -342,7 +342,7 @@ public partial class MainWindow : Window
             }
 
             StatusText = "PowerPoint complete";
-            MessageBox.Show(this, "PowerPoint created successfully.", Title, MessageBoxButton.OK, MessageBoxImage.Information);
+            AppendLog("PowerPoint created successfully.");
         }
         catch (OperationCanceledException)
         {
