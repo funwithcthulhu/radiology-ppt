@@ -16,6 +16,7 @@ The app can:
 - use manual Radiopaedia case URLs
 - review matches before export
 - let you keep, reroll, repick, replace, or remove images during review
+- favorite reviewed cases into a searchable local case library
 - choose exact replacement frames from a per-case candidate image gallery
 - apply PowerPoint presets for fast preview, higher-quality image review, Ollama-assisted review, Core Review teaching, or dark conference mode
 - choose a case-conference or Core Review PowerPoint style
@@ -23,6 +24,7 @@ The app can:
 - keep local history so random PowerPoints do not keep repeating the same recent cases
 - cache Radiopaedia metadata and image candidate banks to speed repeated runs
 - store app state, settings, review sessions, generated PowerPoint metadata, and diagnostics in a local SQLite database
+- use a persistent Node backend service while the app is open for faster repeated review actions
 
 ## Documentation
 
@@ -49,7 +51,7 @@ If the packaged app is not present yet, you can launch the source GUI directly:
 dotnet run --project .\csharp\RadiologyPpt.App\RadiologyPpt.App.csproj
 ```
 
-The current desktop app is C# WPF. The Radiopaedia search, image-selection, caching, Core Boards ingestion, and PowerPoint rendering engine remains in Node under `src\`.
+The current desktop app is C# WPF. The Radiopaedia search, image-selection, caching, Core Boards ingestion, and PowerPoint rendering engine remains in Node under `src\`, served to the GUI through a persistent local backend process while the app is open.
 
 ## GUI Workflow
 
@@ -63,7 +65,7 @@ The current desktop app is C# WPF. The Radiopaedia search, image-selection, cach
 5. Go to the `PowerPoint` tab and optionally apply a preset, then set title, output path, images per case, PowerPoint style, theme, and optional extras.
 6. Click `Generate PowerPoint`.
 7. Review each prepared case before export.
-8. Keep, reroll, repick, replace individual images, remove individual images, or skip each case.
+8. Keep, favorite, reroll, repick, replace individual images, remove individual images, or skip each case.
 9. Export the final PowerPoint.
 
 The window is clamped to the visible Windows work area on launch, including high-DPI/scaled displays, so it should not open above the top of the screen.
@@ -113,11 +115,15 @@ The primary GUI is a native Windows C# WPF app. The Radiopaedia/PowerPoint backe
 - `csharp\RadiologyPpt.App`: WPF desktop UI, review flow, settings, and app orchestration
 - `csharp\RadiologyPpt.App\AppStorage.cs`: local SQLite storage for settings, review sessions, image candidates, generated PowerPoints, diagnostics, and Core Boards import metadata
 - `csharp\RadiologyPpt.App\AppJobRunner.cs`: cancellable background-task coordinator for long GUI workflows
-- `src/cli.mjs`: thin internal backend entrypoint used by the GUI
+- `csharp\RadiologyPpt.App\CaseLibraryViewModel.cs`: local case-library list state
+- `csharp\RadiologyPpt.App\PowerPointResultParser.cs`: parsing for backend PowerPoint output summaries
+- `src/backend-service.mjs`: persistent JSONL backend service used by the GUI
+- `src/cli.mjs`: thin internal/developer backend entrypoint
 - `src/backend-api.mjs`: testable workflow API for prepare, probe, score, render, and Core Review operations
 - `src/contracts`: JSON schema contracts for C# to Node prepare/render payloads
 - `src/request-parser.mjs`: diagnosis, random/category, modality, and filter parsing
 - `src/radiopaedia-client.mjs`: Radiopaedia HTTP/download helpers and persistent fetch cache
+- `src/providers/radiopaedia-provider.mjs`: provider seam for Radiopaedia-specific IO
 - `src/radiopaedia.mjs`: case search, case assembly, patient data, and teaching text
 - `src/focus-crop.mjs`: Node image focus-crop and optional focus-ring rendering
 - `src/image-candidates.mjs`: frame candidate extraction, relevance scoring, and selection
@@ -161,18 +167,22 @@ Local state:
 - `state\radiology-ppt.sqlite` stores durable app metadata and is ignored by Git.
 - `cache\`, `scratch\`, `outputs\`, and `library\board-review\` remain local/private generated data by default.
 - Use the `Activity` tab to refresh diagnostics, open the state folder, clean scratch files, or clean cache files older than 30 days.
+- Use `Run Maintenance` on the Activity tab to clean old scratch/cache files and optimize the SQLite database.
 
 ## Notes
 
 - The app prefers stronger finding-centered images and can use fewer images when a case does not have enough clearly useful frames.
 - When Radiopaedia exposes annotation coordinates, the app can focus-crop around the finding and optionally add a subtle focus ring.
 - Optional minimal clinical history can be added to the intro slide.
+- The review window supports keyboard shortcuts: `K` keep, `F` favorite, `S` skip, `R` reroll, `I` re-pick, `Delete` remove unchecked, and `Esc` cancel.
 - If a local Ollama vision model is installed, the app can optionally score selected images from the review window.
 - Ollama auto-detect prefers compact vision models first to reduce slowdown.
 - Ollama review is intentionally deferred and capped for responsiveness: by default it reviews only the strongest selected image per case, with a 12-second image timeout and 20-second case budget. Advanced users can tune this with `RADIOLOGY_PPT_OLLAMA_IMAGE_TIMEOUT_MS`, `RADIOLOGY_PPT_OLLAMA_CASE_TIMEOUT_MS`, and `RADIOLOGY_PPT_OLLAMA_MAX_IMAGES_PER_CASE`.
 - Random case selections are remembered during prepare, not only after PowerPoint export, so cancelled/reviewed random runs should not keep recycling the same cases.
 - The packaged app writes outputs, cache, library data, and state inside its app folder.
 - Case preparation runs multiple cases concurrently, while preserving request order.
+- HTTP requests are concurrency-limited and retried to reduce transient Radiopaedia/curl failures.
+- Random fallback case pages are prefetched in the persistent backend service to make rerolls more responsive.
 - Radiopaedia image reuse in presentations is encouraged with attribution, and this app adds attribution to the slides:
   [Using and attributing images from Radiopaedia](https://radiopaedia.org/articles/using-and-attributing-images-from-radiopaedia-1?lang=us)
 

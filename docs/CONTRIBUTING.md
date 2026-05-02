@@ -6,9 +6,11 @@ Repository:
 
 `https://github.com/funwithcthulhu/radiology-ppt`
 
-Local project root:
+Work from the active checkout reported by:
 
-`C:\projects\radiopaedia_case_powerpoint_builder`
+```powershell
+git rev-parse --show-toplevel
+```
 
 ## Setup
 
@@ -53,8 +55,10 @@ Use these boundaries when deciding where a change belongs:
 
 - C# UI, review flow, settings, local app metadata: `csharp/RadiologyPpt.App`
 - C# to Node process boundary: `csharp/RadiologyPpt.App/BackendClient.cs`
+- Persistent GUI backend process: `src/backend-service.mjs`
 - Node workflow API: `src/backend-api.mjs`
-- CLI argument parsing only: `src/cli.mjs`
+- CLI argument parsing and developer diagnostics only: `src/cli.mjs`
+- Radiopaedia provider seam: `src/providers/radiopaedia-provider.mjs`
 - Radiopaedia search/case assembly: `src/radiopaedia.mjs`
 - HTTP/download cache helpers: `src/radiopaedia-client.mjs`
 - image selection/scoring: `src/image-candidates.mjs`
@@ -66,11 +70,12 @@ Use these boundaries when deciding where a change belongs:
 ## Change Guidelines
 
 - Keep `src/cli.mjs` thin. Put reusable backend behavior in `src/backend-api.mjs` or a service module.
+- Keep `src/backend-service.mjs` thin. It should own JSONL protocol mechanics, not Radiopaedia or PowerPoint business logic.
 - Keep slow or optional work out of initial preparation. Use review actions for expensive steps such as Ollama scoring.
 - When adding C# to Node fields, update `src/contracts` and `tests/contract-schemas.test.mjs`.
 - Keep generated files out of Git.
 - Do not commit local `cache/`, `state/`, `outputs/`, `scratch/`, `dist/`, or `library/board-review/`.
-- Prefer additive schema migrations. Existing local SQLite databases should keep opening.
+- Prefer additive schema migrations and record them in `schema_migrations`. Existing local SQLite databases should keep opening.
 - Preserve Radiopaedia attribution in generated slides.
 
 ## Test Expectations
@@ -81,6 +86,8 @@ Before pushing:
 npm test
 dotnet build .\csharp\RadiologyPpt.App\RadiologyPpt.App.csproj
 ```
+
+GitHub Actions also runs these checks on Windows, so keep local tests aligned with `.github/workflows/ci.yml`.
 
 Before saying the desktop shortcut is updated:
 

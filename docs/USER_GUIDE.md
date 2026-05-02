@@ -8,6 +8,8 @@ This app builds case-based radiology PowerPoints from Radiopaedia cases. The nor
 4. Review each prepared case and image.
 5. Export the final PowerPoint.
 
+Use the **Library** tab when you want to find cases you previously approved, favorited, skipped, or rejected.
+
 ## Cases Tab
 
 ![Cases tab overview](images/cases-tab.svg)
@@ -39,6 +41,15 @@ The **PowerPoint** tab controls the final presentation.
 - **Image crop / markup**: controls focus cropping and optional focus rings.
 - **Use Ollama image review**: keeps initial preparation fast; use **Ollama Score Case** in review when you want local model scoring for a specific case.
 
+## Library Tab
+
+The **Library** tab is your local case history.
+
+- Search previously reviewed Radiopaedia cases by title or URL.
+- Filter by review decision, including approved, favorite, skipped, and rejected.
+- Open the selected Radiopaedia case in your browser.
+- Use **Favorite & Next** during review to make high-yield cases easier to find later.
+
 ## Review Window
 
 ![Review window overview](images/review-window.svg)
@@ -46,6 +57,7 @@ The **PowerPoint** tab controls the final presentation.
 Review is intentionally human-in-the-loop.
 
 - **Keep Case & Next**: approves the current case and moves forward.
+- **Favorite & Next**: approves the current case, marks it as a favorite, and moves forward.
 - **Skip Case**: rejects this case so random selection avoids it later.
 - **Reroll Case**: gets a different case for the same request.
 - **Re-pick Images**: gets a new image set from the same case.
@@ -54,6 +66,16 @@ Review is intentionally human-in-the-loop.
 - **Candidates tab**: manually pick exact alternate frames from the same Radiopaedia case.
 - **Ollama Score Case**: scores the current kept images only when Ollama review is enabled.
 - **Cancel Action**: stops a stuck reroll, image repick, or Ollama score request.
+
+Keyboard shortcuts:
+
+- `K` or `Enter`: keep case
+- `F`: favorite case
+- `S`: skip case
+- `R`: reroll case
+- `I`: re-pick images
+- `Delete`: remove unchecked images
+- `Esc`: cancel the current review action, or close review if no action is running
 
 ## Recommended Workflows
 
@@ -92,3 +114,5 @@ The app stores local-only state in:
 - `library/board-review/`
 
 These paths are ignored by Git. Use the **Activity** tab to refresh diagnostics, open the state folder, clean scratch files, or clean old cache files.
+
+Use **Run Maintenance** on the Activity tab when the app feels sluggish or after many test runs. It removes old scratch/cache files and asks SQLite to optimize the local state database without deleting your review history.

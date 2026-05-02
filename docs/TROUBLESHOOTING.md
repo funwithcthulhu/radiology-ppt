@@ -11,6 +11,8 @@ This should be uncommon now that long-running work is isolated behind background
 
 If it repeatedly freezes at review, disable Ollama review and use **Ollama Score Case** only on one case at a time.
 
+Behind the scenes, the GUI keeps a local Node backend service open. Cancelling a stuck review action may restart that service; this is expected and is safer than leaving a hung Radiopaedia request attached to the review window.
+
 ## Random Cases Repeat Too Often
 
 The app records random history in `state/radiology-ppt.sqlite`.
@@ -20,6 +22,7 @@ Helpful actions:
 - Skip weak cases during review so they are avoided later.
 - Reroll unwanted cases instead of approving them.
 - Use broader filters if a narrow category has only a small pool of cases.
+- Use the Library tab to see whether a narrow category is cycling through cases you have already reviewed.
 - Do not clean the state database unless you intentionally want to reset history.
 
 ## Ollama Takes Too Long
@@ -39,6 +42,12 @@ Default limits:
 - `RADIOLOGY_PPT_OLLAMA_MAX_IMAGES_PER_CASE=1`
 
 You can lower these environment variables if your local model is slow.
+
+If network work feels too aggressive or Radiopaedia/curl errors become frequent, lower backend HTTP concurrency before launching the app:
+
+```powershell
+$env:RADIOLOGY_PPT_HTTP_CONCURRENCY = "2"
+```
 
 ## Re-pick Images Gives the Same Images
 
@@ -86,6 +95,8 @@ The expected shortcut is:
 
 This usually means the executable was copied without the project resources, or it is running from an unexpected folder. The app needs to find:
 
+`src\backend-service.mjs`
+
 `src\cli.mjs`
 
 Use the normal build script instead of moving the executable by hand:
@@ -107,7 +118,7 @@ Try:
 
 1. Close the output PowerPoint if it is open.
 2. Change the output filename.
-3. Use **Clean Scratch** on the Activity tab.
+3. Use **Clean Scratch** or **Run Maintenance** on the Activity tab.
 4. Re-run with broader filters.
 
 ## Reset Local State
