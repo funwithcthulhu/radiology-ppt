@@ -20,6 +20,7 @@ import {
   stripModalityTerms,
   titleFromCasePath,
   tokenOverlapScore,
+  wordTokens,
 } from "./request-parser.mjs";
 import { focusCropImage } from "./focus-crop.mjs";
 import {
@@ -1041,7 +1042,7 @@ export async function fetchRadiopaediaCase(input, { cacheDir, imagesPerCase = 3 
     }
   }
 
-  if (!candidateQueue.length || !request.selectedCasePath) {
+  if (!candidateQueue.length) {
     const probe = await inspectRadiopaediaCaseCandidates(request, { limit: 6 });
     for (const candidate of probe.candidates) {
       if (!excludedPaths.has(candidate.casePath)) {

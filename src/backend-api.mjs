@@ -19,7 +19,7 @@ import {
   saveRandomHistory,
 } from "./radiopaedia.mjs";
 import { parseCaseRequest } from "./request-parser.mjs";
-import { collapseWhitespace, formatTimestamp, slugify } from "./utils.mjs";
+import { collapseWhitespace, dedupe, formatTimestamp, slugify } from "./utils.mjs";
 import { radiopaediaProvider } from "./providers/radiopaedia-provider.mjs";
 
 const RESOURCE_ROOT =
@@ -123,25 +123,17 @@ export async function prepareCaseItems(rawEntries, args, { readRandomHistory = t
   emitProgress("Preparing case previews", { requestCount: entries.length });
 
   const cacheDir = path.join(APP_ROOT, "cache");
-  const preparedResults = await mapWithConcurrency(entries, 3, async (entry) => {
-    try {
-      emitProgress("Preparing case", { request: entry.rawInput });
-      const caseData = await fetchRadiopaediaCase(entry, {
-        cacheDir,
-        imagesPerCase: entry.requestedImagesPerCase || args.imagesPerCase,
-      });
-      emitProgress("Prepared case", { request: entry.rawInput, caseTitle: caseData.caseTitle });
-      return { item: { request: entry, caseData }, failure: null };
-    } catch (error) {
-      emitWarning("Case preparation failed", { request: entry.rawInput, error: error.message });
-      return { item: null, failure: `Unable to prepare case for "${entry.rawInput}": ${error.message}` };
-    }
-  });
+  const preparedResults = await mapWithConcurrency(entries, 3, (entry) => prepareEntry(entry, args, cacheDir));
+  const uniqueResults = await replaceDuplicateRandomPreparedResults(preparedResults, entries, args, cacheDir);
+  const items = uniqueResults.map((result) => result.item).filter(Boolean);
+  if (writeRandomHistory) {
+    await rememberRandomHistoryFromPreparedItems(items);
+  }
 
   return {
     entries,
-    items: preparedResults.map((result) => result.item).filter(Boolean),
-    failures: preparedResults.map((result) => result.failure).filter(Boolean),
+    items,
+    failures: uniqueResults.map((result) => result.failure).filter(Boolean),
   };
 }
 
@@ -318,10 +310,110 @@ async function mapWithConcurrency(items, limit, mapper) {
   return results;
 }
 
+async function prepareEntry(entry, args, cacheDir) {
+  try {
+    emitProgress("Preparing case", { request: entry.rawInput });
+    const caseData = await fetchRadiopaediaCase(entry, {
+      cacheDir,
+      imagesPerCase: entry.requestedImagesPerCase || args.imagesPerCase,
+    });
+    emitProgress("Prepared case", { request: entry.rawInput, caseTitle: caseData.caseTitle });
+    return { item: { request: entry, caseData }, failure: null };
+  } catch (error) {
+    emitWarning("Case preparation failed", { request: entry.rawInput, error: error.message });
+    return {
+      item: null,
+      failure: `Unable to prepare case for "${entry.rawInput}": ${error.message}`,
+    };
+  }
+}
+
+function normalizedCasePath(value) {
+  return collapseWhitespace(value).replace(/\?.*$/, "");
+}
+
+function isRandomPreparedRequest(request) {
+  return Boolean(
+    request?.originalInput ||
+      request?.randomQuery ||
+      request?.randomSpec ||
+      (Array.isArray(request?.randomSystems) && request.randomSystems.length),
+  );
+}
+
+function retryEntryForDuplicateRandomCase(request, excludedPaths) {
+  return parseCaseRequest({
+    ...request,
+    requestMode: "random",
+    randomCount: 1,
+    randomQuery: request.randomQuery || request.randomSpec?.queryText || "",
+    randomSystems: request.randomSystems || request.randomSpec?.systems || [],
+    rawInput: request.originalInput || request.rawInput,
+    diagnosis: "",
+    selectedCasePath: "",
+    selectedCaseTitle: "",
+    excludeCasePaths: excludedPaths,
+  });
+}
+
+async function replaceDuplicateRandomPreparedResults(preparedResults, entries, args, cacheDir) {
+  const uniqueResults = [];
+  const usedCasePaths = new Set();
+
+  for (let index = 0; index < preparedResults.length; index += 1) {
+    let result = preparedResults[index];
+    const request = result.item?.request || entries[index];
+    let casePath = normalizedCasePath(result.item?.caseData?.casePath || "");
+
+    if (result.item && casePath && usedCasePaths.has(casePath) && isRandomPreparedRequest(request)) {
+      emitWarning("Duplicate random case detected; looking for an alternate", {
+        request: request.rawInput,
+        duplicateCasePath: casePath,
+      });
+
+      const excludedPaths = dedupe(
+        [
+          ...usedCasePaths,
+          casePath,
+          request.selectedCasePath,
+          ...(request.excludeCasePaths || []),
+        ]
+          .map((value) => normalizedCasePath(value))
+          .filter(Boolean),
+      );
+      const retryEntry = retryEntryForDuplicateRandomCase(request, excludedPaths);
+      const retry = await prepareEntry(retryEntry, args, cacheDir);
+      const retryCasePath = normalizedCasePath(retry.item?.caseData?.casePath || "");
+
+      if (retry.item && retryCasePath && !usedCasePaths.has(retryCasePath)) {
+        result = retry;
+        casePath = retryCasePath;
+      } else {
+        emitWarning("No unique alternate random case was available; dropping duplicate case", {
+          request: request.rawInput,
+          duplicateCasePath: casePath,
+        });
+        uniqueResults.push({
+          item: null,
+          failure: `Skipped duplicate random case "${result.item.caseData.caseTitle}" because no unique alternate was available.`,
+        });
+        continue;
+      }
+    }
+
+    if (casePath) {
+      usedCasePaths.add(casePath);
+    }
+    uniqueResults.push(result);
+  }
+
+  return uniqueResults;
+}
+
 async function rememberRandomHistoryFromPreparedItems(items) {
   const casePaths = items
     .filter((item) => item.request?.originalInput || item.request?.randomQuery || item.request?.randomSystems?.length)
-    .map((item) => item.request?.selectedCasePath || item.caseData?.casePath)
+    .map((item) => item.caseData?.casePath || item.request?.selectedCasePath)
     .filter(Boolean);
 
   if (casePaths.length) {

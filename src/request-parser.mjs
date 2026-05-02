@@ -361,7 +361,7 @@ export function normalizePhrase(value) {
   return collapseWhitespace(String(value ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " "));
 }
 
-function wordTokens(value) {
+export function wordTokens(value) {
   return dedupe(
     normalizePhrase(value)
       .split(/\s+/)
