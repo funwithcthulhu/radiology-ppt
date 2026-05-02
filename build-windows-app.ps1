@@ -119,7 +119,7 @@ Invoke-Python -Runtime $pythonRuntime -Args @(
   (Join-Path $projectRoot "scripts\focus_crop.py")
 )
 
-Invoke-Python -Runtime $pythonRuntime -Args @(
+$coreReviewPdfIngestArgs = @(
   "-m", "PyInstaller",
   "--noconfirm",
   "--clean",
@@ -128,9 +128,30 @@ Invoke-Python -Runtime $pythonRuntime -Args @(
   "--name", "core_review_pdf_ingest",
   "--distpath", $helperDistRoot,
   "--workpath", (Join-Path $buildRoot "core_review_pdf_ingest\work"),
-  "--specpath", (Join-Path $buildRoot "core_review_pdf_ingest"),
-  (Join-Path $projectRoot "scripts\core_review_pdf_ingest.py")
+  "--specpath", (Join-Path $buildRoot "core_review_pdf_ingest")
 )
+
+$coreReviewExcludedModules = @(
+  "torch",
+  "torchvision",
+  "torchaudio",
+  "transformers",
+  "tensorflow",
+  "sklearn",
+  "scipy",
+  "pandas",
+  "sympy",
+  "onnxruntime",
+  "gradio",
+  "cv2",
+  "matplotlib",
+  "yt_dlp"
+)
+foreach ($module in $coreReviewExcludedModules) {
+  $coreReviewPdfIngestArgs += @("--exclude-module", $module)
+}
+$coreReviewPdfIngestArgs += (Join-Path $projectRoot "scripts\core_review_pdf_ingest.py")
+Invoke-Python -Runtime $pythonRuntime -Args $coreReviewPdfIngestArgs
 
 Invoke-Python -Runtime $pythonRuntime -Args @(
   "-m", "PyInstaller",
