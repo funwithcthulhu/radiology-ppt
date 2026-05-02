@@ -1,36 +1,21 @@
-import fs from "node:fs/promises";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { buildDeck } from "./deck.mjs";
 import {
-  buildCoreReviewQuizSession,
-  coreReviewSchemaSummary,
-  ingestCoreReviewSources,
-  loadCoreReviewQuestionBank,
-  renderCoreReviewQuizText,
-} from "./core_review/index.mjs";
-import { ingestCoreReviewPdfs } from "./core_review/pdf-ingest.mjs";
-import { emitProgress, emitWarning } from "./backend-events.mjs";
-import {
-  expandCaseRequests,
-  fetchRadiopaediaCase,
-  inspectRadiopaediaCaseCandidates,
-  saveRandomHistory,
-} from "./radiopaedia.mjs";
-import { scorePreparedItemsWithOllama } from "./ollama-review.mjs";
-import { parseCaseRequest } from "./request-parser.mjs";
-import { collapseWhitespace, formatTimestamp, slugify } from "./utils.mjs";
-
-const RESOURCE_ROOT =
-  process.env.RADIOLOGY_PPT_RESOURCE_ROOT || path.resolve(fileURLToPath(new URL("..", import.meta.url)));
-const APP_ROOT = process.env.RADIOLOGY_PPT_APP_ROOT || RESOURCE_ROOT;
+  buildCoreReviewQuizFromFile,
+  getCoreReviewSchema,
+  ingestCoreReviewPdfFiles,
+  ingestCoreReviewTextFiles,
+  prepareCasesFromFile,
+  probeCasesFromFile,
+  renderCoreReviewQuizSessionText,
+  renderPowerPointFromFile,
+  scoreImagesFromFile,
+} from "./backend-api.mjs";
 
 function usage() {
   return [
     "This file is an internal GUI backend.",
     "Supported internal commands:",
     "  node src/cli.mjs --probe-input diagnoses.json",
-    "  node src/cli.mjs --prepare-input requests.json [--images-per-case 3] [--use-ollama-assist] [--ollama-model moondream]",
+    "  node src/cli.mjs --prepare-input requests.json [--images-per-case 3]",
     "  node src/cli.mjs --score-images-input prepared.json [--ollama-model moondream]",
     "  node src/cli.mjs --render-input prepared.json [--title \"Resident Review\"] [--out outputs\\deck.pptx] [--deck-mode case-conference] [--theme classic] [--include-teaching-points]",
     "  node src/cli.mjs --core-review-schema",
@@ -63,38 +48,22 @@ function parseArgs(argv) {
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--probe-input") {
-      const value = argv[index + 1];
-      if (!value) {
-        throw new Error("Missing value for --probe-input");
-      }
-      args.probeInput = value;
+      args.probeInput = readRequiredValue(argv, index, arg);
       index += 1;
       continue;
     }
     if (arg === "--prepare-input") {
-      const value = argv[index + 1];
-      if (!value) {
-        throw new Error("Missing value for --prepare-input");
-      }
-      args.prepareInput = value;
-      index += 1;
-      continue;
-    }
-    if (arg === "--render-input") {
-      const value = argv[index + 1];
-      if (!value) {
-        throw new Error("Missing value for --render-input");
-      }
-      args.renderInput = value;
+      args.prepareInput = readRequiredValue(argv, index, arg);
       index += 1;
       continue;
     }
     if (arg === "--score-images-input") {
-      const value = argv[index + 1];
-      if (!value) {
-        throw new Error("Missing value for --score-images-input");
-      }
-      args.scoreImagesInput = value;
+      args.scoreImagesInput = readRequiredValue(argv, index, arg);
+      index += 1;
+      continue;
+    }
+    if (arg === "--render-input") {
+      args.renderInput = readRequiredValue(argv, index, arg);
       index += 1;
       continue;
     }
@@ -115,38 +84,22 @@ function parseArgs(argv) {
       continue;
     }
     if (arg === "--core-review-quiz") {
-      const value = argv[index + 1];
-      if (!value) {
-        throw new Error("Missing value for --core-review-quiz");
-      }
-      args.coreReviewQuiz = value;
+      args.coreReviewQuiz = readRequiredValue(argv, index, arg);
       index += 1;
       continue;
     }
     if (arg === "--out") {
-      const value = argv[index + 1];
-      if (!value) {
-        throw new Error("Missing value for --out");
-      }
-      args.out = value;
+      args.out = readRequiredValue(argv, index, arg);
       index += 1;
       continue;
     }
     if (arg === "--title") {
-      const value = argv[index + 1];
-      if (!value) {
-        throw new Error("Missing value for --title");
-      }
-      args.title = value;
+      args.title = readRequiredValue(argv, index, arg);
       index += 1;
       continue;
     }
     if (arg === "--images-per-case") {
-      const value = Number.parseInt(argv[index + 1] ?? "", 10);
-      if (!Number.isInteger(value) || value < 1) {
-        throw new Error("--images-per-case must be a positive integer");
-      }
-      args.imagesPerCase = value;
+      args.imagesPerCase = readPositiveInteger(argv, index, arg);
       index += 1;
       continue;
     }
@@ -159,38 +112,22 @@ function parseArgs(argv) {
       continue;
     }
     if (arg === "--ollama-model") {
-      const value = argv[index + 1];
-      if (!value) {
-        throw new Error("Missing value for --ollama-model");
-      }
-      args.ollamaModel = value;
+      args.ollamaModel = readRequiredValue(argv, index, arg);
       index += 1;
       continue;
     }
     if (arg === "--count") {
-      const value = Number.parseInt(argv[index + 1] ?? "", 10);
-      if (!Number.isInteger(value) || value < 1) {
-        throw new Error("--count must be a positive integer");
-      }
-      args.quizCount = value;
+      args.quizCount = readPositiveInteger(argv, index, arg);
       index += 1;
       continue;
     }
     if (arg === "--domain") {
-      const value = argv[index + 1];
-      if (!value) {
-        throw new Error("Missing value for --domain");
-      }
-      args.domain = value;
+      args.domain = readRequiredValue(argv, index, arg);
       index += 1;
       continue;
     }
     if (arg === "--question-type") {
-      const value = argv[index + 1];
-      if (!value) {
-        throw new Error("Missing value for --question-type");
-      }
-      args.questionType = value;
+      args.questionType = readRequiredValue(argv, index, arg);
       index += 1;
       continue;
     }
@@ -201,38 +138,22 @@ function parseArgs(argv) {
       continue;
     }
     if (arg === "--assets-dir") {
-      const value = argv[index + 1];
-      if (!value) {
-        throw new Error("Missing value for --assets-dir");
-      }
-      args.assetsDir = value;
+      args.assetsDir = readRequiredValue(argv, index, arg);
       index += 1;
       continue;
     }
     if (arg === "--sources-dir") {
-      const value = argv[index + 1];
-      if (!value) {
-        throw new Error("Missing value for --sources-dir");
-      }
-      args.sourcesDir = value;
+      args.sourcesDir = readRequiredValue(argv, index, arg);
       index += 1;
       continue;
     }
     if (arg === "--dpi") {
-      const value = Number.parseInt(argv[index + 1] ?? "", 10);
-      if (!Number.isInteger(value) || value < 72) {
-        throw new Error("--dpi must be an integer of at least 72");
-      }
-      args.dpi = value;
+      args.dpi = readInteger(argv, index, arg, 72);
       index += 1;
       continue;
     }
     if (arg === "--max-chars") {
-      const value = Number.parseInt(argv[index + 1] ?? "", 10);
-      if (!Number.isInteger(value) || value < 200) {
-        throw new Error("--max-chars must be an integer of at least 200");
-      }
-      args.maxChars = value;
+      args.maxChars = readInteger(argv, index, arg, 200);
       index += 1;
       continue;
     }
@@ -249,47 +170,27 @@ function parseArgs(argv) {
       continue;
     }
     if (arg === "--seed") {
-      const value = argv[index + 1];
-      if (!value) {
-        throw new Error("Missing value for --seed");
-      }
-      args.seed = value;
+      args.seed = readRequiredValue(argv, index, arg);
       index += 1;
       continue;
     }
     if (arg === "--source-id") {
-      const value = argv[index + 1];
-      if (!value) {
-        throw new Error("Missing value for --source-id");
-      }
-      args.sourceId = value;
+      args.sourceId = readRequiredValue(argv, index, arg);
       index += 1;
       continue;
     }
     if (arg === "--format") {
-      const value = argv[index + 1];
-      if (!value) {
-        throw new Error("Missing value for --format");
-      }
-      args.format = value;
+      args.format = readRequiredValue(argv, index, arg);
       index += 1;
       continue;
     }
     if (arg === "--deck-mode") {
-      const value = argv[index + 1];
-      if (!value) {
-        throw new Error("Missing value for --deck-mode");
-      }
-      args.deckMode = value;
+      args.deckMode = readRequiredValue(argv, index, arg);
       index += 1;
       continue;
     }
     if (arg === "--theme") {
-      const value = argv[index + 1];
-      if (!value) {
-        throw new Error("Missing value for --theme");
-      }
-      args.theme = value;
+      args.theme = readRequiredValue(argv, index, arg);
       index += 1;
       continue;
     }
@@ -307,374 +208,28 @@ function parseArgs(argv) {
   return args;
 }
 
-async function loadEntries(inputPath) {
-  const raw = await fs.readFile(inputPath, "utf8");
-  const trimmed = raw.trim();
-
-  if (!trimmed) {
-    return [];
+function readRequiredValue(argv, index, name) {
+  const value = argv[index + 1];
+  if (!value) {
+    throw new Error(`Missing value for ${name}`);
   }
+  return value;
+}
 
-  if (/^[\[{\"]/.test(trimmed)) {
-    try {
-      const parsed = JSON.parse(trimmed);
-      if (Array.isArray(parsed)) {
-        return parsed;
-      }
-      if (typeof parsed === "string" || (parsed && typeof parsed === "object")) {
-        return [parsed];
-      }
-      throw new Error("JSON input must be an array, object, or string.");
-    } catch (error) {
-      if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
-        throw error;
-      }
-    }
+function readPositiveInteger(argv, index, name) {
+  return readInteger(argv, index, name, 1);
+}
+
+function readInteger(argv, index, name, minimum) {
+  const value = Number.parseInt(argv[index + 1] ?? "", 10);
+  if (!Number.isInteger(value) || value < minimum) {
+    throw new Error(`${name} must be an integer of at least ${minimum}`);
   }
-
-  return trimmed
-    .split(/\r?\n/)
-    .map((line) => line.replace(/#.*$/, ""))
-    .map((line) => collapseWhitespace(line))
-    .filter(Boolean);
+  return value;
 }
 
-function normalizeEntries(entries) {
-  const normalized = entries
-    .map((entry) => {
-      if (typeof entry === "string") {
-        return parseCaseRequest(entry);
-      }
-      if (entry && typeof entry === "object") {
-        return parseCaseRequest(entry);
-      }
-      return null;
-    })
-    .filter(Boolean)
-    .filter((entry) => entry.rawInput);
-
-  const unique = [];
-  const seen = new Set();
-  for (const entry of normalized) {
-    if (entry.randomSpec && !entry.selectedCasePath) {
-      unique.push(entry);
-      continue;
-    }
-    const key = JSON.stringify({
-      rawInput: entry.rawInput,
-      selectedCasePath: entry.selectedCasePath || "",
-    });
-    if (!seen.has(key)) {
-      seen.add(key);
-      unique.push(entry);
-    }
-  }
-
-  return unique;
-}
-
-function defaultDeckTitle(entries) {
-  if (entries.length === 1) {
-    return `${entries[0].rawInput} case review`;
-  }
-  return "Radiology case review";
-}
-
-function ensurePptxPath(outPath) {
-  if (outPath.toLowerCase().endsWith(".pptx")) {
-    return outPath;
-  }
-  return `${outPath}.pptx`;
-}
-
-function toManifest(cases, entries, deckTitle, deckMode) {
-  return {
-    createdAt: new Date().toISOString(),
-    deckTitle,
-    deckMode,
-    requestedEntries: entries.map((entry) => ({
-      rawInput: entry.rawInput,
-      originalInput: entry.originalInput || null,
-      diagnosis: entry.diagnosis,
-      studyHint: entry.studyHint,
-      selectedCasePath: entry.selectedCasePath || null,
-      secondaryModality: entry.secondaryModality || null,
-      ageGroup: entry.ageGroup || null,
-      topicFocus: entry.topicFocus || null,
-      difficulty: entry.difficulty || null,
-      requestedImagesPerCase: entry.requestedImagesPerCase || null,
-    })),
-    cases: cases.map((caseData) => ({
-      rawInput: caseData.rawInput,
-      originalInput: caseData.originalInput || null,
-      diagnosisQuery: caseData.diagnosisQuery,
-      studyHint: caseData.studyHint,
-      caseTitle: caseData.caseTitle,
-      caseUrl: caseData.caseUrl,
-      author: caseData.author,
-      licenseName: caseData.licenseName,
-      licenseUrl: caseData.licenseUrl,
-      rid: caseData.rid,
-      modalitySummary: caseData.modalitySummary,
-      studyCount: caseData.studyCount,
-      caseIntro: caseData.caseIntro,
-      teachingPoints: caseData.teachingPoints || [],
-      quality: caseData.quality,
-      imageCandidateCount: Array.isArray(caseData.imageCandidateBank) ? caseData.imageCandidateBank.length : null,
-      images: caseData.images.map((image) => ({
-        label: image.label,
-        url: image.url,
-        localPath: image.localPath,
-        relevantScore: image.relevantScore,
-        ollamaScore: image.ollamaScore ?? null,
-      })),
-    })),
-  };
-}
-
-function normalizePreparedItems(payload) {
-  const items = Array.isArray(payload) ? payload : payload?.items;
-  if (!Array.isArray(items)) {
-    throw new Error("Prepared input must contain an array of items.");
-  }
-
-  return items
-    .map((item) => ({
-      request: parseCaseRequest(item.request || item.entry || item.sourceRequest || item),
-      caseData: item.caseData || item.case || item,
-    }))
-    .filter((item) => item.request?.rawInput && item.caseData?.caseTitle);
-}
-
-async function mapWithConcurrency(items, limit, mapper) {
-  const results = Array(items.length);
-  let nextIndex = 0;
-  const workerCount = Math.max(1, Math.min(limit, items.length));
-
-  async function worker() {
-    while (nextIndex < items.length) {
-      const index = nextIndex;
-      nextIndex += 1;
-      results[index] = await mapper(items[index], index);
-    }
-  }
-
-  await Promise.all(Array.from({ length: workerCount }, () => worker()));
-  return results;
-}
-
-async function prepareCaseItems(rawEntries, args, { readRandomHistory = true, writeRandomHistory = false } = {}) {
-  emitProgress("Normalizing case requests");
-  let entries = normalizeEntries(rawEntries).map((entry) =>
-      parseCaseRequest({
-        ...entry,
-        includeClinicalHistory: Boolean(args.useClinicalHistory),
-        useOllamaAssist: Boolean(args.useOllamaAssist || entry.useOllamaAssist),
-        ollamaModel: collapseWhitespace(args.ollamaModel || entry.ollamaModel || ""),
-      }),
-  );
-  entries = await expandCaseRequests(entries, {
-    readRandomHistory,
-    writeRandomHistory,
-  });
-  emitProgress("Preparing case previews", { requestCount: entries.length });
-
-  const cacheDir = path.join(APP_ROOT, "cache");
-  const preparedResults = await mapWithConcurrency(entries, 3, async (entry) => {
-    try {
-      emitProgress("Preparing case", { request: entry.rawInput });
-      const caseData = await fetchRadiopaediaCase(entry, {
-        cacheDir,
-        imagesPerCase: entry.requestedImagesPerCase || args.imagesPerCase,
-      });
-      emitProgress("Prepared case", { request: entry.rawInput, caseTitle: caseData.caseTitle });
-      return { item: { request: entry, caseData }, failure: null };
-    } catch (error) {
-      emitWarning("Case preparation failed", { request: entry.rawInput, error: error.message });
-      return { item: null, failure: `Unable to prepare case for "${entry.rawInput}": ${error.message}` };
-    }
-  });
-  const items = preparedResults.map((result) => result.item).filter(Boolean);
-  const failures = preparedResults.map((result) => result.failure).filter(Boolean);
-
-  return {
-    entries,
-    items,
-    failures,
-  };
-}
-
-async function rememberRandomHistoryFromPreparedItems(items) {
-  const casePaths = items
-    .filter((item) => item.request?.originalInput || item.request?.randomQuery || item.request?.randomSystems?.length)
-    .map((item) => item.request?.selectedCasePath || item.caseData?.casePath)
-    .filter(Boolean);
-
-  if (casePaths.length) {
-    await saveRandomHistory(casePaths);
-  }
-}
-
-async function runProbe(inputPath) {
-  emitProgress("Checking Radiopaedia matches");
-  const entries = await expandCaseRequests(
-    normalizeEntries(await loadEntries(path.resolve(inputPath))),
-    {
-      readRandomHistory: true,
-      writeRandomHistory: false,
-    },
-  );
-  if (!entries.length) {
-    throw new Error("No diagnoses provided for probe.");
-  }
-
-  const results = [];
-  for (const entry of entries) {
-    results.push(await inspectRadiopaediaCaseCandidates(entry, { limit: 5 }));
-  }
-
-  process.stdout.write(`${JSON.stringify({ entries: results }, null, 2)}\n`);
-}
-
-async function runPrepare(inputPath, args) {
-  emitProgress("Starting case preparation");
-  const prepared = await prepareCaseItems(await loadEntries(path.resolve(inputPath)), args, {
-    readRandomHistory: true,
-    writeRandomHistory: true,
-  });
-  process.stdout.write(`${JSON.stringify(prepared, null, 2)}\n`);
-}
-
-async function runRender(inputPath, args) {
-  emitProgress("Starting PowerPoint render");
-  const raw = JSON.parse(await fs.readFile(path.resolve(inputPath), "utf8"));
-  const items = normalizePreparedItems(raw);
-  if (!items.length) {
-    throw new Error("No prepared cases were provided for render.");
-  }
-
-  const entries = items.map((item) => item.request);
-  const cases = items.map((item) => item.caseData);
-  const deckTitle = args.title || defaultDeckTitle(entries);
-  const stamp = formatTimestamp();
-  const fileStem = `${slugify(deckTitle) || "radiology-case-deck"}-${stamp}`;
-  const outputPath = ensurePptxPath(
-    path.resolve(args.out || path.join(APP_ROOT, "outputs", `${fileStem}.pptx`)),
-  );
-  const manifestPath = path.join(path.dirname(outputPath), `${path.parse(outputPath).name}.json`);
-  const scratchDir = path.join(APP_ROOT, "scratch", path.parse(outputPath).name);
-  const deckMode = args.deckMode || "case-conference";
-
-  await fs.mkdir(path.dirname(outputPath), { recursive: true });
-  await fs.writeFile(
-    manifestPath,
-    `${JSON.stringify(toManifest(cases, entries, deckTitle, deckMode), null, 2)}\n`,
-    "utf8",
-  );
-
-  const result = await buildDeck({
-    cases,
-    deckTitle,
-    outputPath,
-    scratchDir,
-    deckMode,
-    theme: args.theme || "classic",
-    includeTeachingPoints: Boolean(args.includeTeachingPoints),
-  });
-
-  await rememberRandomHistoryFromPreparedItems(items);
-  emitProgress("PowerPoint render complete", { outputPath: result.outputPath });
-
-  console.log(`Created PowerPoint: ${result.outputPath}`);
-  console.log(`Created manifest: ${manifestPath}`);
-}
-
-async function runScoreImages(inputPath, args) {
-  emitProgress("Starting optional Ollama image scoring");
-  const raw = JSON.parse(await fs.readFile(path.resolve(inputPath), "utf8"));
-  const items = normalizePreparedItems(raw);
-  if (!items.length) {
-    throw new Error("No prepared cases were provided for image scoring.");
-  }
-
-  const scoredItems = await scorePreparedItemsWithOllama(items, {
-    ollamaModel: args.ollamaModel || "",
-  });
-
-  process.stdout.write(`${JSON.stringify({ items: scoredItems }, null, 2)}\n`);
-}
-
-async function runCoreReviewSchema() {
-  process.stdout.write(`${JSON.stringify(coreReviewSchemaSummary(), null, 2)}\n`);
-}
-
-async function runCoreReviewIngest(inputPaths, args) {
-  emitProgress("Importing Core Review text sources", { sourceCount: inputPaths.length });
-  const outputPath = path.resolve(
-    args.out || path.join(APP_ROOT, "library", "board-review", "corpus.json"),
-  );
-  const corpus = await ingestCoreReviewSources(inputPaths, {
-    outputPath,
-    domain: args.domain || "",
-    tags: args.tags || [],
-  });
-
-  if (args.format === "text") {
-    console.log(`Created Core Review corpus: ${outputPath}`);
-    console.log(`Sources: ${corpus.sourceCount}`);
-    console.log(`Chunks: ${corpus.chunkCount}`);
-    return;
-  }
-
-  process.stdout.write(`${JSON.stringify({ outputPath, ...corpus }, null, 2)}\n`);
-}
-
-async function runCoreReviewIngestPdf(inputPaths, args) {
-  emitProgress("Importing Core Boards PDFs", { sourceCount: inputPaths.length });
-  const outputPath = path.resolve(
-    args.out || path.join(APP_ROOT, "library", "board-review", "pdf-corpus.json"),
-  );
-  const corpus = await ingestCoreReviewPdfs(inputPaths, {
-    outputPath,
-    domain: args.domain || "",
-    tags: args.tags || [],
-    title: args.title || "",
-    sourceId: args.sourceId || "",
-    assetsDir: args.assetsDir ? path.resolve(args.assetsDir) : "",
-    sourcesDir: args.sourcesDir ? path.resolve(args.sourcesDir) : "",
-    dpi: args.dpi || 144,
-    maxChars: args.maxChars || 1600,
-    noRenderPages: Boolean(args.noRenderPages),
-    noExtractImages: Boolean(args.noExtractImages),
-    noCopySource: Boolean(args.noCopySource),
-  });
-
-  if (args.format === "text") {
-    console.log(`Created Core Review PDF corpus: ${outputPath}`);
-    console.log(`Sources: ${corpus.sourceCount}`);
-    console.log(`Assets: ${corpus.assetCount}`);
-    console.log(`Chunks: ${corpus.chunkCount}`);
-    return;
-  }
-
-  process.stdout.write(`${JSON.stringify(corpus, null, 2)}\n`);
-}
-
-async function runCoreReviewQuiz(questionBankPath, args) {
-  const questionBank = await loadCoreReviewQuestionBank(questionBankPath);
-  const session = buildCoreReviewQuizSession(questionBank, {
-    count: args.quizCount,
-    domain: args.domain || "",
-    questionType: args.questionType || "",
-    seed: args.seed || "",
-  });
-
-  if (args.format === "text") {
-    process.stdout.write(renderCoreReviewQuizText(session));
-    return;
-  }
-
-  process.stdout.write(`${JSON.stringify(session, null, 2)}\n`);
+function writeJson(value) {
+  process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
 }
 
 async function main() {
@@ -685,36 +240,58 @@ async function main() {
   }
 
   if (args.coreReviewSchema) {
-    await runCoreReviewSchema();
+    writeJson(getCoreReviewSchema());
     return;
   }
   if (args.coreReviewIngest) {
-    await runCoreReviewIngest(args.coreReviewIngest, args);
+    const corpus = await ingestCoreReviewTextFiles(args.coreReviewIngest, args);
+    if (args.format === "text") {
+      console.log(`Created Core Review corpus: ${corpus.outputPath}`);
+      console.log(`Sources: ${corpus.sourceCount}`);
+      console.log(`Chunks: ${corpus.chunkCount}`);
+      return;
+    }
+    writeJson(corpus);
     return;
   }
   if (args.coreReviewIngestPdf) {
-    await runCoreReviewIngestPdf(args.coreReviewIngestPdf, args);
+    const corpus = await ingestCoreReviewPdfFiles(args.coreReviewIngestPdf, args);
+    if (args.format === "text") {
+      console.log(`Created Core Review PDF corpus: ${corpus.outputPath}`);
+      console.log(`Sources: ${corpus.sourceCount}`);
+      console.log(`Assets: ${corpus.assetCount}`);
+      console.log(`Chunks: ${corpus.chunkCount}`);
+      return;
+    }
+    writeJson(corpus);
     return;
   }
   if (args.coreReviewQuiz) {
-    await runCoreReviewQuiz(args.coreReviewQuiz, args);
+    const session = await buildCoreReviewQuizFromFile(args.coreReviewQuiz, args);
+    if (args.format === "text") {
+      process.stdout.write(renderCoreReviewQuizSessionText(session));
+      return;
+    }
+    writeJson(session);
     return;
   }
 
   if (args.probeInput) {
-    await runProbe(args.probeInput);
+    writeJson(await probeCasesFromFile(args.probeInput));
     return;
   }
   if (args.prepareInput) {
-    await runPrepare(args.prepareInput, args);
+    writeJson(await prepareCasesFromFile(args.prepareInput, args));
     return;
   }
   if (args.scoreImagesInput) {
-    await runScoreImages(args.scoreImagesInput, args);
+    writeJson(await scoreImagesFromFile(args.scoreImagesInput, args));
     return;
   }
   if (args.renderInput) {
-    await runRender(args.renderInput, args);
+    const result = await renderPowerPointFromFile(args.renderInput, args);
+    console.log(`Created PowerPoint: ${result.outputPath}`);
+    console.log(`Created manifest: ${result.manifestPath}`);
     return;
   }
 

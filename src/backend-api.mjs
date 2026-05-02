@@ -1,0 +1,374 @@
+import fs from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { buildDeck } from "./deck.mjs";
+import {
+  buildCoreReviewQuizSession,
+  coreReviewSchemaSummary,
+  ingestCoreReviewSources,
+  loadCoreReviewQuestionBank,
+  renderCoreReviewQuizText,
+} from "./core_review/index.mjs";
+import { ingestCoreReviewPdfs } from "./core_review/pdf-ingest.mjs";
+import { emitProgress, emitWarning } from "./backend-events.mjs";
+import { scorePreparedItemsWithOllama } from "./ollama-review.mjs";
+import {
+  expandCaseRequests,
+  fetchRadiopaediaCase,
+  inspectRadiopaediaCaseCandidates,
+  saveRandomHistory,
+} from "./radiopaedia.mjs";
+import { parseCaseRequest } from "./request-parser.mjs";
+import { collapseWhitespace, formatTimestamp, slugify } from "./utils.mjs";
+
+const RESOURCE_ROOT =
+  process.env.RADIOLOGY_PPT_RESOURCE_ROOT || path.resolve(fileURLToPath(new URL("..", import.meta.url)));
+const APP_ROOT = process.env.RADIOLOGY_PPT_APP_ROOT || RESOURCE_ROOT;
+
+export async function loadCaseRequestEntries(inputPath) {
+  const raw = await fs.readFile(inputPath, "utf8");
+  const trimmed = raw.trim();
+
+  if (!trimmed) {
+    return [];
+  }
+
+  if (/^[\[{\"]/.test(trimmed)) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+      if (typeof parsed === "string" || (parsed && typeof parsed === "object")) {
+        return [parsed];
+      }
+      throw new Error("JSON input must be an array, object, or string.");
+    } catch (error) {
+      if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
+        throw error;
+      }
+    }
+  }
+
+  return trimmed
+    .split(/\r?\n/)
+    .map((line) => line.replace(/#.*$/, ""))
+    .map((line) => collapseWhitespace(line))
+    .filter(Boolean);
+}
+
+export function normalizeCaseRequestEntries(entries) {
+  const normalized = entries
+    .map((entry) => {
+      if (typeof entry === "string") {
+        return parseCaseRequest(entry);
+      }
+      if (entry && typeof entry === "object") {
+        return parseCaseRequest(entry);
+      }
+      return null;
+    })
+    .filter(Boolean)
+    .filter((entry) => entry.rawInput);
+
+  const unique = [];
+  const seen = new Set();
+  for (const entry of normalized) {
+    if (entry.randomSpec && !entry.selectedCasePath) {
+      unique.push(entry);
+      continue;
+    }
+    const key = JSON.stringify({
+      rawInput: entry.rawInput,
+      selectedCasePath: entry.selectedCasePath || "",
+    });
+    if (!seen.has(key)) {
+      seen.add(key);
+      unique.push(entry);
+    }
+  }
+
+  return unique;
+}
+
+export function normalizePreparedItems(payload) {
+  const items = Array.isArray(payload) ? payload : payload?.items;
+  if (!Array.isArray(items)) {
+    throw new Error("Prepared input must contain an array of items.");
+  }
+
+  return items
+    .map((item) => ({
+      request: parseCaseRequest(item.request || item.entry || item.sourceRequest || item),
+      caseData: item.caseData || item.case || item,
+    }))
+    .filter((item) => item.request?.rawInput && item.caseData?.caseTitle);
+}
+
+export async function prepareCaseItems(rawEntries, args, { readRandomHistory = true, writeRandomHistory = false } = {}) {
+  emitProgress("Normalizing case requests");
+  let entries = normalizeCaseRequestEntries(rawEntries).map((entry) =>
+    parseCaseRequest({
+      ...entry,
+      includeClinicalHistory: Boolean(args.useClinicalHistory),
+      useOllamaAssist: Boolean(args.useOllamaAssist || entry.useOllamaAssist),
+      ollamaModel: collapseWhitespace(args.ollamaModel || entry.ollamaModel || ""),
+    }),
+  );
+  entries = await expandCaseRequests(entries, {
+    readRandomHistory,
+    writeRandomHistory,
+  });
+  emitProgress("Preparing case previews", { requestCount: entries.length });
+
+  const cacheDir = path.join(APP_ROOT, "cache");
+  const preparedResults = await mapWithConcurrency(entries, 3, async (entry) => {
+    try {
+      emitProgress("Preparing case", { request: entry.rawInput });
+      const caseData = await fetchRadiopaediaCase(entry, {
+        cacheDir,
+        imagesPerCase: entry.requestedImagesPerCase || args.imagesPerCase,
+      });
+      emitProgress("Prepared case", { request: entry.rawInput, caseTitle: caseData.caseTitle });
+      return { item: { request: entry, caseData }, failure: null };
+    } catch (error) {
+      emitWarning("Case preparation failed", { request: entry.rawInput, error: error.message });
+      return { item: null, failure: `Unable to prepare case for "${entry.rawInput}": ${error.message}` };
+    }
+  });
+
+  return {
+    entries,
+    items: preparedResults.map((result) => result.item).filter(Boolean),
+    failures: preparedResults.map((result) => result.failure).filter(Boolean),
+  };
+}
+
+export async function prepareCasesFromFile(inputPath, args) {
+  emitProgress("Starting case preparation");
+  return prepareCaseItems(await loadCaseRequestEntries(path.resolve(inputPath)), args, {
+    readRandomHistory: true,
+    writeRandomHistory: true,
+  });
+}
+
+export async function probeCasesFromFile(inputPath) {
+  emitProgress("Checking Radiopaedia matches");
+  const entries = await expandCaseRequests(
+    normalizeCaseRequestEntries(await loadCaseRequestEntries(path.resolve(inputPath))),
+    {
+      readRandomHistory: true,
+      writeRandomHistory: false,
+    },
+  );
+  if (!entries.length) {
+    throw new Error("No diagnoses provided for probe.");
+  }
+
+  const results = [];
+  for (const entry of entries) {
+    results.push(await inspectRadiopaediaCaseCandidates(entry, { limit: 5 }));
+  }
+  return { entries: results };
+}
+
+export async function scoreImagesFromFile(inputPath, args) {
+  emitProgress("Starting optional Ollama image scoring");
+  const raw = JSON.parse(await fs.readFile(path.resolve(inputPath), "utf8"));
+  const items = normalizePreparedItems(raw);
+  if (!items.length) {
+    throw new Error("No prepared cases were provided for image scoring.");
+  }
+
+  return {
+    items: await scorePreparedItemsWithOllama(items, {
+      ollamaModel: args.ollamaModel || "",
+    }),
+  };
+}
+
+export async function renderPowerPointFromFile(inputPath, args) {
+  emitProgress("Starting PowerPoint render");
+  const raw = JSON.parse(await fs.readFile(path.resolve(inputPath), "utf8"));
+  const items = normalizePreparedItems(raw);
+  if (!items.length) {
+    throw new Error("No prepared cases were provided for render.");
+  }
+
+  const entries = items.map((item) => item.request);
+  const cases = items.map((item) => item.caseData);
+  const deckTitle = args.title || defaultDeckTitle(entries);
+  const stamp = formatTimestamp();
+  const fileStem = `${slugify(deckTitle) || "radiology-case-deck"}-${stamp}`;
+  const outputPath = ensurePptxPath(
+    path.resolve(args.out || path.join(APP_ROOT, "outputs", `${fileStem}.pptx`)),
+  );
+  const manifestPath = path.join(path.dirname(outputPath), `${path.parse(outputPath).name}.json`);
+  const scratchDir = path.join(APP_ROOT, "scratch", path.parse(outputPath).name);
+  const deckMode = args.deckMode || "case-conference";
+
+  await fs.mkdir(path.dirname(outputPath), { recursive: true });
+  await fs.writeFile(
+    manifestPath,
+    `${JSON.stringify(toManifest(cases, entries, deckTitle, deckMode), null, 2)}\n`,
+    "utf8",
+  );
+
+  const result = await buildDeck({
+    cases,
+    deckTitle,
+    outputPath,
+    scratchDir,
+    deckMode,
+    theme: args.theme || "classic",
+    includeTeachingPoints: Boolean(args.includeTeachingPoints),
+  });
+
+  await rememberRandomHistoryFromPreparedItems(items);
+  emitProgress("PowerPoint render complete", { outputPath: result.outputPath });
+
+  return {
+    outputPath: result.outputPath,
+    manifestPath,
+  };
+}
+
+export function getCoreReviewSchema() {
+  return coreReviewSchemaSummary();
+}
+
+export async function ingestCoreReviewTextFiles(inputPaths, args) {
+  emitProgress("Importing Core Review text sources", { sourceCount: inputPaths.length });
+  const outputPath = path.resolve(
+    args.out || path.join(APP_ROOT, "library", "board-review", "corpus.json"),
+  );
+  const corpus = await ingestCoreReviewSources(inputPaths, {
+    outputPath,
+    domain: args.domain || "",
+    tags: args.tags || [],
+  });
+
+  return { outputPath, ...corpus };
+}
+
+export async function ingestCoreReviewPdfFiles(inputPaths, args) {
+  emitProgress("Importing Core Boards PDFs", { sourceCount: inputPaths.length });
+  const outputPath = path.resolve(
+    args.out || path.join(APP_ROOT, "library", "board-review", "pdf-corpus.json"),
+  );
+  return ingestCoreReviewPdfs(inputPaths, {
+    outputPath,
+    domain: args.domain || "",
+    tags: args.tags || [],
+    title: args.title || "",
+    sourceId: args.sourceId || "",
+    assetsDir: args.assetsDir ? path.resolve(args.assetsDir) : "",
+    sourcesDir: args.sourcesDir ? path.resolve(args.sourcesDir) : "",
+    dpi: args.dpi || 144,
+    maxChars: args.maxChars || 1600,
+    noRenderPages: Boolean(args.noRenderPages),
+    noExtractImages: Boolean(args.noExtractImages),
+    noCopySource: Boolean(args.noCopySource),
+  });
+}
+
+export async function buildCoreReviewQuizFromFile(questionBankPath, args) {
+  const questionBank = await loadCoreReviewQuestionBank(questionBankPath);
+  return buildCoreReviewQuizSession(questionBank, {
+    count: args.quizCount,
+    domain: args.domain || "",
+    questionType: args.questionType || "",
+    seed: args.seed || "",
+  });
+}
+
+export function renderCoreReviewQuizSessionText(session) {
+  return renderCoreReviewQuizText(session);
+}
+
+async function mapWithConcurrency(items, limit, mapper) {
+  const results = Array(items.length);
+  let nextIndex = 0;
+  const workerCount = Math.max(1, Math.min(limit, items.length));
+
+  async function worker() {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      results[index] = await mapper(items[index], index);
+    }
+  }
+
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  return results;
+}
+
+async function rememberRandomHistoryFromPreparedItems(items) {
+  const casePaths = items
+    .filter((item) => item.request?.originalInput || item.request?.randomQuery || item.request?.randomSystems?.length)
+    .map((item) => item.request?.selectedCasePath || item.caseData?.casePath)
+    .filter(Boolean);
+
+  if (casePaths.length) {
+    await saveRandomHistory(casePaths);
+  }
+}
+
+function defaultDeckTitle(entries) {
+  if (entries.length === 1) {
+    return `${entries[0].rawInput} case review`;
+  }
+  return "Radiology case review";
+}
+
+function ensurePptxPath(outPath) {
+  if (outPath.toLowerCase().endsWith(".pptx")) {
+    return outPath;
+  }
+  return `${outPath}.pptx`;
+}
+
+function toManifest(cases, entries, deckTitle, deckMode) {
+  return {
+    createdAt: new Date().toISOString(),
+    deckTitle,
+    deckMode,
+    requestedEntries: entries.map((entry) => ({
+      rawInput: entry.rawInput,
+      originalInput: entry.originalInput || null,
+      diagnosis: entry.diagnosis,
+      studyHint: entry.studyHint,
+      selectedCasePath: entry.selectedCasePath || null,
+      secondaryModality: entry.secondaryModality || null,
+      ageGroup: entry.ageGroup || null,
+      topicFocus: entry.topicFocus || null,
+      difficulty: entry.difficulty || null,
+      requestedImagesPerCase: entry.requestedImagesPerCase || null,
+    })),
+    cases: cases.map((caseData) => ({
+      rawInput: caseData.rawInput,
+      originalInput: caseData.originalInput || null,
+      diagnosisQuery: caseData.diagnosisQuery,
+      studyHint: caseData.studyHint,
+      caseTitle: caseData.caseTitle,
+      caseUrl: caseData.caseUrl,
+      author: caseData.author,
+      licenseName: caseData.licenseName,
+      licenseUrl: caseData.licenseUrl,
+      rid: caseData.rid,
+      modalitySummary: caseData.modalitySummary,
+      studyCount: caseData.studyCount,
+      caseIntro: caseData.caseIntro,
+      teachingPoints: caseData.teachingPoints || [],
+      quality: caseData.quality,
+      imageCandidateCount: Array.isArray(caseData.imageCandidateBank) ? caseData.imageCandidateBank.length : null,
+      images: caseData.images.map((image) => ({
+        label: image.label,
+        url: image.url,
+        localPath: image.localPath,
+        relevantScore: image.relevantScore,
+        ollamaScore: image.ollamaScore ?? null,
+      })),
+    })),
+  };
+}
