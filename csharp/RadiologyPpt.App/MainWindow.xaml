@@ -56,18 +56,22 @@
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
 
-                        <DockPanel Grid.Row="0" Margin="0,0,0,12">
-                            <StackPanel DockPanel.Dock="Left">
+                        <Grid Grid.Row="0" Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" MinWidth="360" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Margin="0,0,18,0">
                                 <TextBlock Text="Cases" Style="{StaticResource PageTitle}" />
                                 <TextBlock Text="Add diagnoses, random pulls, or exact Radiopaedia URLs. Use the dropdowns instead of typing filter shorthand."
                                            Style="{StaticResource PageSubtitle}" Margin="0,4,0,0" />
                             </StackPanel>
-                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
-                                <Button Content="Add Row" Click="AddRow_Click" />
-                                <Button Content="Remove Selected" Click="RemoveSelectedRow_Click" />
-                                <Button Content="Load File" Click="LoadFile_Click" />
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top">
+                                <Button Content="Add Row" Click="AddRow_Click" MinWidth="96" />
+                                <Button Content="Remove Selected" Click="RemoveSelectedRow_Click" MinWidth="132" />
+                                <Button Content="Load File" Click="LoadFile_Click" MinWidth="96" Margin="0" />
                             </StackPanel>
-                        </DockPanel>
+                        </Grid>
 
                         <Border Grid.Row="1" Style="{StaticResource Card}">
                             <DataGrid x:Name="RequestsGrid"
