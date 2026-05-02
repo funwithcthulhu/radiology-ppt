@@ -10,6 +10,7 @@ import {
   renderCoreReviewQuizText,
 } from "./core_review/index.mjs";
 import { ingestCoreReviewPdfs } from "./core_review/pdf-ingest.mjs";
+import { emitProgress, emitWarning } from "./backend-events.mjs";
 import {
   expandCaseRequests,
   fetchRadiopaediaCase,
@@ -452,6 +453,7 @@ async function mapWithConcurrency(items, limit, mapper) {
 }
 
 async function prepareCaseItems(rawEntries, args, { readRandomHistory = true, writeRandomHistory = false } = {}) {
+  emitProgress("Normalizing case requests");
   let entries = normalizeEntries(rawEntries).map((entry) =>
       parseCaseRequest({
         ...entry,
@@ -464,16 +466,20 @@ async function prepareCaseItems(rawEntries, args, { readRandomHistory = true, wr
     readRandomHistory,
     writeRandomHistory,
   });
+  emitProgress("Preparing case previews", { requestCount: entries.length });
 
   const cacheDir = path.join(APP_ROOT, "cache");
   const preparedResults = await mapWithConcurrency(entries, 3, async (entry) => {
     try {
+      emitProgress("Preparing case", { request: entry.rawInput });
       const caseData = await fetchRadiopaediaCase(entry, {
         cacheDir,
         imagesPerCase: entry.requestedImagesPerCase || args.imagesPerCase,
       });
+      emitProgress("Prepared case", { request: entry.rawInput, caseTitle: caseData.caseTitle });
       return { item: { request: entry, caseData }, failure: null };
     } catch (error) {
+      emitWarning("Case preparation failed", { request: entry.rawInput, error: error.message });
       return { item: null, failure: `Unable to prepare case for "${entry.rawInput}": ${error.message}` };
     }
   });
@@ -499,6 +505,7 @@ async function rememberRandomHistoryFromPreparedItems(items) {
 }
 
 async function runProbe(inputPath) {
+  emitProgress("Checking Radiopaedia matches");
   const entries = await expandCaseRequests(
     normalizeEntries(await loadEntries(path.resolve(inputPath))),
     {
@@ -519,6 +526,7 @@ async function runProbe(inputPath) {
 }
 
 async function runPrepare(inputPath, args) {
+  emitProgress("Starting case preparation");
   const prepared = await prepareCaseItems(await loadEntries(path.resolve(inputPath)), args, {
     readRandomHistory: true,
     writeRandomHistory: true,
@@ -527,6 +535,7 @@ async function runPrepare(inputPath, args) {
 }
 
 async function runRender(inputPath, args) {
+  emitProgress("Starting PowerPoint render");
   const raw = JSON.parse(await fs.readFile(path.resolve(inputPath), "utf8"));
   const items = normalizePreparedItems(raw);
   if (!items.length) {
@@ -563,6 +572,7 @@ async function runRender(inputPath, args) {
   });
 
   await rememberRandomHistoryFromPreparedItems(items);
+  emitProgress("PowerPoint render complete", { outputPath: result.outputPath });
 
   console.log(`Created PowerPoint: ${result.outputPath}`);
   console.log(`Created manifest: ${manifestPath}`);
@@ -573,6 +583,7 @@ async function runCoreReviewSchema() {
 }
 
 async function runCoreReviewIngest(inputPaths, args) {
+  emitProgress("Importing Core Review text sources", { sourceCount: inputPaths.length });
   const outputPath = path.resolve(
     args.out || path.join(APP_ROOT, "library", "board-review", "corpus.json"),
   );
@@ -593,6 +604,7 @@ async function runCoreReviewIngest(inputPaths, args) {
 }
 
 async function runCoreReviewIngestPdf(inputPaths, args) {
+  emitProgress("Importing Core Boards PDFs", { sourceCount: inputPaths.length });
   const outputPath = path.resolve(
     args.out || path.join(APP_ROOT, "library", "board-review", "pdf-corpus.json"),
   );

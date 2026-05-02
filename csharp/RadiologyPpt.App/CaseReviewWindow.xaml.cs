@@ -217,20 +217,23 @@ public partial class CaseReviewWindow : Window
 
             if (replaceUncheckedOnly)
             {
+                RecordImageDecisions("kept", "replace-unchecked", Images.Where(image => image.Keep));
+                RecordImageDecisions("rejected", "replace-unchecked", Images.Where(image => !image.Keep));
                 var combined = checkedImages.Concat(replacementImages).Take(Math.Max(checkedImages.Count, checkedImages.Count + uncheckedCount)).ToList();
-            ReplaceCurrentImages(combined);
-            _storage.SaveImageCandidates(_items[_currentIndex]["caseData"] as JsonObject);
-            if (replacementImages.Count == 0)
-            {
+                ReplaceCurrentImages(combined);
+                _storage.SaveImageCandidates(_items[_currentIndex]["caseData"] as JsonObject);
+                if (replacementImages.Count == 0)
+                {
                     MessageBox.Show(this, "No alternate image was found for the unchecked slot, so that slot was left empty.", Title, MessageBoxButton.OK, MessageBoxImage.Information);
                 }
             }
             else
             {
-            ReplaceCurrentImages(replacementImages);
-            _storage.SaveImageCandidates(_items[_currentIndex]["caseData"] as JsonObject);
-            if (replacementImages.Count == 0)
-            {
+                RecordImageDecisions("rejected", "repick", Images);
+                ReplaceCurrentImages(replacementImages);
+                _storage.SaveImageCandidates(_items[_currentIndex]["caseData"] as JsonObject);
+                if (replacementImages.Count == 0)
+                {
                     MessageBox.Show(this, "No alternate images were found for this case.", Title, MessageBoxButton.OK, MessageBoxImage.Information);
                 }
             }
@@ -278,8 +281,24 @@ public partial class CaseReviewWindow : Window
 
     private void ApplySelectedImagesToCurrentItem()
     {
+        RecordImageDecisions("kept", "review", Images.Where(image => image.Keep));
+        RecordImageDecisions("rejected", "review", Images.Where(image => !image.Keep));
         var keptImages = Images.Where(image => image.Keep).Select(image => image.Source.DeepClone()).ToArray();
         ReplaceCurrentImages(keptImages.Select(node => node.AsObject()).ToList());
+    }
+
+    private void RecordImageDecisions(string decision, string reason, IEnumerable<ReviewImageItem> images)
+    {
+        var casePath = TextValue(_items[_currentIndex]["caseData"]?.AsObject(), "casePath", "");
+        if (string.IsNullOrWhiteSpace(casePath))
+        {
+            return;
+        }
+
+        foreach (var image in images)
+        {
+            _storage.RecordImageDecision(casePath, image.Source, decision, reason);
+        }
     }
 
     private void ReplaceCurrentImages(IReadOnlyList<JsonObject> images)

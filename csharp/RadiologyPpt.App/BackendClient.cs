@@ -206,6 +206,8 @@ public sealed class BackendClient
 
         startInfo.Environment["RADIOLOGY_PPT_APP_ROOT"] = AppRoot;
         startInfo.Environment["RADIOLOGY_PPT_RESOURCE_ROOT"] = ResourceRoot;
+        startInfo.Environment["RADIOLOGY_PPT_DATABASE_PATH"] = Path.Combine(StateDir, "radiology-ppt.sqlite");
+        startInfo.Environment["NODE_NO_WARNINGS"] = "1";
 
         using var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
         _currentProcess = process;
@@ -228,6 +230,11 @@ public sealed class BackendClient
         {
             if (eventArgs.Data is null)
             {
+                return;
+            }
+            if (TryParseBackendEvent(eventArgs.Data, out var progressMessage))
+            {
+                log(progressMessage);
                 return;
             }
             stderr.AppendLine(eventArgs.Data);
@@ -289,6 +296,37 @@ public sealed class BackendClient
         catch
         {
             // Temporary cleanup should not hide the real workflow result.
+        }
+    }
+
+    private static bool TryParseBackendEvent(string line, out string displayMessage)
+    {
+        displayMessage = "";
+        const string prefix = "RP_EVENT ";
+        if (!line.StartsWith(prefix, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        try
+        {
+            var payload = JsonNode.Parse(line[prefix.Length..])?.AsObject();
+            var type = payload?["type"]?.GetValue<string>() ?? "progress";
+            var message = payload?["message"]?.GetValue<string>() ?? "";
+            if (string.IsNullOrWhiteSpace(message))
+            {
+                return true;
+            }
+
+            displayMessage = type.Equals("warning", StringComparison.OrdinalIgnoreCase)
+                ? $"Warning: {message}"
+                : message;
+            return true;
+        }
+        catch
+        {
+            displayMessage = line;
+            return false;
         }
     }
 

@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
+import { readStoreCache, writeStoreCache } from "./app-store.mjs";
 
 const RESOURCE_ROOT =
   process.env.RADIOLOGY_PPT_RESOURCE_ROOT || path.resolve(fileURLToPath(new URL("..", import.meta.url)));
@@ -26,6 +27,11 @@ function isFresh(entry, ttlMs) {
 }
 
 export async function readCacheEntry(namespace, key, { ttlMs = 0, allowStale = false } = {}) {
+  const stored = await readStoreCache(namespace, key, { ttlMs, allowStale });
+  if (stored !== null && stored !== undefined) {
+    return stored;
+  }
+
   const filePath = cachePath(namespace, key);
   try {
     const entry = JSON.parse(await fs.readFile(filePath, "utf8"));
@@ -35,6 +41,7 @@ export async function readCacheEntry(namespace, key, { ttlMs = 0, allowStale = f
     if (!allowStale && !isFresh(entry, ttlMs)) {
       return null;
     }
+    await writeStoreCache(namespace, key, entry.value).catch(() => {});
     return entry.value;
   } catch {
     return null;
@@ -42,6 +49,7 @@ export async function readCacheEntry(namespace, key, { ttlMs = 0, allowStale = f
 }
 
 export async function writeCacheEntry(namespace, key, value) {
+  await writeStoreCache(namespace, key, value).catch(() => {});
   const filePath = cachePath(namespace, key);
   await fs.mkdir(path.dirname(filePath), { recursive: true });
   await fs.writeFile(

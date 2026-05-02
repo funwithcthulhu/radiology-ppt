@@ -31,6 +31,8 @@ import {
 } from "./image-candidates.mjs";
 import { maybeScoreSelectedImagesWithOllama } from "./ollama-review.mjs";
 import { readCacheEntry, writeCacheEntry } from "./cache-store.mjs";
+import { readRandomHistory, readRejectedFrameIds, writeRandomHistory } from "./app-store.mjs";
+import { emitProgress, emitWarning } from "./backend-events.mjs";
 import {
   APP_ROOT,
   BASE_URL,
@@ -50,6 +52,13 @@ const CANDIDATE_BANK_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 
 async function loadRandomHistory(historyPath = RANDOM_HISTORY_PATH) {
+  if (historyPath === RANDOM_HISTORY_PATH) {
+    const stored = await readRandomHistory({ limit: RANDOM_HISTORY_LIMIT });
+    if (stored.length) {
+      return stored;
+    }
+  }
+
   try {
     const raw = await fs.readFile(historyPath, "utf8");
     const parsed = JSON.parse(raw);
@@ -64,6 +73,11 @@ async function loadRandomHistory(historyPath = RANDOM_HISTORY_PATH) {
 }
 
 export async function saveRandomHistory(casePaths, historyPath = RANDOM_HISTORY_PATH) {
+  if (historyPath === RANDOM_HISTORY_PATH) {
+    await writeRandomHistory(casePaths, { source: "prepare", limit: RANDOM_HISTORY_LIMIT });
+    return;
+  }
+
   const recent = await loadRandomHistory(historyPath);
   const next = [];
   const seen = new Set();
@@ -264,6 +278,7 @@ function buildRandomSearchQueries(request) {
 }
 
 async function collectRandomCasePool(query, systems) {
+  emitProgress("Searching Radiopaedia random cases", { query, systems });
   const pageOneHtml = await fetchText(buildCaseSearchUrl({ query, systems, page: 1 }));
   const pageNumbers = extractSearchPageNumbers(pageOneHtml);
   const desiredPageCount = Math.min(pageNumbers.length || 1, RANDOM_SEARCH_PAGE_LIMIT);
@@ -379,11 +394,21 @@ async function pickRandomCaseCandidates(request, { excludePaths = new Set(), all
   }
 
   const shuffledCandidates = shuffle([...candidateMap.values()]);
+  emitProgress("Selecting random cases", {
+    request: request.rawInput,
+    candidateCount: shuffledCandidates.length,
+    requestedCount: request.randomSpec.count,
+  });
   const picks =
     request.randomSpec?.diversify === "mixed"
       ? await pickMixedCandidates(shuffledCandidates, request.randomSpec.count, htmlCache)
       : shuffledCandidates.slice(0, request.randomSpec.count);
   if (picks.length < request.randomSpec.count && excludePaths.size > 0 && allowReuseIfNeeded) {
+    emitWarning("Random case history exhausted; allowing older cases as fallback", {
+      request: request.rawInput,
+      requestedCount: request.randomSpec.count,
+      picksFound: picks.length,
+    });
     return pickRandomCaseCandidates(request, {
       excludePaths: new Set(),
       allowReuseIfNeeded: false,
@@ -442,6 +467,7 @@ export async function expandCaseRequests(
       excludePaths: new Set([...selectedPaths, ...requestExcludedPaths]),
     });
     for (const pick of picks) {
+      emitProgress("Selected random case", { title: pick.title, casePath: pick.casePath });
       selectedPaths.add(pick.casePath);
       historySelections.push(pick.casePath);
       expanded.push(
@@ -589,6 +615,7 @@ async function searchCasePath(input) {
 }
 
 async function fetchStudy(studyId, caseUrl) {
+  emitProgress("Loading Radiopaedia study", { studyId });
   const studyUrl = `${BASE_URL}/studies/${studyId}/annotated_viewer_json?lang=us&only_findings=true`;
   const payload = await fetchJson(studyUrl, {
     referer: caseUrl,
@@ -816,6 +843,7 @@ function validateCasePage({ request, caseTitle, rid, studyIds, description }) {
 }
 
 async function fetchRadiopaediaCaseByPath(request, casePath, { cacheDir, imagesPerCase = 3, caseTitleHint = "" }) {
+  emitProgress("Loading Radiopaedia case", { casePath, request: request.rawInput });
   const caseUrl = absoluteUrl(casePath.includes("?") ? casePath : `${casePath}?lang=us`);
   const html = await fetchText(caseUrl);
   const displayUrl = (() => {
@@ -895,8 +923,16 @@ async function fetchRadiopaediaCaseByPath(request, casePath, { cacheDir, imagesP
     await writeCacheEntry("image-candidates", candidateCacheKey, imageCandidateBank);
   }
   const selectedImages = selectRelevantImages(imageCandidates, Math.max(1, imagesPerCase), {
-    excludeFrameIds: request.excludeFrameIds || [],
+    excludeFrameIds: dedupe([
+      ...(request.excludeFrameIds || []),
+      ...((request.includeFrameIds || []).length ? [] : await readRejectedFrameIds(casePath)),
+    ]),
     includeFrameIds: request.includeFrameIds || [],
+  });
+  emitProgress("Selected case images", {
+    caseTitle,
+    selectedCount: selectedImages.length,
+    candidateCount: imageCandidateBank.length,
   });
   const imageDir = path.join(cacheDir, "images", caseSlug);
   const images = [];
@@ -914,6 +950,7 @@ async function fetchRadiopaediaCaseByPath(request, casePath, { cacheDir, imagesP
     );
 
     await downloadFile(image.url, localPath);
+    emitProgress("Downloaded case image", { caseTitle, frameId: image.frameId, index: index + 1 });
     const focusedPath = await applyFocusCrop(localPath, image.focusPoints, {
       cropMode: request.cropMode,
       markupStyle: request.markupStyle,

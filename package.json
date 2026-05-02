@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test"
+    "test": "node --no-warnings --test"
   },
   "dependencies": {
     "pdf-parse": "^2.4.5",

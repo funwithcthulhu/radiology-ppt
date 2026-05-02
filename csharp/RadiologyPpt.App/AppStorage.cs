@@ -110,7 +110,19 @@ public sealed class AppStorage
         command.Parameters.AddWithValue("$status", status);
         command.Parameters.AddWithValue("$item_json", item.ToJsonString(new JsonSerializerOptions { WriteIndented = false }));
         command.ExecuteNonQuery();
+        UpsertCaseDecision(connection, caseData, status, "review");
         SaveImageCandidates(caseData);
+    }
+
+    public void RecordImageDecision(string casePath, JsonObject image, string decision, string reason = "")
+    {
+        if (string.IsNullOrWhiteSpace(casePath) || string.IsNullOrWhiteSpace(decision))
+        {
+            return;
+        }
+
+        using var connection = OpenConnection();
+        UpsertImageDecision(connection, casePath, image, decision, reason);
     }
 
     public void MarkReviewSessionExported(string sessionId, string outputPath, int approvedCount)
@@ -226,6 +238,9 @@ public sealed class AppStorage
             ["generated_powerpoints"] = Count(connection, "generated_powerpoints"),
             ["core_sources"] = Count(connection, "core_sources"),
             ["random_history"] = Count(connection, "random_history"),
+            ["backend_cache"] = Count(connection, "backend_cache"),
+            ["case_decisions"] = Count(connection, "case_decisions"),
+            ["image_decisions"] = Count(connection, "image_decisions"),
             ["events"] = Count(connection, "app_events")
         };
 
@@ -360,6 +375,66 @@ public sealed class AppStorage
             command.Parameters.AddWithValue("$last_seen_at", Timestamp());
             command.ExecuteNonQuery();
         }
+    }
+
+    private static void UpsertCaseDecision(SqliteConnection connection, JsonObject? caseData, string decision, string reason)
+    {
+        var casePath = TextValue(caseData, "casePath");
+        if (string.IsNullOrWhiteSpace(casePath))
+        {
+            return;
+        }
+
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            INSERT INTO case_decisions (case_path, case_title, decision, reason, last_seen_at, count)
+            VALUES ($case_path, $case_title, $decision, $reason, $last_seen_at, 1)
+            ON CONFLICT(case_path) DO UPDATE SET
+              case_title = COALESCE(NULLIF(excluded.case_title, ''), case_decisions.case_title),
+              decision = excluded.decision,
+              reason = excluded.reason,
+              last_seen_at = excluded.last_seen_at,
+              count = case_decisions.count + 1;
+            """;
+        command.Parameters.AddWithValue("$case_path", casePath);
+        command.Parameters.AddWithValue("$case_title", TextValue(caseData, "caseTitle"));
+        command.Parameters.AddWithValue("$decision", decision);
+        command.Parameters.AddWithValue("$reason", reason);
+        command.Parameters.AddWithValue("$last_seen_at", Timestamp());
+        command.ExecuteNonQuery();
+    }
+
+    private static void UpsertImageDecision(SqliteConnection connection, string casePath, JsonObject image, string decision, string reason)
+    {
+        var frameId = TextValue(image, "frameId");
+        var url = TextValue(image, "url");
+        if (string.IsNullOrWhiteSpace(frameId) && string.IsNullOrWhiteSpace(url))
+        {
+            return;
+        }
+
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            INSERT INTO image_decisions
+              (case_path, frame_id, url, label, decision, reason, created_at, last_seen_at, count)
+            VALUES
+              ($case_path, $frame_id, $url, $label, $decision, $reason, $created_at, $last_seen_at, 1)
+            ON CONFLICT(case_path, frame_id, url, decision) DO UPDATE SET
+              label = COALESCE(NULLIF(excluded.label, ''), image_decisions.label),
+              reason = excluded.reason,
+              last_seen_at = excluded.last_seen_at,
+              count = image_decisions.count + 1;
+            """;
+        var now = Timestamp();
+        command.Parameters.AddWithValue("$case_path", casePath);
+        command.Parameters.AddWithValue("$frame_id", frameId);
+        command.Parameters.AddWithValue("$url", url);
+        command.Parameters.AddWithValue("$label", TextValue(image, "label"));
+        command.Parameters.AddWithValue("$decision", decision);
+        command.Parameters.AddWithValue("$reason", reason);
+        command.Parameters.AddWithValue("$created_at", now);
+        command.Parameters.AddWithValue("$last_seen_at", now);
+        command.ExecuteNonQuery();
     }
 
     private static long Count(SqliteConnection connection, string tableName)
@@ -559,7 +634,43 @@ public sealed class AppStorage
         CREATE TABLE IF NOT EXISTS random_history (
             case_path TEXT PRIMARY KEY,
             last_seen_at TEXT NOT NULL,
-            source TEXT NOT NULL
+            source TEXT NOT NULL,
+            use_count INTEGER NOT NULL DEFAULT 1
+        );
+
+        CREATE TABLE IF NOT EXISTS backend_cache (
+            namespace TEXT NOT NULL,
+            key_hash TEXT NOT NULL,
+            key_json TEXT NOT NULL,
+            value_json TEXT NOT NULL,
+            schema_version INTEGER NOT NULL,
+            created_at TEXT NOT NULL,
+            last_accessed_at TEXT NOT NULL,
+            hit_count INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY(namespace, key_hash)
+        );
+
+        CREATE TABLE IF NOT EXISTS case_decisions (
+            case_path TEXT PRIMARY KEY,
+            case_title TEXT NOT NULL DEFAULT '',
+            decision TEXT NOT NULL,
+            reason TEXT NOT NULL DEFAULT '',
+            last_seen_at TEXT NOT NULL,
+            count INTEGER NOT NULL DEFAULT 1
+        );
+
+        CREATE TABLE IF NOT EXISTS image_decisions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            case_path TEXT NOT NULL,
+            frame_id TEXT NOT NULL DEFAULT '',
+            url TEXT NOT NULL DEFAULT '',
+            label TEXT NOT NULL DEFAULT '',
+            decision TEXT NOT NULL,
+            reason TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL,
+            last_seen_at TEXT NOT NULL,
+            count INTEGER NOT NULL DEFAULT 1,
+            UNIQUE(case_path, frame_id, url, decision)
         );
         """;
 }
