@@ -5,8 +5,10 @@ import os from "node:os";
 import path from "node:path";
 import {
   readRandomHistory,
+  readAvoidedCasePaths,
   readRejectedFrameIds,
   readStoreCache,
+  recordCaseDecision,
   recordImageDecision,
   writeRandomHistory,
   writeStoreCache,
@@ -36,4 +38,24 @@ test("records rejected image frames for later repicks", async () => {
   });
 
   assert.deepEqual(await readRejectedFrameIds("/cases/example-1"), ["frame-2"]);
+});
+
+test("reads skipped and rejected case paths for future random avoidance", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "radiology-store-case-decisions-"));
+  process.env.RADIOLOGY_PPT_DATABASE_PATH = path.join(tempDir, "state.sqlite");
+
+  await recordCaseDecision({
+    casePath: "/cases/skip-me",
+    caseTitle: "Skipped case",
+    decision: "skipped",
+    reason: "unit-test",
+  });
+  await recordCaseDecision({
+    casePath: "/cases/keep-me",
+    caseTitle: "Approved case",
+    decision: "approved",
+    reason: "unit-test",
+  });
+
+  assert.deepEqual(await readAvoidedCasePaths(), ["/cases/skip-me"]);
 });

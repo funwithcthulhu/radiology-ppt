@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { cleanText, collapseWhitespace, truncate } from "./utils.mjs";
+import { emitProgress, emitWarning } from "./backend-events.mjs";
 
 const execFileAsync = promisify(execFile);
 let OLLAMA_MODELS_PROMISE = null;
@@ -117,6 +118,7 @@ export async function maybeScoreSelectedImagesWithOllama(images, request, caseTi
 
   const visionModel = collapseWhitespace(request.ollamaModel || "") || (await discoverOllamaVisionModel());
   if (!visionModel) {
+    emitWarning("No local Ollama vision model was found for image scoring");
     return images;
   }
 
@@ -132,8 +134,10 @@ export async function maybeScoreSelectedImagesWithOllama(images, request, caseTi
 
   for (const image of imagesToReview) {
     if (Date.now() - startedAt > OLLAMA_CASE_TIMEOUT_MS) {
+      emitWarning("Ollama image scoring reached the case time budget", { caseTitle });
       break;
     }
+    emitProgress("Scoring image with Ollama", { caseTitle, frameId: image.frameId, model: visionModel });
     const review = await scoreImageWithOllama(image.localPath, {
       visionModel,
       caseTitle,
@@ -152,4 +156,33 @@ export async function maybeScoreSelectedImagesWithOllama(images, request, caseTi
       (Number.isFinite(left.ollamaScore) ? left.ollamaScore : -1) ||
       right.relevantScore - left.relevantScore,
   );
+}
+
+export async function scorePreparedItemsWithOllama(items, { ollamaModel = "" } = {}) {
+  const scoredItems = [];
+  for (const item of items) {
+    const request = {
+      ...(item.request || {}),
+      useOllamaAssist: true,
+      ollamaModel: collapseWhitespace(ollamaModel || item.request?.ollamaModel || ""),
+    };
+    const caseData = item.caseData || item.case || {};
+    const images = Array.isArray(caseData.images) ? caseData.images : [];
+    emitProgress("Starting optional Ollama case review", {
+      caseTitle: caseData.caseTitle || request.rawInput || "Prepared case",
+      imageCount: images.length,
+    });
+    caseData.images = await maybeScoreSelectedImagesWithOllama(
+      images,
+      request,
+      caseData.caseTitle || request.rawInput || "Prepared case",
+    );
+    scoredItems.push({
+      ...item,
+      request,
+      caseData,
+    });
+  }
+
+  return scoredItems;
 }

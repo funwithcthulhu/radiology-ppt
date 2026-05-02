@@ -289,6 +289,27 @@ export async function readRejectedFrameIds(casePath) {
   ).catch(() => []);
 }
 
+export async function readAvoidedCasePaths({ decisions = ["skipped", "rejected"], limit = 500 } = {}) {
+  const decisionList = decisions.map((value) => collapseWhitespace(value).toLowerCase()).filter(Boolean);
+  if (!decisionList.length) {
+    return [];
+  }
+
+  return withDb((db) => {
+    const placeholders = decisionList.map(() => "?").join(", ");
+    return db
+      .prepare(`
+        SELECT case_path
+        FROM case_decisions
+        WHERE decision IN (${placeholders})
+        ORDER BY last_seen_at DESC
+        LIMIT ?;
+      `)
+      .all(...decisionList, limit)
+      .map((row) => row.case_path);
+  }).catch(() => []);
+}
+
 export function getStoreDatabasePath() {
   return databasePath();
 }

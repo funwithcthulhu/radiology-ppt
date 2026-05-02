@@ -70,7 +70,10 @@
                                                 CornerRadius="10" Padding="12">
                                             <DockPanel LastChildFill="True">
                                                 <CheckBox DockPanel.Dock="Top" Content="Keep this image" IsChecked="{Binding Keep, Mode=TwoWay}" FontWeight="SemiBold" Margin="0,0,0,8" />
-                                                <TextBlock DockPanel.Dock="Bottom" Text="{Binding Caption}" TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" Margin="0,8,0,0" />
+                                                <StackPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
+                                                    <TextBlock Text="{Binding Caption}" TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" />
+                                                    <TextBlock Text="{Binding OllamaText}" TextWrapping="Wrap" Foreground="#0F766E" FontSize="11" Margin="0,4,0,0" />
+                                                </StackPanel>
                                                 <Border Background="Black" CornerRadius="6" ClipToBounds="True">
                                                     <Image Source="{Binding LocalPath}" Stretch="Uniform" MaxHeight="245" />
                                                 </Border>
@@ -139,6 +142,7 @@
                 <Button Content="Skip Case" Click="Skip_Click" />
                 <Button x:Name="RerollButton" Content="Reroll Case" Click="Reroll_Click" />
                 <Button x:Name="RepickButton" Content="Re-pick Images" Click="Repick_Click" />
+                <Button x:Name="OllamaScoreButton" Content="Ollama Score Case" Click="OllamaScore_Click" />
                 <Button x:Name="ReplaceUncheckedButton" Content="Replace Unchecked" Click="ReplaceUnchecked_Click" />
                 <Button Content="Remove Unchecked" Click="RemoveUnchecked_Click" />
             </StackPanel>

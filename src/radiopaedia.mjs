@@ -31,7 +31,7 @@ import {
 } from "./image-candidates.mjs";
 import { maybeScoreSelectedImagesWithOllama } from "./ollama-review.mjs";
 import { readCacheEntry, writeCacheEntry } from "./cache-store.mjs";
-import { readRandomHistory, readRejectedFrameIds, writeRandomHistory } from "./app-store.mjs";
+import { readAvoidedCasePaths, readRandomHistory, readRejectedFrameIds, writeRandomHistory } from "./app-store.mjs";
 import { emitProgress, emitWarning } from "./backend-events.mjs";
 import {
   APP_ROOT,
@@ -441,6 +441,11 @@ export async function expandCaseRequests(
 ) {
   const expanded = [];
   const selectedPaths = new Set(readRandomHistory ? await loadRandomHistory(historyPath) : []);
+  if (readRandomHistory && historyPath === RANDOM_HISTORY_PATH) {
+    for (const casePath of await readAvoidedCasePaths()) {
+      selectedPaths.add(casePath);
+    }
+  }
   const historySelections = [];
 
   for (const item of inputs) {

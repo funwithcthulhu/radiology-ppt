@@ -17,6 +17,7 @@ import {
   inspectRadiopaediaCaseCandidates,
   saveRandomHistory,
 } from "./radiopaedia.mjs";
+import { scorePreparedItemsWithOllama } from "./ollama-review.mjs";
 import { parseCaseRequest } from "./request-parser.mjs";
 import { collapseWhitespace, formatTimestamp, slugify } from "./utils.mjs";
 
@@ -30,6 +31,7 @@ function usage() {
     "Supported internal commands:",
     "  node src/cli.mjs --probe-input diagnoses.json",
     "  node src/cli.mjs --prepare-input requests.json [--images-per-case 3] [--use-ollama-assist] [--ollama-model moondream]",
+    "  node src/cli.mjs --score-images-input prepared.json [--ollama-model moondream]",
     "  node src/cli.mjs --render-input prepared.json [--title \"Resident Review\"] [--out outputs\\deck.pptx] [--deck-mode case-conference] [--theme classic] [--include-teaching-points]",
     "  node src/cli.mjs --core-review-schema",
     "  node src/cli.mjs --core-review-ingest notes.md guide.txt [--out library\\board-review\\corpus.json]",
@@ -84,6 +86,15 @@ function parseArgs(argv) {
         throw new Error("Missing value for --render-input");
       }
       args.renderInput = value;
+      index += 1;
+      continue;
+    }
+    if (arg === "--score-images-input") {
+      const value = argv[index + 1];
+      if (!value) {
+        throw new Error("Missing value for --score-images-input");
+      }
+      args.scoreImagesInput = value;
       index += 1;
       continue;
     }
@@ -578,6 +589,21 @@ async function runRender(inputPath, args) {
   console.log(`Created manifest: ${manifestPath}`);
 }
 
+async function runScoreImages(inputPath, args) {
+  emitProgress("Starting optional Ollama image scoring");
+  const raw = JSON.parse(await fs.readFile(path.resolve(inputPath), "utf8"));
+  const items = normalizePreparedItems(raw);
+  if (!items.length) {
+    throw new Error("No prepared cases were provided for image scoring.");
+  }
+
+  const scoredItems = await scorePreparedItemsWithOllama(items, {
+    ollamaModel: args.ollamaModel || "",
+  });
+
+  process.stdout.write(`${JSON.stringify({ items: scoredItems }, null, 2)}\n`);
+}
+
 async function runCoreReviewSchema() {
   process.stdout.write(`${JSON.stringify(coreReviewSchemaSummary(), null, 2)}\n`);
 }
@@ -681,6 +707,10 @@ async function main() {
   }
   if (args.prepareInput) {
     await runPrepare(args.prepareInput, args);
+    return;
+  }
+  if (args.scoreImagesInput) {
+    await runScoreImages(args.scoreImagesInput, args);
     return;
   }
   if (args.renderInput) {

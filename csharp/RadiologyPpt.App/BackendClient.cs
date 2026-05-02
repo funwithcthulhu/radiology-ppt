@@ -74,6 +74,38 @@ public sealed class BackendClient
         return items is { Count: > 0 } ? items[0]?.AsObject() : null;
     }
 
+    public async Task<JsonObject?> ScoreImagesAsync(JsonObject item, GenerationSettings settings, Action<string> log, CancellationToken cancellationToken)
+    {
+        var preparedPath = await WriteTempJsonAsync(
+            new JsonObject { ["items"] = new JsonArray(item.DeepClone()) },
+            "score-images",
+            cancellationToken);
+        try
+        {
+            var args = new List<string>
+            {
+                "--score-images-input",
+                preparedPath
+            };
+            if (!string.IsNullOrWhiteSpace(settings.OllamaModel))
+            {
+                args.Add("--ollama-model");
+                args.Add(settings.OllamaModel);
+            }
+
+            var result = await RunCliAsync(args, log, cancellationToken, logStdout: false);
+            ThrowIfFailed(result, "Could not score images with Ollama.");
+            var payload = JsonNode.Parse(result.Stdout)?.AsObject()
+                ?? throw new InvalidOperationException("Image scoring did not return JSON.");
+            var items = payload["items"]?.AsArray();
+            return items is { Count: > 0 } ? items[0]?.AsObject() : null;
+        }
+        finally
+        {
+            TryDelete(preparedPath);
+        }
+    }
+
     public async Task<string> RenderAsync(IEnumerable<JsonObject> approvedItems, GenerationSettings settings, Action<string> log, CancellationToken cancellationToken)
     {
         Directory.CreateDirectory(OutputsDir);

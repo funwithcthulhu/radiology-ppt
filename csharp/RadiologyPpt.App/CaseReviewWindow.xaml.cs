@@ -39,6 +39,7 @@ public partial class CaseReviewWindow : Window
         MarkupCombo.ItemsSource = AppOptions.MarkupStyles;
         MarkupCombo.SelectedItem = AppOptions.MarkupStyles.FirstOrDefault(option => AppOptions.MarkupCliValue(option) == settings.MarkupStyle) ?? AppOptions.MarkupStyles[0];
         ImagesBox.Text = settings.ImagesPerCase.ToString();
+        OllamaScoreButton.IsEnabled = settings.UseOllamaReview;
         ShowCurrentCase();
     }
 
@@ -80,6 +81,7 @@ public partial class CaseReviewWindow : Window
                 Keep = true,
                 LocalPath = TextValue(imageObject, "localPath", ""),
                 Caption = BuildImageCaption(imageObject),
+                OllamaText = BuildOllamaText(imageObject),
                 FrameId = TextValue(imageObject, "frameId", ""),
                 Source = imageObject.DeepClone().AsObject()
             });
@@ -133,6 +135,37 @@ public partial class CaseReviewWindow : Window
     private async void ReplaceUnchecked_Click(object sender, RoutedEventArgs e)
     {
         await ReplaceImagesAsync(excludeCurrentImages: true, replaceUncheckedOnly: true);
+    }
+
+    private async void OllamaScore_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_settings.UseOllamaReview)
+        {
+            MessageBox.Show(this, "Enable Ollama image review on the PowerPoint tab first.", Title, MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        await RunReplacementActionAsync("Scoring current case with Ollama...", async token =>
+        {
+            var keptImages = Images.Where(image => image.Keep).Select(image => image.Source.DeepClone().AsObject()).ToList();
+            if (keptImages.Count == 0)
+            {
+                MessageBox.Show(this, "Keep at least one image before scoring this case.", Title, MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            ReplaceCurrentImages(keptImages);
+            var scored = await _backend.ScoreImagesAsync(_items[_currentIndex].DeepClone().AsObject(), SettingsForReviewControls(), _log, token);
+            if (scored is null)
+            {
+                MessageBox.Show(this, "Ollama did not return a scored case.", Title, MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            _items[_currentIndex] = scored;
+            _storage.SaveImageCandidates(scored["caseData"] as JsonObject);
+            ShowCurrentCase();
+        });
     }
 
     private async void UseSelectedCandidates_Click(object sender, RoutedEventArgs e)
@@ -276,6 +309,7 @@ public partial class CaseReviewWindow : Window
         RerollButton.IsEnabled = !busy;
         RepickButton.IsEnabled = !busy;
         ReplaceUncheckedButton.IsEnabled = !busy;
+        OllamaScoreButton.IsEnabled = !busy && _settings.UseOllamaReview;
         KeepNextButton.IsEnabled = !busy;
     }
 
@@ -398,6 +432,20 @@ public partial class CaseReviewWindow : Window
         }.Where(value => !string.IsNullOrWhiteSpace(value)));
     }
 
+    private static string BuildOllamaText(JsonObject image)
+    {
+        if (image["ollamaScore"] is null)
+        {
+            return "";
+        }
+
+        var score = NumericValue(image, "ollamaScore");
+        var reason = TextValue(image, "ollamaReason", "");
+        return string.IsNullOrWhiteSpace(reason)
+            ? $"Ollama score: {score:0}/10"
+            : $"Ollama score: {score:0}/10 - {reason}";
+    }
+
     private void LoadCandidateImages(JsonObject? caseData)
     {
         CandidateImages.Clear();
@@ -480,6 +528,7 @@ public sealed class ReviewImageItem : INotifyPropertyChanged
 
     public string LocalPath { get; init; } = "";
     public string Caption { get; init; } = "";
+    public string OllamaText { get; init; } = "";
     public string FrameId { get; init; } = "";
     public JsonObject Source { get; init; } = new();
 }

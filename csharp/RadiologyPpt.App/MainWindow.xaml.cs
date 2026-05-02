@@ -255,10 +255,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             MainTabs.SelectedIndex = 3;
             AppendLog($"Preparing {rows.Length} request row(s)...");
+            var prepareSettings = settings with { UseOllamaReview = false };
             var prepared = await _jobs.RunAsync(
                 "Preparing cases...",
                 OnJobChanged,
-                token => _backend.PrepareAsync(requests, settings, AppendLog, token));
+                token => _backend.PrepareAsync(requests, prepareSettings, AppendLog, token));
             var preparedItems = ReadItems(prepared);
             var failures = ReadFailures(prepared);
             foreach (var failure in failures)
