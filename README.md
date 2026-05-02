@@ -16,10 +16,12 @@ The app can:
 - use manual Radiopaedia case URLs
 - review matches before export
 - let you keep, reroll, repick, replace, or remove images during review
+- choose exact replacement frames from a per-case candidate image gallery
 - choose a case-conference or Core Review PowerPoint style
 - add optional teaching-point slides; Core Review includes them automatically when available
 - keep local history so random PowerPoints do not keep repeating the same recent cases
 - cache Radiopaedia metadata and image candidate banks to speed repeated runs
+- store app state, settings, review sessions, generated PowerPoint metadata, and diagnostics in a local SQLite database
 
 ## Main Use
 
@@ -91,6 +93,7 @@ From the review screen you can:
 - reroll to a different case
 - repick images from the same case
 - uncheck specific images, then replace or remove only those images
+- use the `Candidates` tab to choose exact alternate frames from the same Radiopaedia case
 - skip the case
 
 If a review action hangs, use `Cancel Action` in the review window. If the larger build/import step hangs, use `Cancel Current Task` on the PowerPoint tab.
@@ -100,7 +103,10 @@ If a review action hangs, use `Cancel Action` in the review window. If the large
 The primary GUI is a native Windows C# WPF app. The Radiopaedia/PowerPoint backend remains Node so the migration can keep the working search, image-selection, caching, and PowerPoint-generation engine.
 
 - `csharp\RadiologyPpt.App`: WPF desktop UI, review flow, settings, and app orchestration
+- `csharp\RadiologyPpt.App\AppStorage.cs`: local SQLite storage for settings, review sessions, image candidates, generated PowerPoints, diagnostics, and Core Boards import metadata
+- `csharp\RadiologyPpt.App\AppJobRunner.cs`: cancellable background-task coordinator for long GUI workflows
 - `src/cli.mjs`: internal backend entrypoint used by the GUI
+- `src/contracts`: JSON schema contracts for C# to Node prepare/render payloads
 - `src/request-parser.mjs`: diagnosis, random/category, modality, and filter parsing
 - `src/radiopaedia-client.mjs`: Radiopaedia HTTP/download helpers and persistent fetch cache
 - `src/radiopaedia.mjs`: case search, case assembly, patient data, and teaching text
@@ -138,6 +144,12 @@ Run checks before pushing:
 dotnet build .\csharp\RadiologyPpt.App\RadiologyPpt.App.csproj
 npm test
 ```
+
+Local state:
+
+- `state\radiology-ppt.sqlite` stores durable app metadata and is ignored by Git.
+- `cache\`, `scratch\`, `outputs\`, and `library\board-review\` remain local/private generated data by default.
+- Use the `Activity` tab to refresh diagnostics, open the state folder, clean scratch files, or clean cache files older than 30 days.
 
 ## Notes
 

@@ -46,6 +46,10 @@ radiology residents and should cover the broad diagnostic radiology curriculum.
 
 - Primary GUI is now a native Windows C# WPF app under `csharp/RadiologyPpt.App`.
 - Keep using the existing Node backend (`src/cli.mjs` and modules under `src/`) for Radiopaedia search, image selection, caching, Core Boards ingestion, and PowerPoint rendering.
+- Local durable metadata is stored in SQLite at `state/radiology-ppt.sqlite`; `state/` is ignored by Git.
+- JSON schema contracts for C# to Node prepare/render payloads live under `src/contracts`.
+- `AppJobRunner.cs` centralizes cancellable long-running GUI jobs.
+- `AppStorage.cs` stores settings, review sessions, image candidates, generated PowerPoint metadata, Core Boards source imports, and diagnostics.
 - Build and publish the desktop app with `build-csharp-app.ps1`.
 - Refresh the desktop shortcut with `create-desktop-shortcut.ps1`.
 - The packaged app path remains `dist/Radiopaedia Case PowerPoint Builder/Radiopaedia Case PowerPoint Builder.exe`.
@@ -105,8 +109,9 @@ The Core Boards module should support:
 - Do not assume an app process is already running.
 - Relaunch from source with `dotnet run --project .\csharp\RadiologyPpt.App\RadiologyPpt.App.csproj`, or use the packaged desktop shortcut after rebuilding.
 - C# GUI tabs are `Cases`, `Core Boards`, `PowerPoint`, and `Activity`.
-- Case review supports keep/skip/reroll/re-pick images, replace unchecked images, remove unchecked images, and cancel long review actions.
+- Case review supports keep/skip/reroll/re-pick images, replace unchecked images, remove unchecked images, exact candidate-frame selection from the `Candidates` tab, and cancel long review actions.
 - Ollama review can be enabled from the PowerPoint tab and the user can choose/refresh the local model list.
+- Activity tab includes diagnostics, state folder access, scratch cleanup, and old-cache cleanup.
 - Screenshots and local temp paths from prior sessions are not durable project state.
 
 ## Verification Commands Already Run
@@ -137,6 +142,14 @@ npm test
 ```
 
 The packaged C# executable was smoke-launched successfully.
+
+From the repo root on 2026-05-02 after the architecture pass:
+
+- Added SQLite app storage and metadata persistence.
+- Added C# to Node JSON contract schemas and tests.
+- Added cancellable background job runner.
+- Added exact candidate-frame review gallery.
+- Added Activity diagnostics and cleanup tools.
 
 ## Next Product Steps
 
