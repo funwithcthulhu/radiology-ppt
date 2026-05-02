@@ -12,6 +12,7 @@ description: Use for the radiology-ppt repository when publishing, pushing, open
 - If multiple local copies exist, prefer the checkout whose `origin` remote resolves to `funwithcthulhu/radiology-ppt`.
 - Do not rename the repo or project. Keep the name `radiology-ppt`.
 - Do not push from a parent directory or unrelated git root.
+- Before non-trivial project work, read `MEMORY.MD`, then `.agents/memory/radiology-ppt.md`; they are the repo-local memory index and canonical memory.
 
 ## Shell Rules
 
@@ -72,18 +73,11 @@ The repo `.gitignore` already covers the main generated directories.
 
 ## Current Project Context
 
-Known draft PR from the UI modernization work:
+For current status, read `MEMORY.MD`, then `.agents/memory/radiology-ppt.md`.
 
-- Branch: `codex/radiology-ppt-ui-redesign`
-- PR: `https://github.com/funwithcthulhu/radiology-ppt/pull/1`
+Current active themes include:
 
-Recent validated changes include:
-
-- Dark left navigation rail and cleaner desktop UI.
-- Single `Random Case` workflow with optional count, modality, anatomy, and radiology-area filters.
-- Multi-case random pulls diversify automatically when no specific radiology area is pinned.
-- Live selection summary and clear filters control.
-- Cancel current build.
-- Ollama review off by default.
-- URL validation, random search bounds, redaction cleanup, image-slide text fitting.
-- Safer PowerShell/PyInstaller packaging behavior.
+- Desktop GUI-first workflow; command-line entry points are internal maintenance/backend plumbing.
+- Case-conference PowerPoint creation from Radiopaedia diagnosis/search/random/manual URL rows.
+- Core Boards/Core Review scaffolding for local user-provided study PDFs and question banks.
+- Modular Node backend with focused tests for parser, cache, and image-candidate behavior.

@@ -31,12 +31,12 @@ async function listOllamaModels() {
 async function discoverOllamaVisionModel() {
   const models = await listOllamaModels();
   const patterns = [
-    /vision/i,
-    /llava/i,
     /moondream/i,
     /minicpm/i,
     /qwen.*vl/i,
+    /llava/i,
     /bakllava/i,
+    /vision/i,
   ];
 
   for (const pattern of patterns) {

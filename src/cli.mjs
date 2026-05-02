@@ -1,7 +1,16 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { buildDeck } from "./deck.mjs";
+import {
+  buildCoreReviewQuizSession,
+  coreReviewSchemaSummary,
+  ingestCoreReviewSources,
+  loadCoreReviewQuestionBank,
+  renderCoreReviewQuizText,
+} from "./core_review/index.mjs";
 import {
   expandCaseRequests,
   fetchRadiopaediaCase,
@@ -14,20 +23,43 @@ import { collapseWhitespace, formatTimestamp, slugify } from "./utils.mjs";
 const RESOURCE_ROOT =
   process.env.RADIOLOGY_PPT_RESOURCE_ROOT || path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const APP_ROOT = process.env.RADIOLOGY_PPT_APP_ROOT || RESOURCE_ROOT;
+const CORE_REVIEW_PDF_INGEST_SCRIPT = path.join(RESOURCE_ROOT, "scripts", "core_review_pdf_ingest.py");
+const CORE_REVIEW_PDF_INGEST_EXE = path.join(APP_ROOT, "scripts", "core_review_pdf_ingest.exe");
+const execFileAsync = promisify(execFile);
+let PYTHON_RUNTIME_PROMISE = null;
 
 function usage() {
   return [
     "This file is an internal GUI backend.",
     "Supported internal commands:",
     "  node src/cli.mjs --probe-input diagnoses.json",
-    "  node src/cli.mjs --prepare-input requests.json [--images-per-case 3] [--use-ollama-assist] [--ollama-model llama3.2-vision]",
-    "  node src/cli.mjs --render-input prepared.json [--title \"Resident Review\"] [--out outputs\\deck.pptx] [--theme classic] [--include-teaching-points]",
+    "  node src/cli.mjs --prepare-input requests.json [--images-per-case 3] [--use-ollama-assist] [--ollama-model moondream]",
+    "  node src/cli.mjs --render-input prepared.json [--title \"Resident Review\"] [--out outputs\\deck.pptx] [--deck-mode case-conference] [--theme classic] [--include-teaching-points]",
+    "  node src/cli.mjs --core-review-schema",
+    "  node src/cli.mjs --core-review-ingest notes.md guide.txt [--out library\\board-review\\corpus.json]",
+    "  node src/cli.mjs --core-review-ingest-pdf book.pdf atlas.pdf [--out library\\board-review\\pdf-corpus.json] [--domain msk] [--format text]",
+    "  node src/cli.mjs --core-review-quiz question-bank.json [--count 10] [--domain thoracic] [--question-type single_best_answer] [--format text]",
   ].join("\n");
+}
+
+function collectArgumentList(argv, index, name) {
+  const values = [];
+  let cursor = index + 1;
+  while (cursor < argv.length && !String(argv[cursor]).startsWith("--")) {
+    values.push(argv[cursor]);
+    cursor += 1;
+  }
+  if (!values.length) {
+    throw new Error(`Missing value for ${name}`);
+  }
+  return { values, nextIndex: cursor - 1 };
 }
 
 function parseArgs(argv) {
   const args = {
     imagesPerCase: 3,
+    quizCount: 10,
+    format: "json",
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -56,6 +88,31 @@ function parseArgs(argv) {
         throw new Error("Missing value for --render-input");
       }
       args.renderInput = value;
+      index += 1;
+      continue;
+    }
+    if (arg === "--core-review-schema") {
+      args.coreReviewSchema = true;
+      continue;
+    }
+    if (arg === "--core-review-ingest") {
+      const { values, nextIndex } = collectArgumentList(argv, index, "--core-review-ingest");
+      args.coreReviewIngest = values;
+      index = nextIndex;
+      continue;
+    }
+    if (arg === "--core-review-ingest-pdf") {
+      const { values, nextIndex } = collectArgumentList(argv, index, "--core-review-ingest-pdf");
+      args.coreReviewIngestPdf = values;
+      index = nextIndex;
+      continue;
+    }
+    if (arg === "--core-review-quiz") {
+      const value = argv[index + 1];
+      if (!value) {
+        throw new Error("Missing value for --core-review-quiz");
+      }
+      args.coreReviewQuiz = value;
       index += 1;
       continue;
     }
@@ -103,6 +160,114 @@ function parseArgs(argv) {
       index += 1;
       continue;
     }
+    if (arg === "--count") {
+      const value = Number.parseInt(argv[index + 1] ?? "", 10);
+      if (!Number.isInteger(value) || value < 1) {
+        throw new Error("--count must be a positive integer");
+      }
+      args.quizCount = value;
+      index += 1;
+      continue;
+    }
+    if (arg === "--domain") {
+      const value = argv[index + 1];
+      if (!value) {
+        throw new Error("Missing value for --domain");
+      }
+      args.domain = value;
+      index += 1;
+      continue;
+    }
+    if (arg === "--question-type") {
+      const value = argv[index + 1];
+      if (!value) {
+        throw new Error("Missing value for --question-type");
+      }
+      args.questionType = value;
+      index += 1;
+      continue;
+    }
+    if (arg === "--tags") {
+      const { values, nextIndex } = collectArgumentList(argv, index, "--tags");
+      args.tags = values;
+      index = nextIndex;
+      continue;
+    }
+    if (arg === "--assets-dir") {
+      const value = argv[index + 1];
+      if (!value) {
+        throw new Error("Missing value for --assets-dir");
+      }
+      args.assetsDir = value;
+      index += 1;
+      continue;
+    }
+    if (arg === "--sources-dir") {
+      const value = argv[index + 1];
+      if (!value) {
+        throw new Error("Missing value for --sources-dir");
+      }
+      args.sourcesDir = value;
+      index += 1;
+      continue;
+    }
+    if (arg === "--dpi") {
+      const value = Number.parseInt(argv[index + 1] ?? "", 10);
+      if (!Number.isInteger(value) || value < 72) {
+        throw new Error("--dpi must be an integer of at least 72");
+      }
+      args.dpi = value;
+      index += 1;
+      continue;
+    }
+    if (arg === "--no-render-pages") {
+      args.noRenderPages = true;
+      continue;
+    }
+    if (arg === "--no-extract-images") {
+      args.noExtractImages = true;
+      continue;
+    }
+    if (arg === "--no-copy-source") {
+      args.noCopySource = true;
+      continue;
+    }
+    if (arg === "--seed") {
+      const value = argv[index + 1];
+      if (!value) {
+        throw new Error("Missing value for --seed");
+      }
+      args.seed = value;
+      index += 1;
+      continue;
+    }
+    if (arg === "--source-id") {
+      const value = argv[index + 1];
+      if (!value) {
+        throw new Error("Missing value for --source-id");
+      }
+      args.sourceId = value;
+      index += 1;
+      continue;
+    }
+    if (arg === "--format") {
+      const value = argv[index + 1];
+      if (!value) {
+        throw new Error("Missing value for --format");
+      }
+      args.format = value;
+      index += 1;
+      continue;
+    }
+    if (arg === "--deck-mode") {
+      const value = argv[index + 1];
+      if (!value) {
+        throw new Error("Missing value for --deck-mode");
+      }
+      args.deckMode = value;
+      index += 1;
+      continue;
+    }
     if (arg === "--theme") {
       const value = argv[index + 1];
       if (!value) {
@@ -124,6 +289,42 @@ function parseArgs(argv) {
   }
 
   return args;
+}
+
+async function pythonRuntime() {
+  if (!PYTHON_RUNTIME_PROMISE) {
+    PYTHON_RUNTIME_PROMISE = (async () => {
+      const candidates = [
+        process.env.RADIOLOGY_PPT_PYTHON ? { command: process.env.RADIOLOGY_PPT_PYTHON, prefixArgs: [] } : null,
+        process.env.PYTHON ? { command: process.env.PYTHON, prefixArgs: [] } : null,
+        { command: "python", prefixArgs: [] },
+        { command: "py", prefixArgs: ["-3"] },
+      ].filter(Boolean);
+
+      for (const candidate of candidates) {
+        try {
+          await execFileAsync(candidate.command, [...candidate.prefixArgs, "--version"], {
+            timeout: 8000,
+          });
+          return candidate;
+        } catch {
+          // try the next local runtime
+        }
+      }
+      return null;
+    })();
+  }
+
+  return PYTHON_RUNTIME_PROMISE;
+}
+
+async function fileExists(filePath) {
+  try {
+    await fs.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function loadEntries(inputPath) {
@@ -206,10 +407,11 @@ function ensurePptxPath(outPath) {
   return `${outPath}.pptx`;
 }
 
-function toManifest(cases, entries, deckTitle) {
+function toManifest(cases, entries, deckTitle, deckMode) {
   return {
     createdAt: new Date().toISOString(),
     deckTitle,
+    deckMode,
     requestedEntries: entries.map((entry) => ({
       rawInput: entry.rawInput,
       originalInput: entry.originalInput || null,
@@ -373,11 +575,12 @@ async function runRender(inputPath, args) {
   );
   const manifestPath = path.join(path.dirname(outputPath), `${path.parse(outputPath).name}.json`);
   const scratchDir = path.join(APP_ROOT, "scratch", path.parse(outputPath).name);
+  const deckMode = args.deckMode || "case-conference";
 
   await fs.mkdir(path.dirname(outputPath), { recursive: true });
   await fs.writeFile(
     manifestPath,
-    `${JSON.stringify(toManifest(cases, entries, deckTitle), null, 2)}\n`,
+    `${JSON.stringify(toManifest(cases, entries, deckTitle, deckMode), null, 2)}\n`,
     "utf8",
   );
 
@@ -386,6 +589,7 @@ async function runRender(inputPath, args) {
     deckTitle,
     outputPath,
     scratchDir,
+    deckMode,
     theme: args.theme || "classic",
     includeTeachingPoints: Boolean(args.includeTeachingPoints),
   });
@@ -396,10 +600,127 @@ async function runRender(inputPath, args) {
   console.log(`Created manifest: ${manifestPath}`);
 }
 
+async function runCoreReviewSchema() {
+  process.stdout.write(`${JSON.stringify(coreReviewSchemaSummary(), null, 2)}\n`);
+}
+
+async function runCoreReviewIngest(inputPaths, args) {
+  const outputPath = path.resolve(
+    args.out || path.join(APP_ROOT, "library", "board-review", "corpus.json"),
+  );
+  const corpus = await ingestCoreReviewSources(inputPaths, {
+    outputPath,
+    domain: args.domain || "",
+    tags: args.tags || [],
+  });
+
+  if (args.format === "text") {
+    console.log(`Created Core Review corpus: ${outputPath}`);
+    console.log(`Sources: ${corpus.sourceCount}`);
+    console.log(`Chunks: ${corpus.chunkCount}`);
+    return;
+  }
+
+  process.stdout.write(`${JSON.stringify({ outputPath, ...corpus }, null, 2)}\n`);
+}
+
+async function runCoreReviewIngestPdf(inputPaths, args) {
+  const outputPath = path.resolve(
+    args.out || path.join(APP_ROOT, "library", "board-review", "pdf-corpus.json"),
+  );
+  const hasBundledHelper = await fileExists(CORE_REVIEW_PDF_INGEST_EXE);
+  const runtime = hasBundledHelper ? null : await pythonRuntime();
+  if (!hasBundledHelper && !runtime) {
+    throw new Error("No Python runtime was found for Core Review PDF ingestion.");
+  }
+
+  const command = hasBundledHelper ? CORE_REVIEW_PDF_INGEST_EXE : runtime.command;
+  const commandArgs = hasBundledHelper
+    ? [...inputPaths]
+    : [...runtime.prefixArgs, CORE_REVIEW_PDF_INGEST_SCRIPT, ...inputPaths];
+
+  commandArgs.push("--out", outputPath, "--format", args.format || "json");
+
+  if (args.domain) {
+    commandArgs.push("--domain", args.domain);
+  }
+  if (Array.isArray(args.tags) && args.tags.length) {
+    commandArgs.push("--tags", ...args.tags);
+  }
+  if (args.title) {
+    commandArgs.push("--title", args.title);
+  }
+  if (args.sourceId) {
+    commandArgs.push("--source-id", args.sourceId);
+  }
+  if (args.assetsDir) {
+    commandArgs.push("--assets-dir", path.resolve(args.assetsDir));
+  }
+  if (args.sourcesDir) {
+    commandArgs.push("--sources-dir", path.resolve(args.sourcesDir));
+  }
+  if (args.dpi) {
+    commandArgs.push("--dpi", String(args.dpi));
+  }
+  if (args.noRenderPages) {
+    commandArgs.push("--no-render-pages");
+  }
+  if (args.noExtractImages) {
+    commandArgs.push("--no-extract-images");
+  }
+  if (args.noCopySource) {
+    commandArgs.push("--no-copy-source");
+  }
+
+  const { stdout, stderr } = await execFileAsync(command, commandArgs, {
+    maxBuffer: 200 * 1024 * 1024,
+  });
+  if (stdout) {
+    process.stdout.write(stdout);
+  }
+  if (stderr) {
+    process.stderr.write(stderr);
+  }
+}
+
+async function runCoreReviewQuiz(questionBankPath, args) {
+  const questionBank = await loadCoreReviewQuestionBank(questionBankPath);
+  const session = buildCoreReviewQuizSession(questionBank, {
+    count: args.quizCount,
+    domain: args.domain || "",
+    questionType: args.questionType || "",
+    seed: args.seed || "",
+  });
+
+  if (args.format === "text") {
+    process.stdout.write(renderCoreReviewQuizText(session));
+    return;
+  }
+
+  process.stdout.write(`${JSON.stringify(session, null, 2)}\n`);
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
     console.log(usage());
+    return;
+  }
+
+  if (args.coreReviewSchema) {
+    await runCoreReviewSchema();
+    return;
+  }
+  if (args.coreReviewIngest) {
+    await runCoreReviewIngest(args.coreReviewIngest, args);
+    return;
+  }
+  if (args.coreReviewIngestPdf) {
+    await runCoreReviewIngestPdf(args.coreReviewIngestPdf, args);
+    return;
+  }
+  if (args.coreReviewQuiz) {
+    await runCoreReviewQuiz(args.coreReviewQuiz, args);
     return;
   }
 

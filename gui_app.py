@@ -28,6 +28,8 @@ OUTPUTS_DIR = APP_ROOT / "outputs"
 STATE_PATH = APP_ROOT / "gui_state.json"
 LIBRARY_DIR = APP_ROOT / "library"
 LIBRARY_PATH = LIBRARY_DIR / "case-library.json"
+BOARD_REVIEW_DIR = LIBRARY_DIR / "board-review"
+BOARD_REVIEW_PDF_CORPUS_PATH = BOARD_REVIEW_DIR / "pdf-corpus.json"
 REVIEW_SESSIONS_DIR = APP_ROOT / "review-sessions"
 LAST_REVIEW_SESSION_PATH = REVIEW_SESSIONS_DIR / "last-review-session.json"
 CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
@@ -58,12 +60,36 @@ CROP_MODE_OPTIONS = [CROP_MODE_DEFAULT, CROP_MODE_TIGHTER, CROP_MODE_WIDER]
 MARKUP_STYLE_NONE = "None"
 MARKUP_STYLE_RING = "Focus Ring"
 MARKUP_STYLE_OPTIONS = [MARKUP_STYLE_NONE, MARKUP_STYLE_RING]
-OLLAMA_AUTO_MODEL = "Auto-detect vision model"
+OLLAMA_AUTO_MODEL = "Auto-detect compact vision model"
+OLLAMA_AUTO_MODEL_LEGACY = "Auto-detect vision model"
 THEME_CLASSIC = "Radiopaedia Classic"
 THEME_CLEAN = "Clean Light"
 THEME_DARK = "Conference Dark"
 THEME_WARM = "Teaching Warm"
 THEME_OPTIONS = [THEME_CLASSIC, THEME_CLEAN, THEME_DARK, THEME_WARM]
+DECK_MODE_CONFERENCE = "Case Conference"
+DECK_MODE_CORE_REVIEW = "Core Review"
+DECK_MODE_OPTIONS = [DECK_MODE_CONFERENCE, DECK_MODE_CORE_REVIEW]
+BOARD_REVIEW_DOMAIN_OPTIONS = [
+    ("General / Mixed", ""),
+    ("Breast Imaging", "breast"),
+    ("Cardiovascular", "cardiovascular"),
+    ("CT", "ct"),
+    ("GI", "gi"),
+    ("GU", "gu"),
+    ("Interventional", "ir"),
+    ("MRI", "mr"),
+    ("MSK", "msk"),
+    ("Neuro", "neuro"),
+    ("NIS", "nis"),
+    ("Nuclear", "nuclear"),
+    ("Pediatrics", "pediatric"),
+    ("Physics", "physics"),
+    ("RISC", "risc"),
+    ("Radiography / Fluoroscopy", "radiography_fluoroscopy"),
+    ("Thoracic", "thoracic"),
+    ("Ultrasound", "ultrasound"),
+]
 AGE_GROUP_OPTIONS = ["Any", "Adult", "Pediatric", "Neonatal"]
 TOPIC_OPTIONS = ["Any", "Tumor", "Trauma", "Infection", "Vascular", "Congenital"]
 DIFFICULTY_OPTIONS = ["Any", "Easy", "Medium", "Hard"]
@@ -415,6 +441,38 @@ def theme_label_from_cli(value: str) -> str:
         "teaching-warm": THEME_WARM,
     }
     return reverse.get(collapse_text(value), THEME_CLASSIC)
+
+
+def deck_mode_cli_value(label: str) -> str:
+    return {
+        DECK_MODE_CONFERENCE: "case-conference",
+        DECK_MODE_CORE_REVIEW: "core-review",
+    }.get(label, "case-conference")
+
+
+def deck_mode_label_from_cli(value: str) -> str:
+    reverse = {
+        "case-conference": DECK_MODE_CONFERENCE,
+        "conference": DECK_MODE_CONFERENCE,
+        "core-review": DECK_MODE_CORE_REVIEW,
+        "core": DECK_MODE_CORE_REVIEW,
+    }
+    return reverse.get(collapse_text(value), DECK_MODE_CONFERENCE)
+
+
+def board_review_domain_cli_value(label: str) -> str:
+    for option_label, value in BOARD_REVIEW_DOMAIN_OPTIONS:
+        if option_label == label:
+            return value
+    return ""
+
+
+def board_review_domain_label_from_cli(value: str) -> str:
+    normalized_value = collapse_text(value)
+    for option_label, option_value in BOARD_REVIEW_DOMAIN_OPTIONS:
+        if option_value == normalized_value:
+            return option_label
+    return BOARD_REVIEW_DOMAIN_OPTIONS[0][0]
 
 
 def crop_cli_value(label: str) -> str:
@@ -1838,6 +1896,9 @@ class DeckBuilderApp(tk.Tk):
         self.ollama_assist_var = tk.BooleanVar(value=False)
         self.ollama_model_var = tk.StringVar(value=OLLAMA_AUTO_MODEL)
         self.ollama_models_loading = False
+        self.deck_mode_var = tk.StringVar(value=DECK_MODE_CONFERENCE)
+        self.board_domain_var = tk.StringVar(value=BOARD_REVIEW_DOMAIN_OPTIONS[0][0])
+        self.board_corpus_var = tk.StringVar(value="No Core Boards knowledge base imported yet.")
         self.theme_var = tk.StringVar(value=THEME_CLASSIC)
         self.crop_mode_var = tk.StringVar(value=CROP_MODE_DEFAULT)
         self.markup_style_var = tk.StringVar(value=MARKUP_STYLE_NONE)
@@ -2053,6 +2114,7 @@ class DeckBuilderApp(tk.Tk):
     def _show_nav_tab(self, key: str) -> None:
         tab = {
             "cases": getattr(self, "cases_tab", None),
+            "board": getattr(self, "board_tab", None),
             "build": getattr(self, "build_tab", None),
             "activity": getattr(self, "activity_tab", None),
         }.get(key)
@@ -2095,6 +2157,7 @@ class DeckBuilderApp(tk.Tk):
         tk.Frame(sidebar, bg="#1d3b5d", height=1, bd=0, highlightthickness=0).pack(fill="x", pady=(0, 18))
         self.nav_buttons: dict[str, tk.Button] = {}
         self._add_sidebar_button(sidebar, "cases", "Cases", lambda: self._show_nav_tab("cases"))
+        self._add_sidebar_button(sidebar, "board", "Core Boards", lambda: self._show_nav_tab("board"))
         self._add_sidebar_button(sidebar, "build", "PowerPoint", lambda: self._show_nav_tab("build"))
         self._add_sidebar_button(sidebar, "activity", "Activity", lambda: self._show_nav_tab("activity"))
 
@@ -2120,9 +2183,11 @@ class DeckBuilderApp(tk.Tk):
         self.main_notebook = notebook
 
         self.cases_tab = ttk.Frame(notebook, padding=0, style="App.TFrame")
+        self.board_tab = ttk.Frame(notebook, padding=0, style="App.TFrame")
         self.build_tab = ttk.Frame(notebook, padding=0, style="App.TFrame")
         self.activity_tab = ttk.Frame(notebook, padding=0, style="App.TFrame")
         notebook.add(self.cases_tab, text="Cases")
+        notebook.add(self.board_tab, text="Core Boards")
         notebook.add(self.build_tab, text="Build")
         notebook.add(self.activity_tab, text="Activity")
 
@@ -2198,6 +2263,8 @@ class DeckBuilderApp(tk.Tk):
         self.bind_all("<Button-4>", self._on_global_mousewheel_linux, add="+")
         self.bind_all("<Button-5>", self._on_global_mousewheel_linux, add="+")
 
+        self._build_core_boards_tab()
+
         self.build_tab.columnconfigure(0, weight=3)
         self.build_tab.columnconfigure(1, weight=2)
 
@@ -2225,14 +2292,24 @@ class DeckBuilderApp(tk.Tk):
         title_entry.grid(row=0, column=1, columnspan=3, sticky="ew", pady=(4, 10))
         self._track_widget(title_entry)
 
-        ttk.Label(build_form, text="Images per case", style="CardSub.TLabel").grid(row=1, column=0, sticky="w")
+        ttk.Label(build_form, text="PowerPoint style", style="CardSub.TLabel").grid(row=1, column=0, sticky="w")
+        deck_mode_combo = ttk.Combobox(
+            build_form,
+            values=DECK_MODE_OPTIONS,
+            textvariable=self.deck_mode_var,
+            state="readonly",
+        )
+        deck_mode_combo.grid(row=1, column=1, sticky="ew", pady=(4, 10), padx=(0, 12))
+        self._track_widget(deck_mode_combo)
+
+        ttk.Label(build_form, text="Images per case", style="CardSub.TLabel").grid(row=1, column=2, sticky="w")
         images_spin = ttk.Spinbox(build_form, from_=1, to=4, textvariable=self.images_var, width=6)
-        images_spin.grid(row=1, column=1, sticky="w", pady=(4, 10), padx=(0, 12))
+        images_spin.grid(row=1, column=3, sticky="w", pady=(4, 10))
         self._track_widget(images_spin)
 
-        ttk.Label(build_form, text="Output .pptx (optional)", style="CardSub.TLabel").grid(row=1, column=2, sticky="w")
+        ttk.Label(build_form, text="Output .pptx (optional)", style="CardSub.TLabel").grid(row=2, column=0, sticky="w")
         output_row = ttk.Frame(build_form, style="Card.TFrame")
-        output_row.grid(row=1, column=3, sticky="ew", pady=(4, 10))
+        output_row.grid(row=2, column=1, columnspan=3, sticky="ew", pady=(4, 10))
         output_row.columnconfigure(0, weight=1)
         output_entry = ttk.Entry(output_row, textvariable=self.output_var)
         output_entry.grid(row=0, column=0, sticky="ew")
@@ -2242,7 +2319,7 @@ class DeckBuilderApp(tk.Tk):
         self._track_widget(browse_button)
 
         options_row = ttk.Frame(build_form, style="Card.TFrame")
-        options_row.grid(row=2, column=0, columnspan=4, sticky="ew", pady=(0, 0))
+        options_row.grid(row=3, column=0, columnspan=4, sticky="ew", pady=(0, 0))
         auto_open = ttk.Checkbutton(
             options_row,
             text="Open the generated PowerPoint when finished",
@@ -2267,11 +2344,11 @@ class DeckBuilderApp(tk.Tk):
             command=self._toggle_deck_advanced,
             style="CardGhost.TButton",
         )
-        self.deck_advanced_button.grid(row=3, column=0, columnspan=4, sticky="w", pady=(8, 0))
+        self.deck_advanced_button.grid(row=4, column=0, columnspan=4, sticky="w", pady=(8, 0))
         self._track_widget(self.deck_advanced_button)
 
         self.deck_advanced_frame = ttk.Frame(build_form, style="Card.TFrame")
-        self.deck_advanced_frame.grid(row=4, column=0, columnspan=4, sticky="ew", pady=(8, 0))
+        self.deck_advanced_frame.grid(row=5, column=0, columnspan=4, sticky="ew", pady=(8, 0))
         self.deck_advanced_frame.columnconfigure(1, weight=1)
         self.deck_advanced_frame.columnconfigure(3, weight=1)
 
@@ -2353,7 +2430,7 @@ class DeckBuilderApp(tk.Tk):
         )
         self.generate_button.grid(row=2, column=0, sticky="ew")
 
-        self.cancel_run_button = ttk.Button(action_panel, text="Cancel Generation", command=self.cancel_generation, style="Secondary.TButton")
+        self.cancel_run_button = ttk.Button(action_panel, text="Cancel Current Task", command=self.cancel_generation, style="Secondary.TButton")
         self.cancel_run_button.grid(row=3, column=0, sticky="ew", pady=(10, 0))
         self.cancel_run_button.configure(state="disabled")
 
@@ -2420,6 +2497,112 @@ class DeckBuilderApp(tk.Tk):
         self.after(250, self.refresh_ollama_models)
         self._show_nav_tab("cases")
 
+    def _build_core_boards_tab(self) -> None:
+        self.board_tab.columnconfigure(0, weight=3)
+        self.board_tab.columnconfigure(1, weight=2)
+        self.board_tab.rowconfigure(1, weight=1)
+
+        board_intro = ttk.Frame(self.board_tab, style="App.TFrame")
+        board_intro.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 10))
+        ttk.Label(
+            board_intro,
+            text="Core Boards",
+            font=("Segoe UI Semibold", 16),
+            foreground="#123046",
+        ).pack(anchor="w")
+        ttk.Label(
+            board_intro,
+            text="Import your own board-review PDFs into a private local knowledge base for future Core-style practice tools.",
+            style="PageSub.TLabel",
+            wraplength=820,
+            justify="left",
+        ).pack(anchor="w", pady=(4, 0))
+
+        source_card = ttk.Frame(self.board_tab, style="Card.TFrame", padding=14)
+        source_card.grid(row=1, column=0, sticky="nsew", padx=(0, 10))
+        source_card.columnconfigure(1, weight=1)
+
+        ttk.Label(
+            source_card,
+            text="Knowledge Base",
+            font=("Segoe UI Semibold", 14),
+            foreground="#123046",
+        ).grid(row=0, column=0, columnspan=2, sticky="w")
+        ttk.Label(
+            source_card,
+            text="PDFs stay on this computer. The app extracts text, page images, embedded images, and citations into library\\board-review, which is ignored by Git.",
+            style="CardSub.TLabel",
+            wraplength=560,
+            justify="left",
+        ).grid(row=1, column=0, columnspan=2, sticky="ew", pady=(4, 14))
+
+        ttk.Label(source_card, text="Default topic", style="CardSub.TLabel").grid(row=2, column=0, sticky="w")
+        domain_combo = ttk.Combobox(
+            source_card,
+            values=[label for label, _value in BOARD_REVIEW_DOMAIN_OPTIONS],
+            textvariable=self.board_domain_var,
+            state="readonly",
+        )
+        domain_combo.grid(row=2, column=1, sticky="ew", padx=(12, 0), pady=(0, 12))
+        self._track_widget(domain_combo)
+
+        import_button = ttk.Button(
+            source_card,
+            text="Import PDFs",
+            command=self.start_core_pdf_import,
+            style="Primary.TButton",
+        )
+        import_button.grid(row=3, column=0, sticky="ew", pady=(0, 10))
+        self._track_widget(import_button)
+
+        open_folder_button = ttk.Button(
+            source_card,
+            text="Open Knowledge Base Folder",
+            command=self.open_board_review_folder,
+            style="Secondary.TButton",
+        )
+        open_folder_button.grid(row=3, column=1, sticky="ew", padx=(12, 0), pady=(0, 10))
+        self._track_widget(open_folder_button)
+
+        ttk.Label(
+            source_card,
+            textvariable=self.board_corpus_var,
+            style="CardHint.TLabel",
+            wraplength=560,
+            justify="left",
+        ).grid(row=4, column=0, columnspan=2, sticky="ew", pady=(4, 0))
+
+        roadmap_card = ttk.Frame(self.board_tab, style="Card.TFrame", padding=14)
+        roadmap_card.grid(row=1, column=1, sticky="nsew")
+        roadmap_card.columnconfigure(0, weight=1)
+        ttk.Label(
+            roadmap_card,
+            text="What This Enables",
+            font=("Segoe UI Semibold", 14),
+            foreground="#123046",
+        ).grid(row=0, column=0, sticky="w")
+
+        steps = [
+            ("Import", "Create a local source vault from PDFs you are allowed to use."),
+            ("Cite", "Preserve page/source metadata for explanations and later review."),
+            ("Practice", "Use the Core Review backend for question banks and future quiz workflows."),
+        ]
+        for row, (title, detail) in enumerate(steps, start=1):
+            ttk.Label(roadmap_card, text=title, font=("Segoe UI Semibold", 10), style="CardHint.TLabel").grid(
+                row=row * 2 - 1,
+                column=0,
+                sticky="w",
+                pady=(12 if row == 1 else 8, 0),
+            )
+            ttk.Label(roadmap_card, text=detail, style="CardSub.TLabel", wraplength=320, justify="left").grid(
+                row=row * 2,
+                column=0,
+                sticky="ew",
+                pady=(2, 0),
+            )
+
+        self._refresh_board_corpus_status()
+
     def _set_deck_advanced_visible(self, visible: bool) -> None:
         self.deck_advanced_visible = bool(visible)
         self.deck_advanced_button_var.set("Hide Advanced Options" if self.deck_advanced_visible else "Show Advanced Options")
@@ -2433,7 +2616,8 @@ class DeckBuilderApp(tk.Tk):
 
     def selected_ollama_model(self) -> str:
         model = collapse_text(self.ollama_model_var.get())
-        return "" if not model or model == OLLAMA_AUTO_MODEL else model
+        auto_labels = {OLLAMA_AUTO_MODEL, OLLAMA_AUTO_MODEL_LEGACY}
+        return "" if not model or model in auto_labels else model
 
     def _sync_ollama_model_controls(self) -> None:
         if not hasattr(self, "ollama_model_combo"):
@@ -2444,6 +2628,8 @@ class DeckBuilderApp(tk.Tk):
 
     def _set_ollama_model_values(self, models: list[str]) -> None:
         current = collapse_text(self.ollama_model_var.get()) or OLLAMA_AUTO_MODEL
+        if current == OLLAMA_AUTO_MODEL_LEGACY:
+            current = OLLAMA_AUTO_MODEL
         values = [OLLAMA_AUTO_MODEL]
         for model in models:
             clean = collapse_text(model)
@@ -2452,7 +2638,9 @@ class DeckBuilderApp(tk.Tk):
         if current and current not in values:
             values.append(current)
         self.ollama_model_combo.configure(values=values)
-        if not collapse_text(self.ollama_model_var.get()):
+        if collapse_text(self.ollama_model_var.get()) == OLLAMA_AUTO_MODEL_LEGACY:
+            self.ollama_model_var.set(OLLAMA_AUTO_MODEL)
+        elif not collapse_text(self.ollama_model_var.get()):
             self.ollama_model_var.set(OLLAMA_AUTO_MODEL)
         self.ollama_models_loading = False
         self.ollama_refresh_button.configure(text="Refresh Models")
@@ -2784,7 +2972,13 @@ class DeckBuilderApp(tk.Tk):
         self.auto_open_var.set(bool(state.get("auto_open", True)))
         self.clinical_history_var.set(bool(state.get("clinical_history", True)))
         self.ollama_assist_var.set(bool(state.get("ollama_assist", False)))
-        self.ollama_model_var.set(collapse_text(state.get("ollama_model", "")) or OLLAMA_AUTO_MODEL)
+        saved_ollama_model = collapse_text(state.get("ollama_model", "")) or OLLAMA_AUTO_MODEL
+        if saved_ollama_model == OLLAMA_AUTO_MODEL_LEGACY:
+            saved_ollama_model = OLLAMA_AUTO_MODEL
+        self.ollama_model_var.set(saved_ollama_model)
+        self.deck_mode_var.set(deck_mode_label_from_cli(state.get("deck_mode", "case-conference")))
+        self.board_domain_var.set(board_review_domain_label_from_cli(state.get("board_domain", "")))
+        self._refresh_board_corpus_status()
         self.theme_var.set(theme_label_from_cli(state.get("theme", "classic")))
         self.crop_mode_var.set(crop_label_from_cli(state.get("crop_mode", "default")))
         self.markup_style_var.set(markup_label_from_cli(state.get("markup_style", "none")))
@@ -2815,6 +3009,8 @@ class DeckBuilderApp(tk.Tk):
             "clinical_history": self.clinical_history_var.get(),
             "ollama_assist": self.ollama_assist_var.get(),
             "ollama_model": self.selected_ollama_model(),
+            "deck_mode": deck_mode_cli_value(self.deck_mode_var.get()),
+            "board_domain": board_review_domain_cli_value(self.board_domain_var.get()),
             "theme": theme_cli_value(self.theme_var.get()),
             "crop_mode": crop_cli_value(self.crop_mode_var.get()),
             "markup_style": markup_cli_value(self.markup_style_var.get()),
@@ -3054,6 +3250,130 @@ class DeckBuilderApp(tk.Tk):
         )
         if chosen:
             self.output_var.set(chosen)
+
+    def _refresh_board_corpus_status(self) -> None:
+        if not BOARD_REVIEW_PDF_CORPUS_PATH.exists():
+            self.board_corpus_var.set("No Core Boards knowledge base imported yet.")
+            return
+
+        try:
+            corpus = json.loads(BOARD_REVIEW_PDF_CORPUS_PATH.read_text(encoding="utf-8"))
+            source_count = safe_int(corpus.get("sourceCount"), 0)
+            asset_count = safe_int(corpus.get("assetCount"), 0)
+            chunk_count = safe_int(corpus.get("chunkCount"), 0)
+            created_at = collapse_text(corpus.get("createdAt", ""))
+            updated = f" Updated {created_at}." if created_at else ""
+            self.board_corpus_var.set(
+                f"Knowledge base: {source_count} source(s), {asset_count} page/image asset(s), "
+                f"{chunk_count} text chunk(s).{updated}"
+            )
+        except Exception as exc:
+            self.board_corpus_var.set(f"Knowledge base status could not be read: {exc}")
+
+    def start_core_pdf_import(self) -> None:
+        if self.worker and self.worker.is_alive():
+            messagebox.showinfo(APP_TITLE, "The app is already working on another task.")
+            return
+
+        chosen = filedialog.askopenfilenames(
+            title="Import Core Boards PDFs",
+            initialdir=str(PROJECT_ROOT),
+            filetypes=[("PDF files", "*.pdf"), ("All files", "*.*")],
+        )
+        if not chosen:
+            return
+
+        if not CLI_SCRIPT.exists():
+            messagebox.showerror(
+                APP_TITLE,
+                f"The app could not find its bundled generator files.\n\nLooked for:\n{CLI_SCRIPT}",
+            )
+            return
+
+        BOARD_REVIEW_DIR.mkdir(parents=True, exist_ok=True)
+        command = [
+            node_path(),
+            str(CLI_SCRIPT),
+            "--core-review-ingest-pdf",
+            *[str(Path(path)) for path in chosen],
+            "--out",
+            str(BOARD_REVIEW_PDF_CORPUS_PATH),
+            "--format",
+            "text",
+        ]
+        domain = board_review_domain_cli_value(self.board_domain_var.get())
+        if domain:
+            command.extend(["--domain", domain])
+
+        self.cancel_requested = False
+        self._save_state()
+        self.set_busy(True)
+        self.status_var.set("Importing Core Boards PDFs...")
+        self.append_log("")
+        self.append_log(f"Importing {len(chosen)} Core Boards PDF(s)...")
+        self.worker = threading.Thread(target=self._run_core_pdf_import, args=(command,), daemon=True)
+        self.worker.start()
+
+    def _run_core_pdf_import(self, command: list[str]) -> None:
+        try:
+            self.current_process = subprocess.Popen(
+                command,
+                cwd=str(PROJECT_ROOT),
+                env=command_env(),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                **hidden_subprocess_kwargs(),
+            )
+
+            output_lines: list[str] = []
+            assert self.current_process.stdout is not None
+            for line in self.current_process.stdout:
+                clean = line.rstrip()
+                output_lines.append(clean)
+                self.log_queue.put(("log", clean))
+
+            return_code = self.current_process.wait()
+            if self.cancel_requested:
+                self.log_queue.put(("cancelled", None))
+                return
+            self.log_queue.put(
+                (
+                    "core_import_done",
+                    {
+                        "return_code": return_code,
+                        "output": "\n".join(output_lines),
+                    },
+                )
+            )
+        except Exception as exc:
+            if self.cancel_requested:
+                self.log_queue.put(("cancelled", None))
+            else:
+                self.log_queue.put(("error", f"{type(exc).__name__}: {exc}"))
+        finally:
+            self.current_process = None
+
+    def _handle_core_pdf_import_finished(self, payload: dict) -> None:
+        self.set_busy(False)
+        self.cancel_requested = False
+        output = str(payload.get("output") or "")
+        return_code = safe_int(payload.get("return_code"), 1)
+
+        if return_code == 0 and BOARD_REVIEW_PDF_CORPUS_PATH.exists():
+            self._refresh_board_corpus_status()
+            self.status_var.set("Core Boards knowledge base updated")
+            self.append_log("Core Boards PDF import finished successfully.")
+            messagebox.showinfo(APP_TITLE, "Core Boards PDFs were imported into the local knowledge base.")
+            return
+
+        self.status_var.set("Core Boards import failed")
+        self._set_log_visible(True)
+        if output:
+            self.append_log(output)
+        messagebox.showerror(APP_TITLE, "Core Boards PDF import failed.\n\nSee the activity log for details.")
 
     def load_diagnoses_file(self) -> None:
         chosen = filedialog.askopenfilename(
@@ -3541,6 +3861,7 @@ class DeckBuilderApp(tk.Tk):
             "settings": {
                 "title": self.title_var.get().strip(),
                 "output": self.output_var.get().strip(),
+                "deckMode": self.deck_mode_var.get(),
                 "theme": self.theme_var.get(),
                 "teachingPoints": self.teaching_points_var.get(),
             },
@@ -3579,6 +3900,8 @@ class DeckBuilderApp(tk.Tk):
             self.title_var.set(collapse_text(settings.get("title")))
         if settings.get("output"):
             self.output_var.set(collapse_text(settings.get("output")))
+        if settings.get("deckMode") in DECK_MODE_OPTIONS:
+            self.deck_mode_var.set(settings.get("deckMode"))
         if settings.get("theme") in THEME_OPTIONS:
             self.theme_var.set(settings.get("theme"))
         self.teaching_points_var.set(bool(settings.get("teachingPoints", self.teaching_points_var.get())))
@@ -3664,6 +3987,7 @@ class DeckBuilderApp(tk.Tk):
         output_path = self.output_var.get().strip()
         if output_path:
             command.extend(["--out", output_path])
+        command.extend(["--deck-mode", deck_mode_cli_value(self.deck_mode_var.get())])
         command.extend(["--theme", theme_cli_value(self.theme_var.get())])
         if self.teaching_points_var.get():
             command.append("--include-teaching-points")
@@ -3765,6 +4089,8 @@ class DeckBuilderApp(tk.Tk):
                         dict(prepared_payload.get("prepared") or {}),
                         max(1, safe_int(prepared_payload.get("images_per_case"), 3)),
                     )
+                elif kind == "core_import_done":
+                    self._handle_core_pdf_import_finished(dict(payload))
                 elif kind == "stage_error":
                     stage_payload = dict(payload)
                     stage = str(stage_payload.get("stage") or "prepare")
@@ -3835,6 +4161,10 @@ class DeckBuilderApp(tk.Tk):
         LIBRARY_DIR.mkdir(parents=True, exist_ok=True)
         os.startfile(str(LIBRARY_DIR))
 
+    def open_board_review_folder(self) -> None:
+        BOARD_REVIEW_DIR.mkdir(parents=True, exist_ok=True)
+        os.startfile(str(BOARD_REVIEW_DIR))
+
     def open_last_output(self) -> None:
         path = self.last_output_path
         if not path:
@@ -3904,6 +4234,9 @@ class DeckBuilderApp(tk.Tk):
         self.title_var.set("")
         self.output_var.set("")
         self.images_var.set(3)
+        self.deck_mode_var.set(DECK_MODE_CONFERENCE)
+        self.board_domain_var.set(BOARD_REVIEW_DOMAIN_OPTIONS[0][0])
+        self._refresh_board_corpus_status()
         self.theme_var.set(THEME_CLASSIC)
         self.crop_mode_var.set(CROP_MODE_DEFAULT)
         self.markup_style_var.set(MARKUP_STYLE_NONE)

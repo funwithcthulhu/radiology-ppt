@@ -41,6 +41,10 @@ const { Presentation, PresentationFile } = await loadArtifactTool();
 const W = 1280;
 const H = 720;
 const TRANSPARENT = "#00000000";
+const DECK_MODES = {
+  caseConference: "case-conference",
+  coreReview: "core-review",
+};
 
 const THEMES = {
   classic: {
@@ -143,6 +147,14 @@ const THEMES = {
 
 function resolveTheme(themeName = "classic") {
   return THEMES[themeName] || THEMES.classic;
+}
+
+function resolveDeckMode(deckMode = DECK_MODES.caseConference) {
+  const normalized = String(deckMode || "").trim().toLowerCase();
+  if (normalized === DECK_MODES.coreReview || normalized === "core") {
+    return DECK_MODES.coreReview;
+  }
+  return DECK_MODES.caseConference;
 }
 
 function line(fill = TRANSPARENT, width = 0) {
@@ -538,7 +550,7 @@ function addDiagnosisSlide(slide, caseData, caseNumber, deckTitle, theme) {
   addSpeakerNotes(slide, caseData, caseNumber);
 }
 
-function addTeachingPointsSlide(slide, caseData, caseNumber, deckTitle, theme) {
+function addTeachingPointsSlide(slide, caseData, caseNumber, deckTitle, theme, { title = "Teaching Points" } = {}) {
   slide.background.fill = theme.colors.teachingBg;
   addTopBar(slide, deckTitle, theme, { dark: theme === THEMES["conference-dark"] });
 
@@ -557,7 +569,7 @@ function addTeachingPointsSlide(slide, caseData, caseNumber, deckTitle, theme) {
   );
   addText(
     slide,
-    "Teaching Points",
+    title,
     { left: 82, top: 140, width: 520, height: 58 },
     theme,
     {
@@ -623,6 +635,7 @@ export async function buildDeck({
   deckTitle,
   outputPath,
   scratchDir,
+  deckMode = DECK_MODES.caseConference,
   theme = "classic",
   includeTeachingPoints = false,
 }) {
@@ -633,6 +646,9 @@ export async function buildDeck({
     slideSize: { width: W, height: H },
   });
   const activeTheme = resolveTheme(theme);
+  const activeDeckMode = resolveDeckMode(deckMode);
+  const shouldIncludeTeachingPoints = includeTeachingPoints || activeDeckMode === DECK_MODES.coreReview;
+  const teachingSlideTitle = activeDeckMode === DECK_MODES.coreReview ? "Core Review" : "Teaching Points";
 
   for (let index = 0; index < cases.length; index += 1) {
     const caseNumber = index + 1;
@@ -641,8 +657,10 @@ export async function buildDeck({
     addCaseSlide(presentation.slides.add(), caseData, caseNumber, deckTitle, activeTheme);
     await addImagesSlide(presentation.slides.add(), caseData, caseNumber, deckTitle, activeTheme);
     addDiagnosisSlide(presentation.slides.add(), caseData, caseNumber, deckTitle, activeTheme);
-    if (includeTeachingPoints && Array.isArray(caseData.teachingPoints) && caseData.teachingPoints.length) {
-      addTeachingPointsSlide(presentation.slides.add(), caseData, caseNumber, deckTitle, activeTheme);
+    if (shouldIncludeTeachingPoints && Array.isArray(caseData.teachingPoints) && caseData.teachingPoints.length) {
+      addTeachingPointsSlide(presentation.slides.add(), caseData, caseNumber, deckTitle, activeTheme, {
+        title: teachingSlideTitle,
+      });
     }
   }
 

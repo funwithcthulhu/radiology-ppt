@@ -1,0 +1,74 @@
+{
+  "title": "Core Review Question Bank Example",
+  "notes": "Synthetic format examples only. Replace with reviewed, cited educational content before using for real board review.",
+  "questions": [
+    {
+      "id": "example-thoracic-0001",
+      "type": "single_best_answer",
+      "domain": "thoracic",
+      "modality": "ct",
+      "difficulty": "core",
+      "cognitiveLevel": "interpretation",
+      "stem": "A chest CT image shows peripheral, lower-lobe predominant honeycombing with traction bronchiectasis. Which diagnosis is most likely?",
+      "options": [
+        { "id": "A", "text": "Usual interstitial pneumonia pattern" },
+        { "id": "B", "text": "Sarcoidosis" },
+        { "id": "C", "text": "Pulmonary Langerhans cell histiocytosis" },
+        { "id": "D", "text": "Pulmonary edema" }
+      ],
+      "answerKey": "A",
+      "explanation": "This is a schema example; real explanations should cite a source chunk or reviewed reference.",
+      "references": [
+        {
+          "label": "Example reference placeholder",
+          "url": "https://www.theabr.org/wp-content/uploads/2025/07/Qualifying-Core-Exam-All-Domains-v3.pdf"
+        }
+      ]
+    },
+    {
+      "id": "example-physics-0001",
+      "type": "numeric_fill_blank",
+      "domain": "physics",
+      "modality": "nuclear",
+      "difficulty": "core",
+      "cognitiveLevel": "calculation",
+      "stem": "A radiopharmaceutical has a physical half-life of 6 hours. After 12 hours, what fraction of the original activity remains? Enter a decimal to two significant digits.",
+      "numericAnswer": {
+        "value": 0.25,
+        "tolerance": 0.01,
+        "units": "fraction"
+      },
+      "references": [
+        {
+          "label": "Example reference placeholder",
+          "url": "https://www.theabr.org/wp-content/uploads/2025/07/Qualifying-Core-Exam-Physics-Study-Guide-11.27.2023.pdf"
+        }
+      ]
+    },
+    {
+      "id": "example-neuro-0001",
+      "type": "gold_marker_abnormality",
+      "domain": "neuro",
+      "modality": "mri",
+      "difficulty": "core",
+      "cognitiveLevel": "localization",
+      "stem": "Place the gold marker on the abnormal enhancing lesion.",
+      "image": {
+        "path": "replace-with-local-image.png",
+        "series": "postcontrast T1"
+      },
+      "hotspot": {
+        "x": 0.42,
+        "y": 0.38,
+        "width": 0.08,
+        "height": 0.1
+      },
+      "references": [
+        {
+          "label": "Example reference placeholder",
+          "url": "https://www.theabr.org/item-writers-guide-cbe"
+        }
+      ]
+    }
+  ]
+}

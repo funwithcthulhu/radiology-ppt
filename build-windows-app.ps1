@@ -100,7 +100,7 @@ $nodeRuntime = Get-NodeRuntime
 
 Ensure-ArtifactToolDependency
 
-Invoke-Python -Runtime $pythonRuntime -Args @("-m", "pip", "install", "--upgrade", "pyinstaller", "pillow")
+Invoke-Python -Runtime $pythonRuntime -Args @("-m", "pip", "install", "--upgrade", "pyinstaller", "pillow", "PyMuPDF")
 
 Remove-Item -Recurse -Force $buildRoot -ErrorAction SilentlyContinue
 Remove-Item -Recurse -Force $helperDistRoot -ErrorAction SilentlyContinue
@@ -117,6 +117,19 @@ Invoke-Python -Runtime $pythonRuntime -Args @(
   "--workpath", (Join-Path $buildRoot "focus_crop\work"),
   "--specpath", (Join-Path $buildRoot "focus_crop"),
   (Join-Path $projectRoot "scripts\focus_crop.py")
+)
+
+Invoke-Python -Runtime $pythonRuntime -Args @(
+  "-m", "PyInstaller",
+  "--noconfirm",
+  "--clean",
+  "--noconsole",
+  "--onefile",
+  "--name", "core_review_pdf_ingest",
+  "--distpath", $helperDistRoot,
+  "--workpath", (Join-Path $buildRoot "core_review_pdf_ingest\work"),
+  "--specpath", (Join-Path $buildRoot "core_review_pdf_ingest"),
+  (Join-Path $projectRoot "scripts\core_review_pdf_ingest.py")
 )
 
 Invoke-Python -Runtime $pythonRuntime -Args @(
@@ -161,6 +174,12 @@ if (-not (Test-Path $focusCropExe)) {
   throw "The focus crop helper was not built successfully."
 }
 Copy-Item -Force $focusCropExe (Join-Path $appScriptsDir "focus_crop.exe")
+
+$coreReviewPdfIngestExe = Join-Path $helperDistRoot "core_review_pdf_ingest.exe"
+if (-not (Test-Path $coreReviewPdfIngestExe)) {
+  throw "The Core Review PDF ingest helper was not built successfully."
+}
+Copy-Item -Force $coreReviewPdfIngestExe (Join-Path $appScriptsDir "core_review_pdf_ingest.exe")
 
 & (Join-Path $projectRoot "create-desktop-shortcut.ps1")
 
