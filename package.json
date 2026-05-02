@@ -1,6 +1,7 @@
 {
   "name": "radiopaedia-case-powerpoint-builder",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "test": "node --no-warnings --test"

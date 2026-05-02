@@ -213,3 +213,9 @@ Run focused backend tests:
 ```powershell
 npm test
 ```
+
+## License
+
+This app's source code is licensed under the MIT License. See [LICENSE](LICENSE).
+
+The MIT License applies to this repository's code, not to third-party content such as Radiopaedia cases, images, or user-imported study material. Keep Radiopaedia attribution in generated presentations and follow the source material's usage terms.
