@@ -8,3 +8,4 @@ gui_state.json
 node_modules/
 outputs/
 scratch/
+review-sessions/

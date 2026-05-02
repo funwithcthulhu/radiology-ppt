@@ -28,6 +28,8 @@ OUTPUTS_DIR = APP_ROOT / "outputs"
 STATE_PATH = APP_ROOT / "gui_state.json"
 LIBRARY_DIR = APP_ROOT / "library"
 LIBRARY_PATH = LIBRARY_DIR / "case-library.json"
+REVIEW_SESSIONS_DIR = APP_ROOT / "review-sessions"
+LAST_REVIEW_SESSION_PATH = REVIEW_SESSIONS_DIR / "last-review-session.json"
 CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 REQUEST_MODE_SPECIFIC = "Specific Diagnosis"
@@ -2362,6 +2364,8 @@ class DeckBuilderApp(tk.Tk):
         self.more_button = ttk.Menubutton(action_panel, text="More", style="Secondary.TMenubutton")
         self.more_button.grid(row=5, column=0, sticky="ew", pady=(10, 0))
         self.more_menu = tk.Menu(self.more_button, tearoff=0)
+        self.more_menu.add_command(label="Resume Last Review Session", command=self.resume_last_review_session)
+        self.more_menu.add_separator()
         self.more_menu.add_command(label="Open Outputs Folder", command=self.open_outputs_folder)
         self.more_menu.add_separator()
         self.more_menu.add_command(label="Clear Form", command=self.clear_form)
@@ -3530,7 +3534,60 @@ class DeckBuilderApp(tk.Tk):
         self.block_prepared_case(item)
         return self._reroll_prepared_case(item, images_per_case)
 
-    def _begin_review_and_render(self, prepared: dict, images_per_case: int) -> None:
+    def _review_session_payload(self, prepared: dict, images_per_case: int) -> dict:
+        return {
+            "savedAt": datetime.utcnow().isoformat(),
+            "imagesPerCase": max(1, safe_int(images_per_case, 3)),
+            "settings": {
+                "title": self.title_var.get().strip(),
+                "output": self.output_var.get().strip(),
+                "theme": self.theme_var.get(),
+                "teachingPoints": self.teaching_points_var.get(),
+            },
+            "prepared": prepared,
+        }
+
+    def _save_review_session(self, prepared: dict, images_per_case: int) -> None:
+        try:
+            REVIEW_SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
+            LAST_REVIEW_SESSION_PATH.write_text(
+                json.dumps(self._review_session_payload(prepared, images_per_case), indent=2),
+                encoding="utf-8",
+            )
+            self.append_log(f"Saved review session: {LAST_REVIEW_SESSION_PATH}")
+        except Exception as exc:
+            self.append_log(f"Could not save review session: {exc}")
+
+    def resume_last_review_session(self) -> None:
+        if self.worker and self.worker.is_alive():
+            messagebox.showinfo(APP_TITLE, "Wait for the current operation to finish before resuming a review session.")
+            return
+        if not LAST_REVIEW_SESSION_PATH.exists():
+            messagebox.showinfo(APP_TITLE, "No saved review session was found yet.")
+            return
+
+        try:
+            payload = json.loads(LAST_REVIEW_SESSION_PATH.read_text(encoding="utf-8"))
+            prepared = dict(payload.get("prepared") or {})
+            images_per_case = max(1, safe_int(payload.get("imagesPerCase"), 3))
+            settings = dict(payload.get("settings") or {})
+        except Exception as exc:
+            messagebox.showerror(APP_TITLE, f"Could not load the saved review session.\n\n{exc}")
+            return
+
+        if settings.get("title"):
+            self.title_var.set(collapse_text(settings.get("title")))
+        if settings.get("output"):
+            self.output_var.set(collapse_text(settings.get("output")))
+        if settings.get("theme") in THEME_OPTIONS:
+            self.theme_var.set(settings.get("theme"))
+        self.teaching_points_var.set(bool(settings.get("teachingPoints", self.teaching_points_var.get())))
+
+        self.append_log("")
+        self.append_log(f"Resuming review session from {LAST_REVIEW_SESSION_PATH}")
+        self._begin_review_and_render(prepared, images_per_case, save_session=False)
+
+    def _begin_review_and_render(self, prepared: dict, images_per_case: int, *, save_session: bool = True) -> None:
         if self.cancel_requested:
             self.log_queue.put(("cancelled", None))
             return
@@ -3543,6 +3600,9 @@ class DeckBuilderApp(tk.Tk):
             self.status_var.set("Failed")
             messagebox.showerror(APP_TITLE, "No cases could be prepared for preview.")
             return
+
+        if save_session:
+            self._save_review_session(prepared, images_per_case)
 
         self.set_busy(False)
         self.status_var.set("Review cases before creating PowerPoint")
