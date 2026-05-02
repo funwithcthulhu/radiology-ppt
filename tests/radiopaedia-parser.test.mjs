@@ -8,6 +8,7 @@ import {
   buildTeachingPoints,
   buildCaseSearchUrl,
   expandCaseRequests,
+  inspectRadiopaediaCaseCandidates,
   parseCaseSearchResults,
   parseCaseSystemsFromHtml,
 } from "../src/radiopaedia.mjs";
@@ -36,6 +37,17 @@ test("builds stable Radiopaedia case search URLs", () => {
   assert.equal(url.searchParams.get("q"), "multiple sclerosis");
   assert.equal(url.searchParams.get("page"), "2");
   assert.deepEqual(url.searchParams.getAll("system[]"), ["Central Nervous System", "Paediatrics"]);
+});
+
+test("matches excluded manual case paths even when query strings differ", async () => {
+  const result = await inspectRadiopaediaCaseCandidates({
+    requestMode: "manual",
+    selectedCasePath: "/cases/colonic-diverticulosis-1",
+    excludeCasePaths: ["/cases/colonic-diverticulosis-1?lang=us"],
+  });
+
+  assert.equal(result.needsReview, true);
+  assert.deepEqual(result.candidates, []);
 });
 
 test("builds complete teaching-point sentences without ellipses", () => {

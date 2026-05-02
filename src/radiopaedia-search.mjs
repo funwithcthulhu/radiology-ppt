@@ -397,7 +397,7 @@ async function pickRandomCaseCandidates(request, { excludePaths = new Set(), all
         break;
       }
       reviewedCandidates += 1;
-      if (excludePaths.has(candidate.casePath) || candidateMap.has(candidate.casePath)) {
+      if (excludePaths.has(comparableCasePath(candidate.casePath)) || candidateMap.has(candidate.casePath)) {
         continue;
       }
       if (!(await candidateMatchesSystems(candidate, systems, htmlCache, systemMode))) {
@@ -461,25 +461,26 @@ export async function expandCaseRequests(
   { readRandomHistory = false, writeRandomHistory = false, historyPath = RANDOM_HISTORY_PATH } = {},
 ) {
   const expanded = [];
-  const selectedPaths = new Set(readRandomHistory ? await loadRandomHistory(historyPath) : []);
+  const selectedPaths = new Set(readRandomHistory ? (await loadRandomHistory(historyPath)).map(comparableCasePath) : []);
   if (readRandomHistory && historyPath === RANDOM_HISTORY_PATH) {
     for (const casePath of await readAvoidedCasePaths()) {
-      selectedPaths.add(casePath);
+      selectedPaths.add(comparableCasePath(casePath));
     }
   }
   const historySelections = [];
 
   for (const item of inputs) {
     const request = parseCaseRequest(item);
-    const requestExcludedPaths = new Set((request.excludeCasePaths ?? []).map((value) => collapseWhitespace(value)).filter(Boolean));
+    const requestExcludedPaths = new Set((request.excludeCasePaths ?? []).map((value) => comparableCasePath(value)).filter(Boolean));
     if (request.selectedCasePath) {
-      if (requestExcludedPaths.has(request.selectedCasePath)) {
+      const selectedCasePath = comparableCasePath(request.selectedCasePath);
+      if (requestExcludedPaths.has(selectedCasePath)) {
         continue;
       }
       if (shouldRememberRandomEntry(request)) {
-        historySelections.push(request.selectedCasePath);
+        historySelections.push(selectedCasePath);
       }
-      selectedPaths.add(request.selectedCasePath);
+      selectedPaths.add(selectedCasePath);
       expanded.push(request);
       continue;
     }
@@ -494,8 +495,8 @@ export async function expandCaseRequests(
     });
     for (const pick of picks) {
       emitProgress("Selected random case", { title: pick.title, casePath: pick.casePath });
-      selectedPaths.add(pick.casePath);
-      historySelections.push(pick.casePath);
+      selectedPaths.add(comparableCasePath(pick.casePath));
+      historySelections.push(comparableCasePath(pick.casePath));
       expanded.push(
         parseCaseRequest({
           rawInput: collapseWhitespace([pick.title, request.studyHint].filter(Boolean).join(", ")),
@@ -559,9 +560,9 @@ function buildSearchQueries(request) {
 
 export async function inspectRadiopaediaCaseCandidates(input, { limit = 5 } = {}) {
   const request = parseCaseRequest(input);
-  const excludedPaths = new Set((request.excludeCasePaths ?? []).map((value) => collapseWhitespace(value)).filter(Boolean));
+  const excludedPaths = new Set((request.excludeCasePaths ?? []).map((value) => comparableCasePath(value)).filter(Boolean));
   if (request.selectedCasePath) {
-    if (excludedPaths.has(request.selectedCasePath)) {
+    if (excludedPaths.has(comparableCasePath(request.selectedCasePath))) {
       return {
         ...request,
         candidates: [],
@@ -596,7 +597,7 @@ export async function inspectRadiopaediaCaseCandidates(input, { limit = 5 } = {}
     const results = parseSearchResultCandidates(html, request, Math.max(limit * 2, 6));
 
     for (const candidate of results) {
-      if (excludedPaths.has(candidate.casePath)) {
+      if (excludedPaths.has(comparableCasePath(candidate.casePath))) {
         continue;
       }
       const existing = candidateMap.get(candidate.casePath);

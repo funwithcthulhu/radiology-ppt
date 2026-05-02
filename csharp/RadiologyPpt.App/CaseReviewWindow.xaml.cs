@@ -124,12 +124,11 @@ public partial class CaseReviewWindow : Window
     {
         await RunReplacementActionAsync("Rerolling case...", async token =>
         {
-            var request = CloneCurrentRequest();
-            AddCurrentCaseToExclusions(request);
+            var request = BuildRerollRequest();
             var replacement = await _backend.PrepareSingleAsync(request, SettingsForReviewControls(), _log, token);
             if (replacement is null)
             {
-                MessageBox.Show(this, "No alternate case was found for this request.", Title, MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(this, "No alternate case was found yet. Try broadening the filters or skipping this case.", Title, MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
@@ -435,6 +434,67 @@ public partial class CaseReviewWindow : Window
         return request;
     }
 
+    private JsonObject BuildRerollRequest()
+    {
+        var request = CloneCurrentRequest();
+        var caseData = _items[_currentIndex]["caseData"]?.AsObject();
+        var currentTitle = TextValue(caseData, "caseTitle", "");
+        var diagnosis = TextValue(request, "diagnosis", TextValue(caseData, "diagnosisQuery", currentTitle));
+        var originalInput = TextValue(request, "originalInput", "");
+        var randomQuery = TextValue(request, "randomQuery", "");
+        var randomSpec = request["randomSpec"] as JsonObject;
+        if (string.IsNullOrWhiteSpace(randomQuery))
+        {
+            randomQuery = TextValue(randomSpec, "queryText", "");
+        }
+
+        var hasRandomIntent =
+            !string.IsNullOrWhiteSpace(originalInput) ||
+            !string.IsNullOrWhiteSpace(randomQuery) ||
+            HasArrayItems(request["randomSystems"]) ||
+            randomSpec is not null;
+
+        AddCurrentCaseToExclusions(request);
+        request["selectedCasePath"] = "";
+        request["selectedCaseTitle"] = "";
+        request.Remove("imageCandidateBank");
+        request["requestedImagesPerCase"] = ReadRequestedImageCount();
+        request["cropMode"] = AppOptions.CropCliValue(CropCombo.SelectedItem?.ToString() ?? "");
+        request["markupStyle"] = AppOptions.MarkupCliValue(MarkupCombo.SelectedItem?.ToString() ?? "");
+
+        if (hasRandomIntent)
+        {
+            request["requestMode"] = "random";
+            request["randomCount"] = 1;
+            request["rawInput"] = !string.IsNullOrWhiteSpace(originalInput)
+                ? originalInput
+                : string.IsNullOrWhiteSpace(randomQuery) ? "Random" : randomQuery;
+            request["diagnosis"] = "";
+            if (!string.IsNullOrWhiteSpace(randomQuery))
+            {
+                request["randomQuery"] = randomQuery;
+            }
+            if (!HasArrayItems(request["randomSystems"]) && randomSpec?["systems"] is JsonArray systems)
+            {
+                request["randomSystems"] = systems.DeepClone();
+            }
+            if (request["randomSystemMode"] is null)
+            {
+                request["randomSystemMode"] = TextValue(randomSpec, "systemMode", "all");
+            }
+            if (request["randomDiversity"] is null)
+            {
+                request["randomDiversity"] = TextValue(randomSpec, "diversify", "");
+            }
+            return request;
+        }
+
+        request["requestMode"] = "specific";
+        request["diagnosis"] = diagnosis;
+        request["rawInput"] = TextValue(request, "rawInput", diagnosis);
+        return request;
+    }
+
     private void AddCurrentCaseToExclusions(JsonObject request)
     {
         var casePath = TextValue(_items[_currentIndex]["caseData"]?.AsObject(), "casePath", "");
@@ -446,8 +506,13 @@ public partial class CaseReviewWindow : Window
         }
         if (!string.IsNullOrWhiteSpace(casePath))
         {
-            exclusions.Add(casePath);
+            exclusions.Add(casePath.Split('?')[0]);
         }
+    }
+
+    private static bool HasArrayItems(JsonNode? node)
+    {
+        return node is JsonArray { Count: > 0 };
     }
 
     private GenerationSettings SettingsForReviewControls()
