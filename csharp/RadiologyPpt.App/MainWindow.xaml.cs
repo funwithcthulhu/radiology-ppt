@@ -15,7 +15,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 {
     private readonly BackendClient _backend = new();
     private readonly AppStorage _storage;
-    private CancellationTokenSource? _taskCancellation;
+    private readonly AppJobRunner _jobs = new();
     private string _statusText = "Ready";
     private string _lastPowerPointText = "No PowerPoint generated yet";
     private string _lastPowerPointPath = "";
@@ -245,13 +245,15 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         var requests = rows.Select((row, index) => row.ToPayload(index + 1, settings)).ToList();
         _storage.SaveGenerationSettings(settings);
-        using var cancellation = BeginTask("Preparing cases...");
         var reviewSessionId = "";
         try
         {
             MainTabs.SelectedIndex = 3;
             AppendLog($"Preparing {rows.Length} request row(s)...");
-            var prepared = await _backend.PrepareAsync(requests, settings, AppendLog, cancellation.Token);
+            var prepared = await _jobs.RunAsync(
+                "Preparing cases...",
+                OnJobChanged,
+                token => _backend.PrepareAsync(requests, settings, AppendLog, token));
             var preparedItems = ReadItems(prepared);
             var failures = ReadFailures(prepared);
             foreach (var failure in failures)
@@ -278,8 +280,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 return;
             }
 
-            using var renderCancellation = BeginTask("Creating PowerPoint...");
-            var stdout = await _backend.RenderAsync(reviewWindow.ApprovedItems, settings, AppendLog, renderCancellation.Token);
+            var stdout = await _jobs.RunAsync(
+                "Creating PowerPoint...",
+                OnJobChanged,
+                token => _backend.RenderAsync(reviewWindow.ApprovedItems, settings, AppendLog, token));
             var outputPath = ExtractOutputPath(stdout);
             var manifestPath = ExtractManifestPath(stdout);
             if (!string.IsNullOrWhiteSpace(outputPath))
@@ -308,10 +312,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             AppendLog(exception.ToString());
             MessageBox.Show(this, exception.Message, Title, MessageBoxButton.OK, MessageBoxImage.Error);
         }
-        finally
-        {
-            EndTask();
-        }
     }
 
     private async void ImportPdfs_Click(object sender, RoutedEventArgs e)
@@ -326,12 +326,18 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return;
         }
 
-        using var cancellation = BeginTask("Importing PDFs...");
         try
         {
             MainTabs.SelectedIndex = 3;
             var domain = AppOptions.BoardDomainCliValue(BoardDomainCombo.SelectedItem?.ToString() ?? "");
-            await _backend.ImportCoreReviewPdfsAsync(dialog.FileNames, domain, AppendLog, cancellation.Token);
+            await _jobs.RunAsync(
+                "Importing PDFs...",
+                OnJobChanged,
+                async token =>
+                {
+                    await _backend.ImportCoreReviewPdfsAsync(dialog.FileNames, domain, AppendLog, token);
+                    return true;
+                });
             _storage.SaveCoreSourceImports(dialog.FileNames, domain);
             BoardStatusText.Text = $"Imported {dialog.FileNames.Length} PDF(s).";
             StatusText = "Core Boards import complete";
@@ -346,15 +352,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             AppendLog(exception.ToString());
             MessageBox.Show(this, exception.Message, Title, MessageBoxButton.OK, MessageBoxImage.Error);
         }
-        finally
-        {
-            EndTask();
-        }
     }
 
     private void Cancel_Click(object sender, RoutedEventArgs e)
     {
-        _taskCancellation?.Cancel();
+        _jobs.Cancel();
         _backend.CancelCurrentProcess();
         StatusText = "Cancelling...";
     }
@@ -409,27 +411,35 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         };
     }
 
-    private CancellationTokenSource BeginTask(string status)
-    {
-        _taskCancellation?.Dispose();
-        _taskCancellation = new CancellationTokenSource();
-        SetBusy(true);
-        StatusText = status;
-        return _taskCancellation;
-    }
-
-    private void EndTask()
-    {
-        SetBusy(false);
-        _taskCancellation?.Dispose();
-        _taskCancellation = null;
-    }
-
     private void SetBusy(bool busy)
     {
         GenerateButton.IsEnabled = !busy;
         CancelButton.IsEnabled = busy;
         Progress.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void OnJobChanged(AppJobSnapshot job)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (job.Status == AppJobStatus.Running)
+            {
+                SetBusy(true);
+                StatusText = job.Name;
+                _storage.RecordEvent("info", $"Started: {job.Name}", job.Id);
+                return;
+            }
+
+            SetBusy(false);
+            StatusText = job.Status switch
+            {
+                AppJobStatus.Completed => "Ready",
+                AppJobStatus.Cancelled => "Cancelled",
+                AppJobStatus.Failed => "Error",
+                _ => StatusText
+            };
+            _storage.RecordEvent(job.Status == AppJobStatus.Failed ? "error" : "info", $"{job.Status}: {job.Name}", job.Id);
+        });
     }
 
     private void AppendLog(string message)
