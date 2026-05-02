@@ -264,6 +264,23 @@ function normalizePreparedItems(payload) {
     .filter((item) => item.request?.rawInput && item.caseData?.caseTitle);
 }
 
+async function mapWithConcurrency(items, limit, mapper) {
+  const results = Array(items.length);
+  let nextIndex = 0;
+  const workerCount = Math.max(1, Math.min(limit, items.length));
+
+  async function worker() {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      results[index] = await mapper(items[index], index);
+    }
+  }
+
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  return results;
+}
+
 async function prepareCaseItems(rawEntries, args, { readRandomHistory = true, writeRandomHistory = false } = {}) {
   let entries = normalizeEntries(rawEntries).map((entry) =>
       parseCaseRequest({
@@ -279,20 +296,19 @@ async function prepareCaseItems(rawEntries, args, { readRandomHistory = true, wr
   });
 
   const cacheDir = path.join(APP_ROOT, "cache");
-  const items = [];
-  const failures = [];
-
-  for (const entry of entries) {
+  const preparedResults = await mapWithConcurrency(entries, 3, async (entry) => {
     try {
       const caseData = await fetchRadiopaediaCase(entry, {
         cacheDir,
         imagesPerCase: entry.requestedImagesPerCase || args.imagesPerCase,
       });
-      items.push({ request: entry, caseData });
+      return { item: { request: entry, caseData }, failure: null };
     } catch (error) {
-      failures.push(`Unable to prepare case for "${entry.rawInput}": ${error.message}`);
+      return { item: null, failure: `Unable to prepare case for "${entry.rawInput}": ${error.message}` };
     }
-  }
+  });
+  const items = preparedResults.map((result) => result.item).filter(Boolean);
+  const failures = preparedResults.map((result) => result.failure).filter(Boolean);
 
   return {
     entries,
