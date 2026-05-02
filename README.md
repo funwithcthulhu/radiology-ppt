@@ -17,6 +17,8 @@ The app can:
 - let you keep, reroll, repick images, favorite, or block cases during review
 - add optional teaching-point slides
 - keep local history so random decks do not keep repeating the same recent cases
+- cache Radiopaedia metadata and image candidate banks to speed repeated runs
+- save the latest review session so an interrupted review can be resumed
 
 ## Main Use
 
@@ -83,9 +85,26 @@ From the review screen you can:
 - keep the case
 - reroll to a different case
 - repick images from the same case
+- uncheck specific images, then replace or remove only those images
 - favorite the case
 - mark the case as never use again
 - skip the case
+
+If you cancel during review, use `PowerPoint` -> `More` -> `Resume Last Review Session` to reopen the most recently prepared review bundle.
+
+## Architecture
+
+The GUI is Python/Tkinter. The Radiopaedia/PowerPoint backend is Node.
+
+- `gui_app.py`: desktop UI, review flow, settings, and app orchestration
+- `src/cli.mjs`: internal backend entrypoint used by the GUI
+- `src/request-parser.mjs`: diagnosis, random/category, modality, and filter parsing
+- `src/radiopaedia-client.mjs`: Radiopaedia HTTP/download helpers and persistent fetch cache
+- `src/radiopaedia.mjs`: case search, case assembly, patient data, and teaching text
+- `src/image-candidates.mjs`: frame candidate extraction, relevance scoring, and selection
+- `src/ollama-review.mjs`: optional local Ollama vision-model scoring
+- `src/cache-store.mjs`: persistent JSON metadata cache
+- `src/deck.mjs`: PowerPoint rendering
 
 ## Notes
 
@@ -94,6 +113,7 @@ From the review screen you can:
 - Optional minimal clinical history can be added to the intro slide.
 - If a local Ollama vision model is installed, the app can optionally score selected images during preparation.
 - The packaged app writes outputs, cache, library data, and state inside its app folder.
+- Case preparation runs multiple cases concurrently, while preserving request order.
 - Radiopaedia image reuse in presentations is encouraged with attribution, and this app adds attribution to the slides:
   [Using and attributing images from Radiopaedia](https://radiopaedia.org/articles/using-and-attributing-images-from-radiopaedia-1?lang=us)
 
@@ -104,4 +124,10 @@ These scripts are for maintaining the desktop app, not for normal deck generatio
 ```powershell
 .\build-windows-app.ps1
 .\create-desktop-shortcut.ps1
+```
+
+Run focused backend tests:
+
+```powershell
+npm test
 ```
