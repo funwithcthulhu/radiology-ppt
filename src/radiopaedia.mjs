@@ -23,6 +23,7 @@ import {
   titleFromCasePath,
   tokenOverlapScore,
 } from "./request-parser.mjs";
+import { readCacheEntry, writeCacheEntry } from "./cache-store.mjs";
 import {
   APP_ROOT,
   BASE_URL,
@@ -44,6 +45,7 @@ const RANDOM_SEARCH_QUERY_LIMIT = 5;
 const RANDOM_SEARCH_PAGE_LIMIT = 3;
 const RANDOM_CANDIDATE_REVIEW_LIMIT = 48;
 const RANDOM_SEARCH_TIME_LIMIT_MS = 45000;
+const CANDIDATE_BANK_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 let PYTHON_RUNTIME_PROMISE = null;
 let OLLAMA_MODELS_PROMISE = null;
 
@@ -1011,6 +1013,13 @@ function normalizeImageCandidateBank(candidates) {
     }));
 }
 
+function imageCandidateCacheKey(casePath, preferredModalities = []) {
+  return {
+    casePath: collapseWhitespace(casePath).replace(/\?.*$/, ""),
+    preferredModalities: dedupe((preferredModalities || []).map((value) => collapseWhitespace(value)).filter(Boolean)),
+  };
+}
+
 function imageStrengthScore(image) {
   const ollamaBonus = Number.isFinite(image.ollamaScore) ? image.ollamaScore * 8 : 0;
   return image.relevantScore + ollamaBonus + (image.isAnnotated ? 120 : 0) + (image.isKeyImage ? 40 : 0);
@@ -1343,11 +1352,19 @@ async function fetchRadiopaediaCaseByPath(request, casePath, { cacheDir, imagesP
     throw new Error(`No ${request.preferredModalities.join("/")} studies were found for "${caseTitle}".`);
   }
 
-  let imageCandidates = [];
-  for (const study of preferredStudies) {
-    imageCandidates.push(...buildImageCandidates(study));
-  }
   const requestCandidateBank = normalizeImageCandidateBank(request.imageCandidateBank);
+  const candidateCacheKey = imageCandidateCacheKey(casePath, request.preferredModalities);
+  const cachedCandidateBank = requestCandidateBank.length
+    ? []
+    : normalizeImageCandidateBank(
+        await readCacheEntry("image-candidates", candidateCacheKey, { ttlMs: CANDIDATE_BANK_CACHE_TTL_MS }),
+      );
+  let imageCandidates = cachedCandidateBank;
+  if (!imageCandidates.length) {
+    for (const study of preferredStudies) {
+      imageCandidates.push(...buildImageCandidates(study));
+    }
+  }
   if (requestCandidateBank.length) {
     imageCandidates = requestCandidateBank;
   }
@@ -1368,6 +1385,9 @@ async function fetchRadiopaediaCaseByPath(request, casePath, { cacheDir, imagesP
   }
 
   const imageCandidateBank = normalizeImageCandidateBank(imageCandidates);
+  if (imageCandidateBank.length && !requestCandidateBank.length && !cachedCandidateBank.length) {
+    await writeCacheEntry("image-candidates", candidateCacheKey, imageCandidateBank);
+  }
   const selectedImages = selectRelevantImages(imageCandidates, Math.max(1, imagesPerCase), {
     excludeFrameIds: request.excludeFrameIds || [],
   });
