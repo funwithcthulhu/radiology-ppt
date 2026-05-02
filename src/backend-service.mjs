@@ -95,13 +95,14 @@ async function runCommand(command, payload = {}) {
 }
 
 async function handleLine(line) {
-  if (!line.trim()) {
+  const cleanLine = line.charCodeAt(0) === 0xfeff ? line.slice(1) : line;
+  if (!cleanLine.trim()) {
     return;
   }
 
   let request;
   try {
-    request = JSON.parse(line);
+    request = JSON.parse(cleanLine);
   } catch (error) {
     send({
       id: "",

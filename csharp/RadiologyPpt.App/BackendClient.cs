@@ -361,7 +361,7 @@ public sealed class BackendClient
                 CreateNoWindow = true,
                 StandardOutputEncoding = Encoding.UTF8,
                 StandardErrorEncoding = Encoding.UTF8,
-                StandardInputEncoding = Encoding.UTF8
+                StandardInputEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)
             };
             startInfo.ArgumentList.Add(ServiceScript);
             startInfo.Environment["RADIOLOGY_PPT_APP_ROOT"] = AppRoot;
@@ -461,6 +461,10 @@ public sealed class BackendClient
         }
         if (pending is null)
         {
+            if (type.Equals("error", StringComparison.OrdinalIgnoreCase))
+            {
+                FailPendingServiceRequests(TextValue(message, "error", "Backend service request failed before it could be matched to a job."));
+            }
             return;
         }
 
