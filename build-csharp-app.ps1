@@ -31,4 +31,10 @@ if (-not (Test-Path $exePath)) {
   throw "Publish completed but the executable was not found: $exePath"
 }
 
+$iconSource = Join-Path $projectRoot "csharp\RadiologyPpt.App\Assets\app-icon.ico"
+$iconTarget = Join-Path $resolvedPublishDir "app-icon.ico"
+if (Test-Path $iconSource) {
+  Copy-Item -LiteralPath $iconSource -Destination $iconTarget -Force
+}
+
 Write-Output $exePath

@@ -12,7 +12,8 @@ if (-not (Test-Path $csharpExe)) {
 $targetPath = $csharpExe
 $arguments = ""
 $workingDirectory = Split-Path -Parent $csharpExe
-$iconLocation = "$csharpExe,0"
+$iconPath = Join-Path $workingDirectory "app-icon.ico"
+$iconLocation = if (Test-Path $iconPath) { $iconPath } else { "$csharpExe,0" }
 
 $shell = New-Object -ComObject WScript.Shell
 $shortcut = $shell.CreateShortcut($shortcutPath)
