@@ -55,13 +55,14 @@ Long-running work is wrapped by `AppJobRunner`, which keeps the main window resp
 - sends prepare, score, render, Core Review, and probe jobs over stdin/stdout
 - passes `RADIOLOGY_PPT_APP_ROOT`, `RADIOLOGY_PPT_RESOURCE_ROOT`, and `RADIOLOGY_PPT_DATABASE_PATH`
 - parses structured backend events and sends them to the UI/activity log
+- logs long-running reminders when backend jobs keep working without returning yet
 - restarts or kills the Node service process on cancellation or protocol failure
 
 The older one-shot process path remains only as a compatibility/developer fallback. Normal GUI work should use the service because review actions are much faster without repeated Node startup.
 
 ### Node Service
 
-`src/backend-service.mjs` is intentionally small. It reads newline-delimited JSON commands, calls the workflow API, emits progress events, and returns one result or error per job.
+`src/backend-service.mjs` is intentionally small. It reads newline-delimited JSON commands, calls the workflow API, emits progress/timing events, and returns one result or error per job. The `ping` command also reports basic health metadata such as PID, uptime, handled request count, and last request time.
 
 ### Node CLI
 
@@ -89,7 +90,7 @@ Important Node modules:
 - `src/focus-crop.mjs`: image focus cropping and focus-ring overlays
 - `src/ollama-review.mjs`: optional local vision-model scoring
 - `src/deck.mjs`: PPTX generation
-- `src/app-store.mjs`: SQLite-backed backend cache, random history, and review decisions
+- `src/app-store.mjs`: SQLite-backed backend cache, prepared-case index, random history, and review decisions
 - `src/cache-store.mjs`: compatibility layer for JSON cache fallback/backfill
 
 ## Data Flow
@@ -105,9 +106,9 @@ sequenceDiagram
 
   UI->>Service: prepare requests
   Service->>API: dispatch prepare
-  API->>DB: read recent/random/rejected history
-  API->>RP: search/load cases and images
-  API->>DB: cache metadata and random history
+  API->>DB: read case index, recent/random/rejected history
+  API->>RP: search/load cases and images when local cache is thin
+  API->>DB: cache metadata, prepared-case quality, and random history
   API-->>Service: prepared cases
   Service-->>UI: prepared cases
   UI->>UI: human review
@@ -137,6 +138,7 @@ Tables include:
 - `app_events`
 - `schema_migrations`
 - `backend_cache`
+- `case_index`
 - `random_history`
 - `case_decisions`
 - `image_decisions`
@@ -169,12 +171,15 @@ Review-window cancellation:
 
 - Prepare multiple cases concurrently, with request order preserved.
 - Keep one Node backend service alive to avoid cold-starting Node for every reroll, repick, score, or render job.
+- Emit structured backend stage events with durations so slow steps can be diagnosed from the Activity log.
 - Limit concurrent HTTP downloads and retry transient curl/Radiopaedia failures.
+- Prefer the local prepared-case index for random requests before live Radiopaedia search.
 - Prefetch random fallback case pages in the service so rerolls have warm cache.
 - Avoid repeating recent random cases by reading SQLite random history.
 - Avoid skipped/rejected cases in future random pulls.
 - Avoid rejected image frames when repicking images from the same case.
 - Cache fetched metadata and image candidate banks.
+- Store prepared-case quality and filter metadata in `case_index` so repeated random runs in the same category should get faster and less repetitive.
 - Store per-image audit metadata so weak selections can be debugged later.
 - Keep Ollama out of initial preparation; run it only on a selected case during review.
 

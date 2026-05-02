@@ -22,7 +22,7 @@ The app can:
 - choose a case-conference or Core Review PowerPoint style
 - add optional teaching-point slides; Core Review includes them automatically when available
 - keep local history so random PowerPoints do not keep repeating the same recent cases
-- cache Radiopaedia metadata and image candidate banks to speed repeated runs
+- cache Radiopaedia metadata, prepared-case quality metadata, and image candidate banks to speed repeated runs
 - store app state, settings, review sessions, generated PowerPoint metadata, and diagnostics in a local SQLite database
 - use a persistent Node backend service while the app is open for faster repeated review actions
 
@@ -51,7 +51,7 @@ If the packaged app is not present yet, you can launch the source GUI directly:
 dotnet run --project .\csharp\RadiologyPpt.App\RadiologyPpt.App.csproj
 ```
 
-The current desktop app is C# WPF. The Radiopaedia search, image-selection, caching, Core Boards ingestion, and PowerPoint rendering engine remains in Node under `src\`, served to the GUI through a persistent local backend process while the app is open.
+The current desktop app is C# WPF. The Radiopaedia search, image-selection, caching, Core Boards ingestion, and PowerPoint rendering engine remains in Node under `src\`, served to the GUI through a persistent local backend process while the app is open. Python is not part of the runtime.
 
 ## GUI Workflow
 
@@ -128,7 +128,7 @@ The primary GUI is a native Windows C# WPF app. The Radiopaedia/PowerPoint backe
 - `src/focus-crop.mjs`: Node image focus-crop and optional focus-ring rendering
 - `src/image-candidates.mjs`: frame candidate extraction, relevance scoring, and selection
 - `src/ollama-review.mjs`: optional local Ollama vision-model scoring
-- `src/app-store.mjs`: SQLite-backed backend cache, random history, and review/image decisions
+- `src/app-store.mjs`: SQLite-backed backend cache, prepared-case index, random history, and review/image decisions
 - `src/cache-store.mjs`: metadata cache compatibility layer with JSON fallback/backfill
 - `src/core_review/pdf-ingest.mjs`: Node PDF text/page/image ingestion for local Core Boards sources
 - `src/deck.mjs`: PowerPoint rendering
@@ -165,6 +165,7 @@ npm test
 Local state:
 
 - `state\radiology-ppt.sqlite` stores durable app metadata and is ignored by Git.
+- `case_index` inside the SQLite database stores prepared cases with modality, systems, image counts, and quality scores so random mode can prefer cached candidates before live search.
 - `cache\`, `scratch\`, `outputs\`, and `library\board-review\` remain local/private generated data by default.
 - Use the `Activity` tab to refresh diagnostics, open the state folder, clean scratch files, or clean cache files older than 30 days.
 - Use `Run Maintenance` on the Activity tab to clean old scratch/cache files and optimize the SQLite database.
@@ -179,6 +180,8 @@ Local state:
 - Ollama auto-detect prefers compact vision models first to reduce slowdown.
 - Ollama review is intentionally deferred and capped for responsiveness: by default it reviews only the strongest selected image per case, with a 12-second image timeout and 20-second case budget. Advanced users can tune this with `RADIOLOGY_PPT_OLLAMA_IMAGE_TIMEOUT_MS`, `RADIOLOGY_PPT_OLLAMA_CASE_TIMEOUT_MS`, and `RADIOLOGY_PPT_OLLAMA_MAX_IMAGES_PER_CASE`.
 - Random case selections are remembered during prepare, not only after PowerPoint export, so cancelled/reviewed random runs should not keep recycling the same cases.
+- Random mode checks the local prepared-case index first. The first run in a new category may still need live Radiopaedia search, but later runs should reuse known-good cached candidates when filters match.
+- The Activity log includes structured start/complete timing for major backend stages, plus long-running reminders from the desktop app if a backend job stays active for more than a few seconds.
 - The packaged app writes outputs, cache, library data, and state inside its app folder.
 - Case preparation runs multiple cases concurrently, while preserving request order.
 - HTTP requests are concurrency-limited and retried to reduce transient Radiopaedia/curl failures.

@@ -15,7 +15,7 @@ Behind the scenes, the GUI keeps a local Node backend service open. Cancelling a
 
 ## Random Cases Repeat Too Often
 
-The app records random history in `state/radiology-ppt.sqlite`.
+The app records random history and a prepared-case index in `state/radiology-ppt.sqlite`.
 
 Helpful actions:
 
@@ -24,6 +24,19 @@ Helpful actions:
 - Use broader filters if a narrow category has only a small pool of cases.
 - Use the Library tab to see whether a narrow category is cycling through cases you have already reviewed.
 - Do not clean the state database unless you intentionally want to reset history.
+
+The first run for a new filter can still be slow because the app has to discover cases live. Later runs should improve because random mode checks the local `case_index` first and can reuse prepared cases that already had enough relevant images.
+
+## Random Preparation Seems Slow
+
+Radiopaedia random mode has two phases: finding candidate cases, then loading studies/images for each selected case. The Activity tab now logs stage completions with timings, which helps identify whether time is going into search, case loading, image downloads, or PowerPoint rendering.
+
+Helpful actions:
+
+- Start with fewer random cases while exploring a new category.
+- Use broader filters if a category is narrow.
+- Re-run the same category after one successful pass; cached search/image metadata and `case_index` should reduce repeated work.
+- Avoid Ollama review during initial preparation. Use **Ollama Score Case** only on selected review cases.
 
 ## Ollama Takes Too Long
 
