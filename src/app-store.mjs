@@ -7,6 +7,11 @@ import { collapseWhitespace, dedupe } from "./utils.mjs";
 const RESOURCE_ROOT =
   process.env.RADIOLOGY_PPT_RESOURCE_ROOT || path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const CACHE_SCHEMA_VERSION = 1;
+const NODE_STORAGE_MIGRATIONS = [
+  ["node-001-backend-store", "Create Node backend cache/history/decision tables."],
+  ["node-002-case-index", "Create reusable prepared case index for faster random workflows."],
+  ["node-003-schema-metadata", "Record Node backend schema ownership metadata."],
+];
 let sqlitePromise = null;
 let schemaReady = new Set();
 
@@ -90,6 +95,12 @@ function ensureSchema(db) {
       applied_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS app_metadata (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS backend_cache (
       namespace TEXT NOT NULL,
       key_hash TEXT NOT NULL,
@@ -160,8 +171,10 @@ function ensureSchema(db) {
   ensureColumn(db, "random_history", "use_count", "INTEGER NOT NULL DEFAULT 1");
   ensureColumn(db, "case_decisions", "count", "INTEGER NOT NULL DEFAULT 1");
   ensureColumn(db, "image_decisions", "count", "INTEGER NOT NULL DEFAULT 1");
-  recordSchemaMigration(db, "node-001-backend-store", "Create Node backend cache/history/decision tables.");
-  recordSchemaMigration(db, "node-002-case-index", "Create reusable prepared case index for faster random workflows.");
+  for (const [migrationId, description] of NODE_STORAGE_MIGRATIONS) {
+    recordSchemaMigration(db, migrationId, description);
+  }
+  writeMetadata(db, "node_schema_version", NODE_STORAGE_MIGRATIONS.at(-1)?.[0] || "");
 }
 
 function recordSchemaMigration(db, migrationId, description) {
@@ -170,6 +183,16 @@ function recordSchemaMigration(db, migrationId, description) {
     VALUES (?, ?, ?)
     ON CONFLICT(migration_id) DO NOTHING;
   `).run(migrationId, description, timestamp());
+}
+
+function writeMetadata(db, key, value) {
+  db.prepare(`
+    INSERT INTO app_metadata (key, value, updated_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(key) DO UPDATE SET
+      value = excluded.value,
+      updated_at = excluded.updated_at;
+  `).run(key, value, timestamp());
 }
 
 export async function readStoreCache(namespace, key, { ttlMs = 0, allowStale = false } = {}) {

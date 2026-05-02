@@ -41,12 +41,7 @@ public sealed class BackendClient
 
     public async Task<JsonObject> PrepareAsync(IEnumerable<JsonObject> entries, GenerationSettings settings, Action<string> log, CancellationToken cancellationToken)
     {
-        var payload = new JsonObject
-        {
-            ["entries"] = new JsonArray(entries.Select(entry => entry.DeepClone()).ToArray()),
-            ["args"] = BuildPrepareArgs(settings)
-        };
-        return await RunServiceAsync("prepare", payload, log, cancellationToken);
+        return await RunServiceAsync("prepare", BackendPayloads.Prepare(entries, settings), log, cancellationToken);
     }
 
     public async Task<JsonObject?> PrepareSingleAsync(JsonObject request, GenerationSettings settings, Action<string> log, CancellationToken cancellationToken)
@@ -58,15 +53,7 @@ public sealed class BackendClient
 
     public async Task<JsonObject?> ScoreImagesAsync(JsonObject item, GenerationSettings settings, Action<string> log, CancellationToken cancellationToken)
     {
-        var payload = new JsonObject
-        {
-            ["item"] = item.DeepClone(),
-            ["args"] = new JsonObject
-            {
-                ["ollamaModel"] = settings.OllamaModel
-            }
-        };
-        var result = await RunServiceAsync("scoreImages", payload, log, cancellationToken);
+        var result = await RunServiceAsync("scoreImages", BackendPayloads.ScoreImages(item, settings), log, cancellationToken);
         var items = result["items"]?.AsArray();
         return items is { Count: > 0 } ? items[0]?.AsObject() : null;
     }
@@ -74,36 +61,43 @@ public sealed class BackendClient
     public async Task<string> RenderAsync(IEnumerable<JsonObject> approvedItems, GenerationSettings settings, Action<string> log, CancellationToken cancellationToken)
     {
         Directory.CreateDirectory(OutputsDir);
-        var payload = new JsonObject
-        {
-            ["items"] = new JsonArray(approvedItems.Select(item => item.DeepClone()).ToArray()),
-            ["args"] = new JsonObject
-            {
-                ["deckMode"] = settings.PowerPointStyle,
-                ["theme"] = settings.Theme,
-                ["title"] = settings.Title,
-                ["out"] = settings.OutputPath,
-                ["includeTeachingPoints"] = settings.IncludeTeachingPoints
-            }
-        };
-        var result = await RunServiceAsync("render", payload, log, cancellationToken);
+        var result = await RunServiceAsync("render", BackendPayloads.Render(approvedItems, settings), log, cancellationToken);
         return $"Created PowerPoint: {TextValue(result, "outputPath")}{Environment.NewLine}Created manifest: {TextValue(result, "manifestPath")}{Environment.NewLine}";
     }
 
     public async Task ImportCoreReviewPdfsAsync(IEnumerable<string> pdfPaths, string domain, Action<string> log, CancellationToken cancellationToken)
     {
         Directory.CreateDirectory(BoardReviewDir);
-        var payload = new JsonObject
+        await RunServiceAsync("coreReviewIngestPdf", BackendPayloads.CoreReviewPdfImport(pdfPaths, domain, BoardReviewCorpusPath), log, cancellationToken);
+    }
+
+    public async Task<BackendHealthSnapshot> PingAsync(Action<string> log, CancellationToken cancellationToken)
+    {
+        var payload = await RunServiceAsync("ping", BackendPayloads.Empty(), log, cancellationToken);
+        return new BackendHealthSnapshot(
+            BackendPayloadReader.TextValue(payload, "service", "radiology-ppt-backend"),
+            BackendPayloadReader.TextValue(payload, "pid"),
+            BackendPayloadReader.TextValue(payload, "startedAt"),
+            BackendPayloadReader.TextValue(payload, "uptimeMs"),
+            BackendPayloadReader.TextValue(payload, "handledRequests"),
+            BackendPayloadReader.TextValue(payload, "lastRequestAt"));
+    }
+
+    public async Task RestartServiceAsync(Action<string> log, CancellationToken cancellationToken)
+    {
+        CancelCurrentProcess();
+        await EnsureServiceAsync(log, cancellationToken);
+    }
+
+    public bool HasPendingRequests
+    {
+        get
         {
-            ["inputPaths"] = new JsonArray(pdfPaths.Select(path => JsonValue.Create(path)).ToArray()),
-            ["args"] = new JsonObject
+            lock (_pendingLock)
             {
-                ["out"] = BoardReviewCorpusPath,
-                ["format"] = "json",
-                ["domain"] = domain
+                return _pendingRequests.Count > 0;
             }
-        };
-        await RunServiceAsync("coreReviewIngestPdf", payload, log, cancellationToken);
+        }
     }
 
     public void CancelCurrentProcess()
@@ -125,6 +119,7 @@ public sealed class BackendClient
             {
                 _serviceProcess.Kill(entireProcessTree: true);
             }
+            _serviceProcess = null;
         }
         catch
         {
@@ -569,17 +564,6 @@ public sealed class BackendClient
         {
             request.Log(message);
         }
-    }
-
-    private static JsonObject BuildPrepareArgs(GenerationSettings settings)
-    {
-        return new JsonObject
-        {
-            ["imagesPerCase"] = settings.ImagesPerCase,
-            ["useClinicalHistory"] = settings.UseClinicalHistory,
-            ["useOllamaAssist"] = settings.UseOllamaReview,
-            ["ollamaModel"] = settings.OllamaModel
-        };
     }
 
     private static bool TryFormatServiceEvent(JsonObject? payload, out string displayMessage)

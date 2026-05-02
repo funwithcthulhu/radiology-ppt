@@ -1,8 +1,6 @@
 using System.Collections.ObjectModel;
-using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
-using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
@@ -11,37 +9,37 @@ using Microsoft.Win32;
 
 namespace RadiologyPpt.App;
 
-public partial class MainWindow : Window, INotifyPropertyChanged
+public partial class MainWindow : Window
 {
     private readonly BackendClient _backend = new();
     private readonly AppStorage _storage;
     private readonly AppJobRunner _jobs = new();
     private readonly CaseLibraryViewModel _library = new();
-    private string _statusText = "Ready";
-    private string _lastPowerPointText = "No PowerPoint generated yet";
+    private readonly MainWindowViewModel _viewModel = new();
+    private readonly BackendHealthMonitor _healthMonitor;
     private string _lastPowerPointPath = "";
 
-    public event PropertyChangedEventHandler? PropertyChanged;
-
-    public ObservableCollection<CaseRequestRow> Requests { get; } = [];
+    public ObservableCollection<CaseRequestRow> Requests => _viewModel.Requests;
 
     public string StatusText
     {
-        get => _statusText;
-        set => SetField(ref _statusText, value);
+        get => _viewModel.StatusText;
+        set => _viewModel.StatusText = value;
     }
 
     public string LastPowerPointText
     {
-        get => _lastPowerPointText;
-        set => SetField(ref _lastPowerPointText, value);
+        get => _viewModel.LastPowerPointText;
+        set => _viewModel.LastPowerPointText = value;
     }
 
     public MainWindow()
     {
         InitializeComponent();
         _storage = new AppStorage(_backend.StateDir, _backend.AppRoot);
-        DataContext = this;
+        _healthMonitor = new BackendHealthMonitor(_backend, AppendLog);
+        _healthMonitor.StatusChanged += BackendHealth_StatusChanged;
+        DataContext = _viewModel;
         InitializeOptionControls();
         InitializeStorage();
         LoadSavedSettings();
@@ -53,6 +51,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         AppendLog($"Node runtime: {_backend.NodePath}");
         AppendLog($"State database: {_storage.DatabasePath}");
         RefreshDiagnostics();
+        _healthMonitor.Start();
     }
 
     private void Window_SourceInitialized(object? sender, EventArgs e)
@@ -277,14 +276,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private async void Generate_Click(object sender, RoutedEventArgs e)
     {
         var settings = BuildSettings();
-        var rows = Requests.Where(IsUsableRow).ToArray();
+        var rows = _viewModel.UsableRows();
         if (rows.Length == 0)
         {
             MessageBox.Show(this, "Add at least one diagnosis, random case, or manual Radiopaedia case URL first.", Title, MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
-        var requests = rows.Select((row, index) => row.ToPayload(index + 1, settings)).ToList();
+        var requests = _viewModel.BuildRequestPayloads(rows, settings);
         _storage.SaveGenerationSettings(settings);
         var reviewSessionId = "";
         try
@@ -296,8 +295,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 "Preparing cases...",
                 OnJobChanged,
                 token => _backend.PrepareAsync(requests, prepareSettings, AppendLog, token));
-            var preparedItems = ReadItems(prepared);
-            var failures = ReadFailures(prepared);
+            var preparedItems = BackendPayloadReader.ReadPreparedItems(prepared);
+            var failures = BackendPayloadReader.ReadFailures(prepared);
             foreach (var failure in failures)
             {
                 AppendLog($"Warning: {failure}");
@@ -305,12 +304,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
             if (preparedItems.Count == 0)
             {
-                MessageBox.Show(this, BuildFailureMessage(failures), Title, MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(this, MainWindowViewModel.BuildFailureMessage(failures), Title, MessageBoxButton.OK, MessageBoxImage.Warning);
                 StatusText = "No cases prepared";
                 return;
             }
 
-            reviewSessionId = _storage.CreateReviewSession(prepared, BuildRequestSummary(rows, preparedItems.Count));
+            reviewSessionId = _storage.CreateReviewSession(prepared, MainWindowViewModel.BuildRequestSummary(rows, preparedItems.Count));
             StatusText = "Review cases";
             var reviewWindow = new CaseReviewWindow(_backend, preparedItems, settings, AppendLog, _storage, reviewSessionId)
             {
@@ -322,7 +321,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 return;
             }
 
-            AppendLog(BuildExportSummary(reviewWindow.ApprovedItems));
+            AppendLog(MainWindowViewModel.BuildExportSummary(reviewWindow.ApprovedItems));
 
             var stdout = await _jobs.RunAsync(
                 "Creating PowerPoint...",
@@ -502,27 +501,19 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private GenerationSettings BuildSettings()
     {
-        var imagesPerCase = 3;
-        if (int.TryParse(ImagesPerCaseBox.Text, out var parsed))
-        {
-            imagesPerCase = Math.Max(1, Math.Min(8, parsed));
-        }
-
-        return new GenerationSettings
-        {
-            Title = TitleBox.Text.Trim(),
-            ImagesPerCase = imagesPerCase,
-            OutputPath = OutputBox.Text.Trim(),
-            AutoOpen = AutoOpenCheck.IsChecked == true,
-            UseClinicalHistory = ClinicalHistoryCheck.IsChecked == true,
-            UseOllamaReview = OllamaCheck.IsChecked == true,
-            OllamaModel = OllamaModelCombo.Text.Trim(),
-            Theme = AppOptions.ThemeCliValue(ThemeCombo.SelectedItem?.ToString() ?? ""),
-            PowerPointStyle = AppOptions.PowerPointStyleCliValue(PowerPointStyleCombo.SelectedItem?.ToString() ?? ""),
-            CropMode = AppOptions.CropCliValue(InitialCropCombo.SelectedItem?.ToString() ?? ""),
-            MarkupStyle = AppOptions.MarkupCliValue(InitialMarkupCombo.SelectedItem?.ToString() ?? ""),
-            IncludeTeachingPoints = TeachingPointsCheck.IsChecked == true
-        };
+        return _viewModel.BuildSettings(new PowerPointSettingsSnapshot(
+            TitleBox.Text,
+            ImagesPerCaseBox.Text,
+            OutputBox.Text,
+            AutoOpenCheck.IsChecked == true,
+            ClinicalHistoryCheck.IsChecked == true,
+            OllamaCheck.IsChecked == true,
+            OllamaModelCombo.Text,
+            ThemeCombo.SelectedItem?.ToString() ?? "",
+            PowerPointStyleCombo.SelectedItem?.ToString() ?? "",
+            InitialCropCombo.SelectedItem?.ToString() ?? "",
+            InitialMarkupCombo.SelectedItem?.ToString() ?? "",
+            TeachingPointsCheck.IsChecked == true));
     }
 
     private void SetBusy(bool busy)
@@ -566,43 +557,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         });
     }
 
-    private static bool IsUsableRow(CaseRequestRow row)
-    {
-        if (row.Mode == AppOptions.RequestModes[1])
-        {
-            return row.Count > 0;
-        }
-        return !string.IsNullOrWhiteSpace(row.Query);
-    }
-
-    private static List<JsonObject> ReadItems(JsonObject prepared)
-    {
-        return prepared["items"]?.AsArray()
-            .Select(node => node?.DeepClone().AsObject())
-            .Where(item => item is not null)
-            .Cast<JsonObject>()
-            .ToList()
-            ?? [];
-    }
-
-    private static string[] ReadFailures(JsonObject prepared)
-    {
-        return prepared["failures"]?.AsArray()
-            .Select(node => node?.GetValue<string>() ?? "")
-            .Where(value => !string.IsNullOrWhiteSpace(value))
-            .ToArray()
-            ?? [];
-    }
-
-    private static string BuildFailureMessage(string[] failures)
-    {
-        if (failures.Length == 0)
-        {
-            return "No usable cases were prepared. Try broader filters or a different request.";
-        }
-        return "No usable cases were prepared." + Environment.NewLine + Environment.NewLine + string.Join(Environment.NewLine, failures);
-    }
-
     private void RefreshDiagnostics()
     {
         try
@@ -644,22 +598,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void SelectTab(MainTab tab)
     {
         MainTabs.SelectedIndex = (int)tab;
-    }
-
-    private static string BuildRequestSummary(IReadOnlyCollection<CaseRequestRow> rows, int preparedCount)
-    {
-        return $"{rows.Count} row(s), {preparedCount} prepared case(s)";
-    }
-
-    private static string BuildExportSummary(IReadOnlyCollection<JsonObject> approvedItems)
-    {
-        var weakCases = approvedItems.Count(item =>
-        {
-            var warnings = item["caseData"]?["quality"]?["warnings"]?.AsArray();
-            return warnings is { Count: > 0 };
-        });
-        var imageCount = approvedItems.Sum(item => item["caseData"]?["images"]?.AsArray().Count ?? 0);
-        return $"Export summary: {approvedItems.Count} case(s), {imageCount} selected image(s), {weakCases} case(s) with quality warning(s).";
     }
 
     private static void SetCheckBox(System.Windows.Controls.CheckBox checkBox, IReadOnlyDictionary<string, string> values, string key)
@@ -729,14 +667,15 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         return $"{value:0.##} {units[unit]}";
     }
 
-    private void SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+    private void BackendHealth_StatusChanged(object? sender, string message)
     {
-        if (EqualityComparer<T>.Default.Equals(field, value))
-        {
-            return;
-        }
+        Dispatcher.BeginInvoke(() => StatusText = message);
+    }
 
-        field = value;
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    protected override async void OnClosed(EventArgs e)
+    {
+        await _healthMonitor.StopAsync();
+        _healthMonitor.Dispose();
+        base.OnClosed(e);
     }
 }

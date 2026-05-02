@@ -47,6 +47,13 @@ flowchart LR
 
 Long-running work is wrapped by `AppJobRunner`, which keeps the main window responsive and exposes cancellation.
 
+The C# app is moving toward MVVM rather than putting every decision in `MainWindow.xaml.cs`:
+
+- `MainWindowViewModel.cs` owns main-window request state, PowerPoint setting snapshots, request summaries, and prepare payload creation.
+- `CaseLibraryViewModel.cs` owns the local case-library list state.
+- `BackendContracts.cs` centralizes JSON payload construction and response reading at the C# to Node boundary.
+- `BackendHealthMonitor.cs` periodically pings the local Node service when it is idle and restarts it with a visible status message if the service dies.
+
 ### BackendClient
 
 `BackendClient.cs` is the C# boundary to Node. It:
@@ -57,6 +64,7 @@ Long-running work is wrapped by `AppJobRunner`, which keeps the main window resp
 - parses structured backend events and sends them to the UI/activity log
 - logs long-running reminders when backend jobs keep working without returning yet
 - restarts or kills the Node service process on cancellation or protocol failure
+- exposes lightweight health pings for the local watchdog
 
 The older one-shot process path remains only as a compatibility/developer fallback. Normal GUI work should use the service because review actions are much faster without repeated Node startup.
 
@@ -85,7 +93,10 @@ Important Node modules:
 
 - `src/radiopaedia-client.mjs`: HTTP, downloads, and fetch cache
 - `src/providers/radiopaedia-provider.mjs`: provider seam for Radiopaedia-specific IO
-- `src/radiopaedia.mjs`: search, random selection, case assembly, patient info, and image preparation
+- `src/radiopaedia.mjs`: compact Radiopaedia facade that orchestrates fallback candidate attempts
+- `src/radiopaedia-search.mjs`: search URL construction, search-result parsing, random selection, indexed-random reuse, and random-history expansion
+- `src/radiopaedia-case-fetch.mjs`: case page loading, study/image loading, image candidate preparation, attribution metadata, and final case assembly
+- `src/radiopaedia-case-text.mjs`: patient demographic extraction, intro prompts, diagnosis redaction, and teaching-point text
 - `src/image-candidates.mjs`: image-candidate scoring and selection
 - `src/focus-crop.mjs`: image focus cropping and focus-ring overlays
 - `src/ollama-review.mjs`: optional local vision-model scoring
@@ -185,7 +196,9 @@ Review-window cancellation:
 
 ## Database Migrations
 
-Both C# and Node record additive schema migrations in `schema_migrations`. Prefer forward-only, additive migrations so existing local databases continue opening after app updates.
+Both C# and Node record additive schema migrations in `schema_migrations`. C# owns the desktop UI tables and Node owns backend/cache/index tables, but both record their applied schema version in the same database so local upgrades are diagnosable.
+
+Prefer forward-only, additive migrations so existing local databases continue opening after app updates. When a table is shared across C# diagnostics and Node writes, keep the table shape aligned in both schema bootstraps so the Activity tab reflects the real backend state.
 
 The Activity tab exposes maintenance actions for diagnostics, scratch/cache cleanup, and SQLite optimization.
 
@@ -193,4 +206,4 @@ The Activity tab exposes maintenance actions for diagnostics, scratch/cache clea
 
 JSON contracts live in `src/contracts`. Tests under `tests/contract-schemas.test.mjs` validate representative C# payloads and Node outputs.
 
-When changing the C# to Node boundary, update both the schema and tests in the same commit.
+When changing the C# to Node boundary, update the JSON schema, the C# helpers in `BackendContracts.cs`, and the Node contract tests in the same commit.

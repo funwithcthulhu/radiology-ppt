@@ -240,6 +240,7 @@ public sealed class AppStorage
             ["core_sources"] = Count(connection, "core_sources"),
             ["random_history"] = Count(connection, "random_history"),
             ["backend_cache"] = Count(connection, "backend_cache"),
+            ["case_index"] = Count(connection, "case_index"),
             ["case_decisions"] = Count(connection, "case_decisions"),
             ["image_decisions"] = Count(connection, "image_decisions"),
             ["schema_migrations"] = Count(connection, "schema_migrations"),
@@ -808,6 +809,25 @@ public sealed class AppStorage
             count INTEGER NOT NULL DEFAULT 1,
             UNIQUE(case_path, frame_id, url, decision)
         );
+
+        CREATE TABLE IF NOT EXISTS case_index (
+            case_path TEXT PRIMARY KEY,
+            case_title TEXT NOT NULL DEFAULT '',
+            case_url TEXT NOT NULL DEFAULT '',
+            display_url TEXT NOT NULL DEFAULT '',
+            diagnosis_query TEXT NOT NULL DEFAULT '',
+            study_hint TEXT NOT NULL DEFAULT '',
+            modality_summary TEXT NOT NULL DEFAULT '',
+            systems_json TEXT NOT NULL DEFAULT '[]',
+            selected_image_count INTEGER NOT NULL DEFAULT 0,
+            candidate_image_count INTEGER NOT NULL DEFAULT 0,
+            strong_image_count INTEGER NOT NULL DEFAULT 0,
+            quality_score REAL NOT NULL DEFAULT 0,
+            quality_summary TEXT NOT NULL DEFAULT '',
+            source TEXT NOT NULL DEFAULT 'prepare',
+            last_prepared_at TEXT NOT NULL DEFAULT '',
+            prepared_count INTEGER NOT NULL DEFAULT 1
+        );
         """;
 
     private static readonly StorageMigration[] StorageMigrations =
@@ -831,6 +851,32 @@ public sealed class AppStorage
             "Persist image-selection audit metadata for candidate debugging.",
             """
             ALTER TABLE image_candidates ADD COLUMN audit_json TEXT NOT NULL DEFAULT '';
+            """)
+        ,
+        new(
+            "csharp-003-case-index-parity",
+            "Mirror the Node prepared-case index table in the C# schema.",
+            """
+            CREATE TABLE IF NOT EXISTS case_index (
+                case_path TEXT PRIMARY KEY,
+                case_title TEXT NOT NULL DEFAULT '',
+                case_url TEXT NOT NULL DEFAULT '',
+                display_url TEXT NOT NULL DEFAULT '',
+                diagnosis_query TEXT NOT NULL DEFAULT '',
+                study_hint TEXT NOT NULL DEFAULT '',
+                modality_summary TEXT NOT NULL DEFAULT '',
+                systems_json TEXT NOT NULL DEFAULT '[]',
+                selected_image_count INTEGER NOT NULL DEFAULT 0,
+                candidate_image_count INTEGER NOT NULL DEFAULT 0,
+                strong_image_count INTEGER NOT NULL DEFAULT 0,
+                quality_score REAL NOT NULL DEFAULT 0,
+                quality_summary TEXT NOT NULL DEFAULT '',
+                source TEXT NOT NULL DEFAULT 'prepare',
+                last_prepared_at TEXT NOT NULL DEFAULT '',
+                prepared_count INTEGER NOT NULL DEFAULT 1
+            );
+            CREATE INDEX IF NOT EXISTS idx_case_index_quality_csharp ON case_index(quality_score DESC, selected_image_count DESC);
+            CREATE INDEX IF NOT EXISTS idx_case_index_prepared_csharp ON case_index(prepared_count ASC, last_prepared_at ASC);
             """)
     ];
 }

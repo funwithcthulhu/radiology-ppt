@@ -112,10 +112,13 @@ If a review action hangs, use `Cancel Action` in the review window. If the large
 
 The primary GUI is a native Windows C# WPF app. The Radiopaedia/PowerPoint backend is Node so the app can keep the working search, image-selection, caching, PDF-ingestion, focus-crop, and PowerPoint-generation engine without any Python runtime.
 
-- `csharp\RadiologyPpt.App`: WPF desktop UI, review flow, settings, and app orchestration
+- `csharp\RadiologyPpt.App`: WPF desktop UI, review flow, settings, app orchestration, and view models
 - `csharp\RadiologyPpt.App\AppStorage.cs`: local SQLite storage for settings, review sessions, image candidates, generated PowerPoints, diagnostics, and Core Boards import metadata
 - `csharp\RadiologyPpt.App\AppJobRunner.cs`: cancellable background-task coordinator for long GUI workflows
+- `csharp\RadiologyPpt.App\BackendContracts.cs`: centralized C# payload builders/readers for the Node JSON contract
+- `csharp\RadiologyPpt.App\BackendHealthMonitor.cs`: local backend watchdog that pings and restarts the Node service if it dies
 - `csharp\RadiologyPpt.App\CaseLibraryViewModel.cs`: local case-library list state
+- `csharp\RadiologyPpt.App\MainWindowViewModel.cs`: main-window request/settings state and payload preparation
 - `csharp\RadiologyPpt.App\PowerPointResultParser.cs`: parsing for backend PowerPoint output summaries
 - `src/backend-service.mjs`: persistent JSONL backend service used by the GUI
 - `src/cli.mjs`: thin internal/developer backend entrypoint
@@ -124,7 +127,10 @@ The primary GUI is a native Windows C# WPF app. The Radiopaedia/PowerPoint backe
 - `src/request-parser.mjs`: diagnosis, random/category, modality, and filter parsing
 - `src/radiopaedia-client.mjs`: Radiopaedia HTTP/download helpers and persistent fetch cache
 - `src/providers/radiopaedia-provider.mjs`: provider seam for Radiopaedia-specific IO
-- `src/radiopaedia.mjs`: case search, case assembly, patient data, and teaching text
+- `src/radiopaedia.mjs`: small Radiopaedia case orchestration/fallback facade
+- `src/radiopaedia-search.mjs`: search URLs, result parsing, random selection, and random-history expansion
+- `src/radiopaedia-case-fetch.mjs`: case-page assembly, study/image loading, image preparation, and attribution metadata
+- `src/radiopaedia-case-text.mjs`: patient data, intro text, prompt redaction, and teaching-point generation
 - `src/focus-crop.mjs`: Node image focus-crop and optional focus-ring rendering
 - `src/image-candidates.mjs`: frame candidate extraction, relevance scoring, and selection
 - `src/ollama-review.mjs`: optional local Ollama vision-model scoring
