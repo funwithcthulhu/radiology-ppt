@@ -3,6 +3,7 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
+import { cachedValue } from "./cache-store.mjs";
 
 export const BASE_URL = "https://radiopaedia.org";
 export const IMAGE_BASE_URL = "https://prod-images-static.radiopaedia.org/images";
@@ -11,6 +12,7 @@ export const RESOURCE_ROOT =
 export const APP_ROOT = process.env.RADIOLOGY_PPT_APP_ROOT || RESOURCE_ROOT;
 
 const execFileAsync = promisify(execFile);
+const HTTP_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const REQUEST_HEADERS = {
   "accept": "text/html,application/xhtml+xml",
   "accept-language": "en-US,en;q=0.9",
@@ -73,15 +75,23 @@ export async function fetchText(url, extraHeaders = {}, attempt = 1) {
     return TEXT_CACHE.get(cacheKey);
   }
 
-  const { stdout } = await execFileAsync("curl.exe", buildCurlArgs(url, extraHeaders), {
-    maxBuffer: 50 * 1024 * 1024,
-  });
-  if (looksLikeInterstitial(stdout) && attempt < 3) {
-    await sleep(350 * attempt);
-    return fetchText(url, extraHeaders, attempt + 1);
-  }
-  TEXT_CACHE.set(cacheKey, stdout);
-  return stdout;
+  const body = await cachedValue(
+    "http-text",
+    { url, extraHeaders },
+    async () => {
+      const { stdout } = await execFileAsync("curl.exe", buildCurlArgs(url, extraHeaders), {
+        maxBuffer: 50 * 1024 * 1024,
+      });
+      if (looksLikeInterstitial(stdout) && attempt < 3) {
+        await sleep(350 * attempt);
+        return fetchText(url, extraHeaders, attempt + 1);
+      }
+      return stdout;
+    },
+    { ttlMs: HTTP_CACHE_TTL_MS },
+  );
+  TEXT_CACHE.set(cacheKey, body);
+  return body;
 }
 
 export async function fetchJson(url, extraHeaders = {}, attempt = 1) {
