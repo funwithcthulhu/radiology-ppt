@@ -322,6 +322,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 return;
             }
 
+            AppendLog(BuildExportSummary(reviewWindow.ApprovedItems));
+
             var stdout = await _jobs.RunAsync(
                 "Creating PowerPoint...",
                 OnJobChanged,
@@ -556,6 +558,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void AppendLog(string message)
     {
+        _storage.RecordEvent("info", "Activity", message);
         Dispatcher.BeginInvoke(() =>
         {
             ActivityLogBox.AppendText($"[{DateTime.Now:HH:mm:ss}] {message}{Environment.NewLine}");
@@ -646,6 +649,17 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private static string BuildRequestSummary(IReadOnlyCollection<CaseRequestRow> rows, int preparedCount)
     {
         return $"{rows.Count} row(s), {preparedCount} prepared case(s)";
+    }
+
+    private static string BuildExportSummary(IReadOnlyCollection<JsonObject> approvedItems)
+    {
+        var weakCases = approvedItems.Count(item =>
+        {
+            var warnings = item["caseData"]?["quality"]?["warnings"]?.AsArray();
+            return warnings is { Count: > 0 };
+        });
+        var imageCount = approvedItems.Sum(item => item["caseData"]?["images"]?.AsArray().Count ?? 0);
+        return $"Export summary: {approvedItems.Count} case(s), {imageCount} selected image(s), {weakCases} case(s) with quality warning(s).";
     }
 
     private static void SetCheckBox(System.Windows.Controls.CheckBox checkBox, IReadOnlyDictionary<string, string> values, string key)

@@ -5,6 +5,8 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json.Nodes;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
 
 namespace RadiologyPpt.App;
 
@@ -66,6 +68,7 @@ public partial class CaseReviewWindow : Window
         ProgressTitle.Text = $"Case Review {_currentIndex + 1} of {_items.Count}";
         CaseTitle.Text = TextValue(caseData, "caseTitle", "Prepared case");
         CaseIntro.Text = TextValue(caseData, "caseIntro", "Review the images, then keep, re-pick, reroll, or skip this case.");
+        QualityBadge.Text = BuildQualityBadge(caseData);
         DetailsBox.Text = BuildDetailsText(item);
 
         Images.Clear();
@@ -229,6 +232,57 @@ public partial class CaseReviewWindow : Window
     {
         DialogResult = false;
         Close();
+    }
+
+    private void Window_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.OriginalSource is TextBox or ComboBox)
+        {
+            return;
+        }
+
+        if (_actionCancellation is not null)
+        {
+            if (e.Key == Key.Escape)
+            {
+                CancelAction_Click(sender, e);
+                e.Handled = true;
+            }
+            return;
+        }
+
+        switch (e.Key)
+        {
+            case Key.K:
+            case Key.Enter:
+                KeepNext_Click(sender, e);
+                e.Handled = true;
+                break;
+            case Key.F:
+                FavoriteNext_Click(sender, e);
+                e.Handled = true;
+                break;
+            case Key.S:
+                Skip_Click(sender, e);
+                e.Handled = true;
+                break;
+            case Key.R:
+                Reroll_Click(sender, e);
+                e.Handled = true;
+                break;
+            case Key.I:
+                Repick_Click(sender, e);
+                e.Handled = true;
+                break;
+            case Key.Delete:
+                RemoveUnchecked_Click(sender, e);
+                e.Handled = true;
+                break;
+            case Key.Escape:
+                CancelReview_Click(sender, e);
+                e.Handled = true;
+                break;
+        }
     }
 
     private async Task ReplaceImagesAsync(bool excludeCurrentImages, bool replaceUncheckedOnly)
@@ -431,6 +485,21 @@ public partial class CaseReviewWindow : Window
         builder.AppendLine("Prompt:");
         builder.AppendLine(TextValue(caseData, "promptText", ""));
         return builder.ToString();
+    }
+
+    private static string BuildQualityBadge(JsonObject? caseData)
+    {
+        var quality = caseData?["quality"]?.AsObject();
+        var summary = TextValue(quality, "summary", "");
+        if (string.IsNullOrWhiteSpace(summary))
+        {
+            return "";
+        }
+
+        var warningCount = quality?["warnings"]?.AsArray().Count ?? 0;
+        return warningCount > 0
+            ? $"Quality: review carefully - {summary}"
+            : $"Quality: {summary}";
     }
 
     private static string BuildImageCaption(JsonObject image)

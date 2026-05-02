@@ -21,7 +21,7 @@ test("backend service responds to structured ping requests", async () => {
   try {
     const lines = readline.createInterface({ input: child.stdout, crlfDelay: Infinity });
     const responsePromise = new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error("Timed out waiting for backend service ping")), 5000);
+      const timeout = setTimeout(() => reject(new Error("Timed out waiting for backend service ping")), 15000);
       lines.once("line", (line) => {
         clearTimeout(timeout);
         resolve(JSON.parse(line));

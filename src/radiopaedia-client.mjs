@@ -19,6 +19,35 @@ const REQUEST_HEADERS = {
   "user-agent": "Mozilla/5.0",
 };
 const TEXT_CACHE = new Map();
+const HTTP_CONCURRENCY = boundedInteger(process.env.RADIOLOGY_PPT_HTTP_CONCURRENCY, 4, 1, 12);
+let activeHttpRequests = 0;
+const httpQueue = [];
+
+function boundedInteger(rawValue, defaultValue, minimum, maximum) {
+  const parsed = Number.parseInt(rawValue ?? "", 10);
+  if (!Number.isInteger(parsed)) {
+    return defaultValue;
+  }
+
+  return Math.max(minimum, Math.min(maximum, parsed));
+}
+
+async function withHttpSlot(action) {
+  if (activeHttpRequests >= HTTP_CONCURRENCY) {
+    await new Promise((resolve) => httpQueue.push(resolve));
+  }
+
+  activeHttpRequests += 1;
+  try {
+    return await action();
+  } finally {
+    activeHttpRequests -= 1;
+    const next = httpQueue.shift();
+    if (next) {
+      next();
+    }
+  }
+}
 
 export function absoluteUrl(value) {
   if (!value) {
@@ -60,6 +89,18 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function curlWithRetries(args, options, attempt = 1) {
+  try {
+    return await withHttpSlot(() => execFileAsync("curl.exe", args, options));
+  } catch (error) {
+    if (attempt >= 3) {
+      throw error;
+    }
+    await sleep(400 * attempt);
+    return curlWithRetries(args, options, attempt + 1);
+  }
+}
+
 export async function fileExists(filePath) {
   try {
     await fs.access(filePath);
@@ -79,7 +120,7 @@ export async function fetchText(url, extraHeaders = {}, attempt = 1) {
     "http-text",
     { url, extraHeaders },
     async () => {
-      const { stdout } = await execFileAsync("curl.exe", buildCurlArgs(url, extraHeaders), {
+      const { stdout } = await curlWithRetries(buildCurlArgs(url, extraHeaders), {
         maxBuffer: 50 * 1024 * 1024,
       });
       if (looksLikeInterstitial(stdout) && attempt < 3) {
@@ -117,7 +158,7 @@ export async function downloadFile(url, filePath) {
   }
 
   await fs.mkdir(path.dirname(filePath), { recursive: true });
-  await execFileAsync("curl.exe", buildCurlArgs(url, {}, filePath), {
+  await curlWithRetries(buildCurlArgs(url, {}, filePath), {
     maxBuffer: 10 * 1024 * 1024,
   });
   return filePath;
