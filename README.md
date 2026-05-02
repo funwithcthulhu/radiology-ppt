@@ -100,7 +100,7 @@ If a review action hangs, use `Cancel Action` in the review window. If the large
 
 ## Architecture
 
-The primary GUI is a native Windows C# WPF app. The Radiopaedia/PowerPoint backend remains Node so the migration can keep the working search, image-selection, caching, and PowerPoint-generation engine.
+The primary GUI is a native Windows C# WPF app. The Radiopaedia/PowerPoint backend is Node so the app can keep the working search, image-selection, caching, PDF-ingestion, focus-crop, and PowerPoint-generation engine without any Python runtime.
 
 - `csharp\RadiologyPpt.App`: WPF desktop UI, review flow, settings, and app orchestration
 - `csharp\RadiologyPpt.App\AppStorage.cs`: local SQLite storage for settings, review sessions, image candidates, generated PowerPoints, diagnostics, and Core Boards import metadata
@@ -110,12 +110,12 @@ The primary GUI is a native Windows C# WPF app. The Radiopaedia/PowerPoint backe
 - `src/request-parser.mjs`: diagnosis, random/category, modality, and filter parsing
 - `src/radiopaedia-client.mjs`: Radiopaedia HTTP/download helpers and persistent fetch cache
 - `src/radiopaedia.mjs`: case search, case assembly, patient data, and teaching text
+- `src/focus-crop.mjs`: Node image focus-crop and optional focus-ring rendering
 - `src/image-candidates.mjs`: frame candidate extraction, relevance scoring, and selection
 - `src/ollama-review.mjs`: optional local Ollama vision-model scoring
 - `src/cache-store.mjs`: persistent JSON metadata cache
+- `src/core_review/pdf-ingest.mjs`: Node PDF text/page/image ingestion for local Core Boards sources
 - `src/deck.mjs`: PowerPoint rendering
-
-Legacy `gui_app.py` is still present for reference during the migration, but normal use should go through the C# app and desktop shortcut.
 
 ## Developer Setup
 
@@ -124,6 +124,7 @@ Prerequisites:
 - .NET 8 SDK / Windows Desktop runtime
 - Node.js with dependencies installed by `npm install`
 - PowerShell for the Windows build and shortcut scripts
+- No Python runtime is required.
 
 Build and refresh the packaged desktop app:
 

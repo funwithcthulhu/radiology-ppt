@@ -5,28 +5,14 @@ $desktopPath = [Environment]::GetFolderPath("Desktop")
 $shortcutPath = Join-Path $desktopPath "Radiopaedia Case PowerPoint Builder.lnk"
 $csharpExe = Join-Path $projectRoot "dist\Radiopaedia Case PowerPoint Builder\Radiopaedia Case PowerPoint Builder.exe"
 
-if (Test-Path $csharpExe) {
-  $targetPath = $csharpExe
-  $arguments = ""
-  $workingDirectory = Split-Path -Parent $csharpExe
-  $iconLocation = "$csharpExe,0"
-} else {
-  $pythonwCommand = Get-Command pythonw -ErrorAction SilentlyContinue
-  $pythonw = if ($pythonwCommand) { $pythonwCommand.Source } else { $null }
-  if (-not $pythonw) {
-    $pythonCommand = Get-Command python -ErrorAction SilentlyContinue
-    $pythonw = if ($pythonCommand) { $pythonCommand.Source } else { $null }
-  }
-
-  if (-not $pythonw) {
-    throw "Python was not found. Install Python or build the packaged app first."
-  }
-
-  $targetPath = $pythonw
-  $arguments = "`"$projectRoot\gui_app.py`""
-  $workingDirectory = $projectRoot
-  $iconLocation = "$pythonw,0"
+if (-not (Test-Path $csharpExe)) {
+  throw "Packaged C# app was not found. Run build-csharp-app.ps1 first: $csharpExe"
 }
+
+$targetPath = $csharpExe
+$arguments = ""
+$workingDirectory = Split-Path -Parent $csharpExe
+$iconLocation = "$csharpExe,0"
 
 $shell = New-Object -ComObject WScript.Shell
 $shortcut = $shell.CreateShortcut($shortcutPath)

@@ -12,6 +12,34 @@ import {
   normalizeCoreReviewDomain,
   scoreCoreReviewAnswer,
 } from "../src/core_review/index.mjs";
+import { ingestCoreReviewPdfs } from "../src/core_review/pdf-ingest.mjs";
+
+function tinyPdfBuffer(text) {
+  const escaped = String(text).replace(/[()\\]/g, "\\$&");
+  const stream = `BT /F1 24 Tf 72 720 Td (${escaped}) Tj ET`;
+  const objects = [
+    "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
+    "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n",
+    "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n",
+    "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n",
+    `5 0 obj\n<< /Length ${Buffer.byteLength(stream, "ascii")} >>\nstream\n${stream}\nendstream\nendobj\n`,
+  ];
+
+  let body = "%PDF-1.4\n";
+  const offsets = [];
+  for (const object of objects) {
+    offsets.push(Buffer.byteLength(body, "ascii"));
+    body += object;
+  }
+  const xrefStart = Buffer.byteLength(body, "ascii");
+  body += `xref\n0 ${objects.length + 1}\n`;
+  body += "0000000000 65535 f \n";
+  for (const offset of offsets) {
+    body += `${String(offset).padStart(10, "0")} 00000 n \n`;
+  }
+  body += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF\n`;
+  return Buffer.from(body, "ascii");
+}
 
 test("normalizes Core Review schema aliases", () => {
   const summary = coreReviewSchemaSummary();
@@ -40,6 +68,27 @@ test("chunks and ingests user-provided Core Review notes", async () => {
   assert.equal(corpus.sourceCount, 1);
   assert.equal(corpus.sources[0].domain, "msk");
   assert.ok(corpus.chunkCount >= 1);
+  assert.ok(await fs.stat(outputPath));
+});
+
+test("ingests Core Review PDFs through the Node backend", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "core-review-pdf-ingest-"));
+  const pdfPath = path.join(tempDir, "msk.pdf");
+  const outputPath = path.join(tempDir, "pdf-corpus.json");
+  await fs.writeFile(pdfPath, tinyPdfBuffer("Rotator cuff tear"));
+
+  const corpus = await ingestCoreReviewPdfs([pdfPath], {
+    outputPath,
+    domain: "msk",
+    noRenderPages: true,
+    noExtractImages: true,
+    noCopySource: true,
+  });
+
+  assert.equal(corpus.sourceCount, 1);
+  assert.equal(corpus.sources[0].sourceType, "pdf");
+  assert.equal(corpus.sources[0].domain, "msk");
+  assert.ok(corpus.chunks.some((chunk) => /Rotator cuff tear/.test(chunk.text)));
   assert.ok(await fs.stat(outputPath));
 });
 

@@ -4,5 +4,9 @@
   "type": "module",
   "scripts": {
     "test": "node --test"
+  },
+  "dependencies": {
+    "pdf-parse": "^2.4.5",
+    "sharp": "^0.34.5"
   }
 }

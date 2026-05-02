@@ -54,7 +54,7 @@ radiology residents and should cover the broad diagnostic radiology curriculum.
 - Refresh the desktop shortcut with `create-desktop-shortcut.ps1`.
 - The packaged app path remains `dist/Radiopaedia Case PowerPoint Builder/Radiopaedia Case PowerPoint Builder.exe`.
 - The WPF main/review windows should clamp to the visible Windows work area so title bars do not open above the screen on scaled displays.
-- `gui_app.py` is legacy/reference during migration unless the user explicitly asks to work on the old Python GUI.
+- The remaining app architecture is C# WPF plus Node backend; the old Python GUI and helper scripts have been removed.
 
 ## Core Boards Requirements
 
@@ -79,7 +79,7 @@ The Core Boards module should support:
 
 ## Implemented During Core Boards Work
 
-- Added visible `Core Boards` navigation and tab in `gui_app.py`.
+- Added visible `Core Boards` navigation and tab in the C# WPF app.
 - Keep user-facing wording simple and prefer `PowerPoint` over unexplained `deck` language.
 - Added Core Boards PDF import controls in the GUI:
   - domain selector
@@ -91,14 +91,14 @@ The Core Boards module should support:
 - Added source ingestion in `src/core_review/ingest.mjs`.
 - Added quiz/session/scoring logic in `src/core_review/quiz.mjs`.
 - Added exports in `src/core_review/index.mjs`.
-- Added PDF ingestion helper: `scripts/core_review_pdf_ingest.py`.
+- Added PDF ingestion helper: `src/core_review/pdf-ingest.mjs`.
 - Added example question bank: `examples/core-review-question-bank.example.json`.
 - Added CLI commands:
   - `--core-review-schema`
   - `--core-review-ingest`
   - `--core-review-ingest-pdf`
   - `--core-review-quiz`
-- Updated `build-windows-app.ps1` so packaged builds can include `core_review_pdf_ingest.exe`.
+- Removed the legacy Python package path; packaged builds use `build-csharp-app.ps1`.
 - Updated deck generation so `Core Review` mode can produce a Core Review teaching slide.
 - Added compact-first Ollama vision model auto-detection in `src/ollama-review.mjs`:
   prefer `moondream`, then `minicpm`, then Qwen-VL/LLaVA/BakLLaVA/generic vision models.
@@ -121,10 +121,11 @@ The Core Boards module should support:
 From the repo root on 2026-05-01:
 
 ```powershell
-python.exe -m py_compile gui_app.py scripts\focus_crop.py scripts\core_review_pdf_ingest.py
 node.exe --check src\cli.mjs
 node.exe --check src\deck.mjs
 node.exe --check src\radiopaedia.mjs
+node.exe --check src\focus-crop.mjs
+node.exe --check src\core_review\pdf-ingest.mjs
 node.exe --check src\core_review\index.mjs
 node.exe --check src\core_review\ingest.mjs
 node.exe --check src\core_review\quiz.mjs

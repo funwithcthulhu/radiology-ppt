@@ -1,8 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { buildDeck } from "./deck.mjs";
 import {
   buildCoreReviewQuizSession,
@@ -11,6 +9,7 @@ import {
   loadCoreReviewQuestionBank,
   renderCoreReviewQuizText,
 } from "./core_review/index.mjs";
+import { ingestCoreReviewPdfs } from "./core_review/pdf-ingest.mjs";
 import {
   expandCaseRequests,
   fetchRadiopaediaCase,
@@ -23,10 +22,6 @@ import { collapseWhitespace, formatTimestamp, slugify } from "./utils.mjs";
 const RESOURCE_ROOT =
   process.env.RADIOLOGY_PPT_RESOURCE_ROOT || path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const APP_ROOT = process.env.RADIOLOGY_PPT_APP_ROOT || RESOURCE_ROOT;
-const CORE_REVIEW_PDF_INGEST_SCRIPT = path.join(RESOURCE_ROOT, "scripts", "core_review_pdf_ingest.py");
-const CORE_REVIEW_PDF_INGEST_EXE = path.join(APP_ROOT, "scripts", "core_review_pdf_ingest.exe");
-const execFileAsync = promisify(execFile);
-let PYTHON_RUNTIME_PROMISE = null;
 
 function usage() {
   return [
@@ -220,6 +215,15 @@ function parseArgs(argv) {
       index += 1;
       continue;
     }
+    if (arg === "--max-chars") {
+      const value = Number.parseInt(argv[index + 1] ?? "", 10);
+      if (!Number.isInteger(value) || value < 200) {
+        throw new Error("--max-chars must be an integer of at least 200");
+      }
+      args.maxChars = value;
+      index += 1;
+      continue;
+    }
     if (arg === "--no-render-pages") {
       args.noRenderPages = true;
       continue;
@@ -289,42 +293,6 @@ function parseArgs(argv) {
   }
 
   return args;
-}
-
-async function pythonRuntime() {
-  if (!PYTHON_RUNTIME_PROMISE) {
-    PYTHON_RUNTIME_PROMISE = (async () => {
-      const candidates = [
-        process.env.RADIOLOGY_PPT_PYTHON ? { command: process.env.RADIOLOGY_PPT_PYTHON, prefixArgs: [] } : null,
-        process.env.PYTHON ? { command: process.env.PYTHON, prefixArgs: [] } : null,
-        { command: "python", prefixArgs: [] },
-        { command: "py", prefixArgs: ["-3"] },
-      ].filter(Boolean);
-
-      for (const candidate of candidates) {
-        try {
-          await execFileAsync(candidate.command, [...candidate.prefixArgs, "--version"], {
-            timeout: 8000,
-          });
-          return candidate;
-        } catch {
-          // try the next local runtime
-        }
-      }
-      return null;
-    })();
-  }
-
-  return PYTHON_RUNTIME_PROMISE;
-}
-
-async function fileExists(filePath) {
-  try {
-    await fs.access(filePath);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 async function loadEntries(inputPath) {
@@ -628,59 +596,30 @@ async function runCoreReviewIngestPdf(inputPaths, args) {
   const outputPath = path.resolve(
     args.out || path.join(APP_ROOT, "library", "board-review", "pdf-corpus.json"),
   );
-  const hasBundledHelper = await fileExists(CORE_REVIEW_PDF_INGEST_EXE);
-  const runtime = hasBundledHelper ? null : await pythonRuntime();
-  if (!hasBundledHelper && !runtime) {
-    throw new Error("No Python runtime was found for Core Review PDF ingestion.");
-  }
-
-  const command = hasBundledHelper ? CORE_REVIEW_PDF_INGEST_EXE : runtime.command;
-  const commandArgs = hasBundledHelper
-    ? [...inputPaths]
-    : [...runtime.prefixArgs, CORE_REVIEW_PDF_INGEST_SCRIPT, ...inputPaths];
-
-  commandArgs.push("--out", outputPath, "--format", args.format || "json");
-
-  if (args.domain) {
-    commandArgs.push("--domain", args.domain);
-  }
-  if (Array.isArray(args.tags) && args.tags.length) {
-    commandArgs.push("--tags", ...args.tags);
-  }
-  if (args.title) {
-    commandArgs.push("--title", args.title);
-  }
-  if (args.sourceId) {
-    commandArgs.push("--source-id", args.sourceId);
-  }
-  if (args.assetsDir) {
-    commandArgs.push("--assets-dir", path.resolve(args.assetsDir));
-  }
-  if (args.sourcesDir) {
-    commandArgs.push("--sources-dir", path.resolve(args.sourcesDir));
-  }
-  if (args.dpi) {
-    commandArgs.push("--dpi", String(args.dpi));
-  }
-  if (args.noRenderPages) {
-    commandArgs.push("--no-render-pages");
-  }
-  if (args.noExtractImages) {
-    commandArgs.push("--no-extract-images");
-  }
-  if (args.noCopySource) {
-    commandArgs.push("--no-copy-source");
-  }
-
-  const { stdout, stderr } = await execFileAsync(command, commandArgs, {
-    maxBuffer: 200 * 1024 * 1024,
+  const corpus = await ingestCoreReviewPdfs(inputPaths, {
+    outputPath,
+    domain: args.domain || "",
+    tags: args.tags || [],
+    title: args.title || "",
+    sourceId: args.sourceId || "",
+    assetsDir: args.assetsDir ? path.resolve(args.assetsDir) : "",
+    sourcesDir: args.sourcesDir ? path.resolve(args.sourcesDir) : "",
+    dpi: args.dpi || 144,
+    maxChars: args.maxChars || 1600,
+    noRenderPages: Boolean(args.noRenderPages),
+    noExtractImages: Boolean(args.noExtractImages),
+    noCopySource: Boolean(args.noCopySource),
   });
-  if (stdout) {
-    process.stdout.write(stdout);
+
+  if (args.format === "text") {
+    console.log(`Created Core Review PDF corpus: ${outputPath}`);
+    console.log(`Sources: ${corpus.sourceCount}`);
+    console.log(`Assets: ${corpus.assetCount}`);
+    console.log(`Chunks: ${corpus.chunkCount}`);
+    return;
   }
-  if (stderr) {
-    process.stderr.write(stderr);
-  }
+
+  process.stdout.write(`${JSON.stringify(corpus, null, 2)}\n`);
 }
 
 async function runCoreReviewQuiz(questionBankPath, args) {

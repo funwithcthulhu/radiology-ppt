@@ -1,6 +1,6 @@
 ---
 name: radiology-ppt-github-workflow
-description: Use for the radiology-ppt repository when publishing, pushing, opening PRs, packaging the Windows desktop app, syncing from an older working copy, or avoiding generated artifact commits. Triggers on radiology-ppt, Radiopaedia Case PowerPoint Builder, PowerPoint builder, GitHub publish, package build, PyInstaller, or draft PR work for this project.
+description: Use for the radiology-ppt repository when publishing, pushing, opening PRs, packaging the Windows desktop app, syncing from an older working copy, or avoiding generated artifact commits. Triggers on radiology-ppt, Radiopaedia Case PowerPoint Builder, PowerPoint builder, GitHub publish, package build, C# desktop packaging, or draft PR work for this project.
 ---
 
 # Radiology PPT GitHub Workflow
@@ -18,8 +18,8 @@ description: Use for the radiology-ppt repository when publishing, pushing, open
 
 - Use PowerShell 7 for Windows-side work:
   `pwsh.exe -NoLogo -NoProfile -Command ...`
-- If native Windows command output behaves oddly from WSL-hosted PowerShell, use `cmd.exe /d /c ...` for `git.exe`, `gh.exe`, `node.exe`, and `python.exe` checks.
-- User PATH should include Git, Node, Python, and Codex `rg.exe`; refresh PowerShell PATH when needed:
+- If native Windows command output behaves oddly from WSL-hosted PowerShell, use `cmd.exe /d /c ...` for `git.exe`, `gh.exe`, and `node.exe` checks.
+- User PATH should include Git, Node, .NET, and Codex `rg.exe`; refresh PowerShell PATH when needed:
   `[Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [Environment]::GetEnvironmentVariable("Path", "User")`
 
 ## GitHub Publish Flow
@@ -42,6 +42,8 @@ npm.exe test
 node.exe --check src\cli.mjs
 node.exe --check src\deck.mjs
 node.exe --check src\radiopaedia.mjs
+node.exe --check src\focus-crop.mjs
+node.exe --check src\core_review\pdf-ingest.mjs
 node.exe --check src\utils.mjs
 git.exe push -u origin <branch>
 gh.exe pr create --repo funwithcthulhu/radiology-ppt --base main --head <branch> --draft
@@ -58,7 +60,6 @@ Keep these out of normal commits:
 - `scratch/`
 - `outputs/`
 - `cache/`
-- `__pycache__/`
 - `gui_state.json`
 - generated `.pptx`, logs, preview images, and temporary operator-test artifacts
 - `csharp/**/bin/`
@@ -68,8 +69,8 @@ The repo `.gitignore` already covers the main generated directories.
 
 ## Packaging Notes
 
-- Current primary desktop package is C# WPF. Build it with `build-csharp-app.ps1`.
-- `build-windows-app.ps1` is the older Python/Tkinter packaging path and should not be the default unless the user asks for legacy GUI work.
+- Current primary desktop package is C# WPF plus a Node backend. Build it with `build-csharp-app.ps1`.
+- There is no supported Python/Tkinter packaging path.
 - The packaged app lives under:
   `dist\Radiopaedia Case PowerPoint Builder\Radiopaedia Case PowerPoint Builder.exe`
 - Before rebuilding, close any running `Radiopaedia Case PowerPoint Builder` process.

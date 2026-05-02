@@ -1,7 +1,5 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import {
   cleanText,
   collapseWhitespace,
@@ -23,6 +21,7 @@ import {
   titleFromCasePath,
   tokenOverlapScore,
 } from "./request-parser.mjs";
+import { focusCropImage } from "./focus-crop.mjs";
 import {
   buildImageCandidates,
   evaluateSelectedImages,
@@ -35,17 +34,12 @@ import { readCacheEntry, writeCacheEntry } from "./cache-store.mjs";
 import {
   APP_ROOT,
   BASE_URL,
-  RESOURCE_ROOT,
   absoluteUrl,
   downloadFile,
   fetchJson,
   fetchText,
-  fileExists,
 } from "./radiopaedia-client.mjs";
 
-const FOCUS_CROP_SCRIPT = path.join(RESOURCE_ROOT, "scripts", "focus_crop.py");
-const FOCUS_CROP_EXE = path.join(APP_ROOT, "scripts", "focus_crop.exe");
-const execFileAsync = promisify(execFile);
 const RANDOM_HISTORY_LIMIT = 240;
 const RANDOM_HISTORY_PATH = path.join(APP_ROOT, "cache", "random-selection-history.json");
 const RANDOM_SEARCH_QUERY_LIMIT = 5;
@@ -53,7 +47,6 @@ const RANDOM_SEARCH_PAGE_LIMIT = 3;
 const RANDOM_CANDIDATE_REVIEW_LIMIT = 48;
 const RANDOM_SEARCH_TIME_LIMIT_MS = 45000;
 const CANDIDATE_BANK_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-let PYTHON_RUNTIME_PROMISE = null;
 
 
 async function loadRandomHistory(historyPath = RANDOM_HISTORY_PATH) {
@@ -95,33 +88,6 @@ export async function saveRandomHistory(casePaths, historyPath = RANDOM_HISTORY_
   );
 }
 
-async function pythonRuntime() {
-  if (!PYTHON_RUNTIME_PROMISE) {
-    PYTHON_RUNTIME_PROMISE = (async () => {
-      const candidates = [
-        process.env.PYTHON ? { command: process.env.PYTHON, prefixArgs: [] } : null,
-        { command: "python", prefixArgs: [] },
-        { command: "py", prefixArgs: ["-3"] },
-      ].filter(Boolean);
-
-      for (const candidate of candidates) {
-        try {
-          await execFileAsync(candidate.command, [...candidate.prefixArgs, "--version"], {
-            timeout: 8000,
-          });
-          return candidate;
-        } catch {
-          // try the next runtime
-        }
-      }
-
-      return null;
-    })();
-  }
-
-  return PYTHON_RUNTIME_PROMISE;
-}
-
 function shouldRememberRandomEntry(request) {
   return Boolean(
     request.originalInput ||
@@ -156,44 +122,11 @@ function licenseNameFromUrl(url) {
 }
 
 async function applyFocusCrop(imagePath, focusPoints, { cropMode = "default", markupStyle = "none" } = {}) {
-  const hasFocusPoints = Array.isArray(focusPoints) && focusPoints.length > 0;
-  const normalizedCropMode = canonicalCropMode(cropMode);
-  const normalizedMarkupStyle = canonicalMarkupStyle(markupStyle);
-  if (!hasFocusPoints) {
+  if (!Array.isArray(focusPoints) || !focusPoints.length) {
     return imagePath;
   }
-
-  const extension = path.extname(imagePath) || ".jpg";
-  const variant = [normalizedCropMode, normalizedMarkupStyle]
-    .filter((value) => value && value !== "default" && value !== "none")
-    .join("-");
-  const focusedPath = imagePath.replace(
-    new RegExp(`${extension.replace(".", "\\.")}$`),
-    `-focus${variant ? `-${variant}` : ""}${extension}`,
-  );
   try {
-    const args = [
-      imagePath,
-      focusedPath,
-      JSON.stringify(focusPoints),
-      JSON.stringify({
-        cropMode: normalizedCropMode,
-        markupStyle: normalizedMarkupStyle,
-      }),
-    ];
-    if (await fileExists(FOCUS_CROP_EXE)) {
-      await execFileAsync(FOCUS_CROP_EXE, args, { timeout: 20000 });
-      return focusedPath;
-    }
-
-    const runtime = await pythonRuntime();
-    if (!runtime) {
-      return imagePath;
-    }
-    await execFileAsync(runtime.command, [...runtime.prefixArgs, FOCUS_CROP_SCRIPT, ...args], {
-      timeout: 20000,
-    });
-    return focusedPath;
+    return await focusCropImage(imagePath, focusPoints, { cropMode, markupStyle });
   } catch {
     return imagePath;
   }

@@ -41,7 +41,7 @@ The system should support:
 - Added question-bank loading, validation, quiz-session assembly, answer scoring, and gold-marker scoring in `src/core_review/quiz.mjs`.
 - Added text/JSON source ingestion in `src/core_review/ingest.mjs`.
 - Added synthetic example question bank in `examples/core-review-question-bank.example.json`.
-- Added PDF ingestion script in `scripts/core_review_pdf_ingest.py`.
+- Added PDF ingestion in `src/core_review/pdf-ingest.mjs`.
 - Added CLI commands in `src/cli.mjs`:
   - `--core-review-schema`
   - `--core-review-ingest`
@@ -49,7 +49,7 @@ The system should support:
   - `--core-review-quiz`
 - Added `library/board-review/` to `.gitignore` so private PDFs, extracted page images, and generated corpora stay local.
 - Added `build-csharp-app.ps1` for the current C# desktop package.
-- Older `build-windows-app.ps1` remains relevant only to the legacy Python package path.
+- Removed the legacy Python/Tkinter package path; the supported app is C# WPF plus Node backend.
 
 ## PDF Ingestion Behavior
 
@@ -83,11 +83,12 @@ node.exe .\src\cli.mjs --core-review-ingest-pdf "C:\path\to\atlas.pdf" --out .\l
 
 ## Verification Already Run
 
-- `python.exe -m py_compile gui_app.py scripts\focus_crop.py scripts\core_review_pdf_ingest.py`
 - `node.exe --check src\cli.mjs`
 - `node.exe --check src\deck.mjs`
 - `node.exe --check src\radiopaedia.mjs`
+- `node.exe --check src\focus-crop.mjs`
 - `node.exe --check src\utils.mjs`
+- `node.exe --check src\core_review\pdf-ingest.mjs`
 - `node.exe --check src\core_review\schema.mjs`
 - `node.exe --check src\core_review\ingest.mjs`
 - `node.exe --check src\core_review\quiz.mjs`

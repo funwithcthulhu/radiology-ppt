@@ -15,7 +15,7 @@ Use PowerShell 7 for Windows-side shell work by default:
 - Prefer `pwsh.exe -NoLogo -NoProfile -Command ...` for PowerShell commands.
 - Use Windows PowerShell only when a legacy Windows-only module or host behavior requires it.
 - If native Windows command output behaves oddly from WSL, use `cmd.exe /d /c ...` for
-  `git.exe`, `gh.exe`, `node.exe`, and `python.exe` checks.
+  `git.exe`, `gh.exe`, and `node.exe` checks.
 - Keep WSL/Linux commands explicit with `wsl.exe -d Ubuntu -- ...` when crossing into Ubuntu.
 
 ## Project Guardrails
