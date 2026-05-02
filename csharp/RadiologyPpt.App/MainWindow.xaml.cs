@@ -457,6 +457,25 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
     }
 
+    private void RunMaintenance_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var result = _storage.RunMaintenance();
+            AppendLog(
+                "Maintenance complete: " +
+                $"{result.Scratch.RemovedFiles} scratch file(s), " +
+                $"{result.Cache.RemovedFiles} old cache file(s), " +
+                $"database now {FormatBytes(result.DatabaseBytes)}.");
+            RefreshDiagnostics();
+        }
+        catch (Exception exception)
+        {
+            AppendLog(exception.ToString());
+            MessageBox.Show(this, exception.Message, Title, MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
     private GenerationSettings BuildSettings()
     {
         var imagesPerCase = 3;

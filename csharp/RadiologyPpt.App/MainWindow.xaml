@@ -232,6 +232,7 @@
                                 <TextBlock x:Name="DiagnosticsText" Text="Diagnostics have not been loaded yet." TextWrapping="Wrap" />
                                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
                                     <Button Content="Refresh Diagnostics" Click="RefreshDiagnostics_Click" />
+                                    <Button Content="Run Maintenance" Click="RunMaintenance_Click" />
                                     <Button Content="Clean Scratch" Click="CleanScratch_Click" />
                                     <Button Content="Clean Old Cache" Click="CleanOldCache_Click" />
                                     <Button Content="Open State Folder" Click="OpenStateFolder_Click" />

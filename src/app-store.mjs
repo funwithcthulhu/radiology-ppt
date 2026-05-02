@@ -72,6 +72,12 @@ async function withDb(callback) {
 
 function ensureSchema(db) {
   db.exec(`
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      migration_id TEXT PRIMARY KEY,
+      description TEXT NOT NULL,
+      applied_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS backend_cache (
       namespace TEXT NOT NULL,
       key_hash TEXT NOT NULL,
@@ -121,6 +127,15 @@ function ensureSchema(db) {
   ensureColumn(db, "random_history", "use_count", "INTEGER NOT NULL DEFAULT 1");
   ensureColumn(db, "case_decisions", "count", "INTEGER NOT NULL DEFAULT 1");
   ensureColumn(db, "image_decisions", "count", "INTEGER NOT NULL DEFAULT 1");
+  recordSchemaMigration(db, "node-001-backend-store", "Create Node backend cache/history/decision tables.");
+}
+
+function recordSchemaMigration(db, migrationId, description) {
+  db.prepare(`
+    INSERT INTO schema_migrations (migration_id, description, applied_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(migration_id) DO NOTHING;
+  `).run(migrationId, description, timestamp());
 }
 
 export async function readStoreCache(namespace, key, { ttlMs = 0, allowStale = false } = {}) {

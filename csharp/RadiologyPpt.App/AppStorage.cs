@@ -26,7 +26,8 @@ public sealed class AppStorage
         ExecuteNonQuery(connection, "PRAGMA journal_mode=WAL;");
         ExecuteNonQuery(connection, "PRAGMA foreign_keys=ON;");
         ExecuteNonQuery(connection, SchemaSql);
-        SaveMetadata("schema_version", "1");
+        ApplyMigrations(connection);
+        SaveMetadata("schema_version", StorageMigrations.Last().Id);
         MigrateRandomHistoryFromJson();
     }
 
@@ -241,6 +242,7 @@ public sealed class AppStorage
             ["backend_cache"] = Count(connection, "backend_cache"),
             ["case_decisions"] = Count(connection, "case_decisions"),
             ["image_decisions"] = Count(connection, "image_decisions"),
+            ["schema_migrations"] = Count(connection, "schema_migrations"),
             ["events"] = Count(connection, "app_events")
         };
 
@@ -265,6 +267,28 @@ public sealed class AppStorage
         return CleanDirectoryContents(
             Path.Combine(_appRoot, "cache"),
             file => file.LastWriteTimeUtc < cutoff.UtcDateTime);
+    }
+
+    public StorageMaintenanceResult RunMaintenance()
+    {
+        var scratchCutoff = DateTimeOffset.Now.Subtract(TimeSpan.FromDays(3));
+        var cacheCutoff = DateTimeOffset.Now.Subtract(TimeSpan.FromDays(30));
+        var scratch = CleanDirectoryContents(
+            Path.Combine(_appRoot, "scratch"),
+            file => file.LastWriteTimeUtc < scratchCutoff.UtcDateTime);
+        var cache = CleanDirectoryContents(
+            Path.Combine(_appRoot, "cache"),
+            file => file.LastWriteTimeUtc < cacheCutoff.UtcDateTime);
+
+        using var connection = OpenConnection();
+        ExecuteNonQuery(connection, "PRAGMA optimize;");
+        ExecuteNonQuery(connection, "VACUUM;");
+        var databaseBytes = File.Exists(DatabasePath) ? new FileInfo(DatabasePath).Length : 0;
+        RecordEvent(
+            "info",
+            "Ran storage maintenance",
+            $"scratch={scratch.RemovedFiles}, cache={cache.RemovedFiles}, database={databaseBytes} bytes");
+        return new StorageMaintenanceResult(scratch, cache, databaseBytes);
     }
 
     private void MigrateRandomHistoryFromJson()
@@ -327,6 +351,41 @@ public sealed class AppStorage
         command.Parameters.AddWithValue("$value", value);
         command.Parameters.AddWithValue("$updated_at", Timestamp());
         command.ExecuteNonQuery();
+    }
+
+    private static void ApplyMigrations(SqliteConnection connection)
+    {
+        foreach (var migration in StorageMigrations)
+        {
+            using var existsCommand = connection.CreateCommand();
+            existsCommand.CommandText = "SELECT 1 FROM schema_migrations WHERE migration_id = $migration_id;";
+            existsCommand.Parameters.AddWithValue("$migration_id", migration.Id);
+            if (existsCommand.ExecuteScalar() is not null)
+            {
+                continue;
+            }
+
+            using var transaction = connection.BeginTransaction();
+            using (var migrationCommand = connection.CreateCommand())
+            {
+                migrationCommand.Transaction = transaction;
+                migrationCommand.CommandText = migration.Sql;
+                migrationCommand.ExecuteNonQuery();
+            }
+            using (var recordCommand = connection.CreateCommand())
+            {
+                recordCommand.Transaction = transaction;
+                recordCommand.CommandText = """
+                    INSERT INTO schema_migrations (migration_id, description, applied_at)
+                    VALUES ($migration_id, $description, $applied_at);
+                    """;
+                recordCommand.Parameters.AddWithValue("$migration_id", migration.Id);
+                recordCommand.Parameters.AddWithValue("$description", migration.Description);
+                recordCommand.Parameters.AddWithValue("$applied_at", Timestamp());
+                recordCommand.ExecuteNonQuery();
+            }
+            transaction.Commit();
+        }
     }
 
     private SqliteConnection OpenConnection()
@@ -558,6 +617,12 @@ public sealed class AppStorage
     private static string Timestamp() => DateTimeOffset.UtcNow.ToString("O");
 
     private const string SchemaSql = """
+        CREATE TABLE IF NOT EXISTS schema_migrations (
+            migration_id TEXT PRIMARY KEY,
+            description TEXT NOT NULL,
+            applied_at TEXT NOT NULL
+        );
+
         CREATE TABLE IF NOT EXISTS app_metadata (
             key TEXT PRIMARY KEY,
             value TEXT NOT NULL,
@@ -673,6 +738,23 @@ public sealed class AppStorage
             UNIQUE(case_path, frame_id, url, decision)
         );
         """;
+
+    private static readonly StorageMigration[] StorageMigrations =
+    [
+        new(
+            "csharp-001-baseline-indexes",
+            "Add baseline app indexes for review, activity, and library lookup.",
+            """
+            CREATE INDEX IF NOT EXISTS idx_app_events_created ON app_events(created_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_case_reviews_session ON case_reviews(session_id, created_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_image_candidates_case_selected ON image_candidates(case_path, is_selected, score DESC);
+            CREATE INDEX IF NOT EXISTS idx_generated_powerpoints_created ON generated_powerpoints(created_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_core_sources_domain ON core_sources(domain, imported_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_random_history_seen_csharp ON random_history(last_seen_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_case_decisions_decision_csharp ON case_decisions(decision, last_seen_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_image_decisions_case_decision_csharp ON image_decisions(case_path, decision);
+            """)
+    ];
 }
 
 public sealed record StorageDiagnostics(
@@ -687,3 +769,7 @@ public sealed record StorageDiagnostics(
 public sealed record AppEventSummary(string CreatedAt, string Level, string Message, string Detail);
 
 public sealed record CleanupResult(string DirectoryPath, int RemovedFiles, long RemovedBytes);
+
+public sealed record StorageMaintenanceResult(CleanupResult Scratch, CleanupResult Cache, long DatabaseBytes);
+
+internal sealed record StorageMigration(string Id, string Description, string Sql);
