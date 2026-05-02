@@ -414,12 +414,13 @@ public sealed class AppStorage
             using var command = connection.CreateCommand();
             command.CommandText = """
                 INSERT INTO image_candidates
-                  (case_path, frame_id, url, local_path, label, score, is_selected, last_seen_at)
+                  (case_path, frame_id, url, local_path, label, audit_json, score, is_selected, last_seen_at)
                 VALUES
-                  ($case_path, $frame_id, $url, $local_path, $label, $score, $is_selected, $last_seen_at)
+                  ($case_path, $frame_id, $url, $local_path, $label, $audit_json, $score, $is_selected, $last_seen_at)
                 ON CONFLICT(case_path, frame_id, url) DO UPDATE SET
                   local_path = COALESCE(NULLIF(excluded.local_path, ''), image_candidates.local_path),
                   label = COALESCE(NULLIF(excluded.label, ''), image_candidates.label),
+                  audit_json = COALESCE(NULLIF(excluded.audit_json, ''), image_candidates.audit_json),
                   score = MAX(image_candidates.score, excluded.score),
                   is_selected = MAX(image_candidates.is_selected, excluded.is_selected),
                   last_seen_at = excluded.last_seen_at;
@@ -432,6 +433,7 @@ public sealed class AppStorage
             command.Parameters.AddWithValue("$score", NumericValue(image, "relevantScore"));
             command.Parameters.AddWithValue("$is_selected", isSelected ? 1 : 0);
             command.Parameters.AddWithValue("$last_seen_at", Timestamp());
+            command.Parameters.AddWithValue("$audit_json", JsonTextValue(image, "audit"));
             command.ExecuteNonQuery();
         }
     }
@@ -602,6 +604,23 @@ public sealed class AppStorage
         return node[name]!.ToString();
     }
 
+    private static string JsonTextValue(JsonObject? node, string name)
+    {
+        if (node?[name] is null)
+        {
+            return "";
+        }
+
+        try
+        {
+            return node[name]!.ToJsonString();
+        }
+        catch
+        {
+            return "";
+        }
+    }
+
     private static double NumericValue(JsonObject node, string name)
     {
         try
@@ -753,6 +772,13 @@ public sealed class AppStorage
             CREATE INDEX IF NOT EXISTS idx_random_history_seen_csharp ON random_history(last_seen_at DESC);
             CREATE INDEX IF NOT EXISTS idx_case_decisions_decision_csharp ON case_decisions(decision, last_seen_at DESC);
             CREATE INDEX IF NOT EXISTS idx_image_decisions_case_decision_csharp ON image_decisions(case_path, decision);
+            """)
+        ,
+        new(
+            "csharp-002-image-audit-json",
+            "Persist image-selection audit metadata for candidate debugging.",
+            """
+            ALTER TABLE image_candidates ADD COLUMN audit_json TEXT NOT NULL DEFAULT '';
             """)
     ];
 }

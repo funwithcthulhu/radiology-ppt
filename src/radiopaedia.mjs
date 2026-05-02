@@ -40,7 +40,7 @@ import {
   downloadFile,
   fetchJson,
   fetchText,
-} from "./radiopaedia-client.mjs";
+} from "./providers/radiopaedia-provider.mjs";
 
 const RANDOM_HISTORY_LIMIT = 240;
 const RANDOM_HISTORY_PATH = path.join(APP_ROOT, "cache", "random-selection-history.json");

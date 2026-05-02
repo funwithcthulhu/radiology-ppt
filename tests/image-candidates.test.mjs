@@ -46,6 +46,8 @@ test("builds scored candidates from annotated study frames", () => {
   assert.equal(candidates[0].frameId, 2);
   assert.equal(candidates[0].isAnnotated, true);
   assert.ok(candidates[0].relevantScore > 400);
+  assert.equal(candidates[0].audit.provider, "radiopaedia");
+  assert.ok(candidates[0].audit.reasons.includes("contains Radiopaedia annotation"));
 });
 
 test("does not reselect excluded image frames", () => {
@@ -65,6 +67,7 @@ test("can explicitly select requested image frames before filling remaining slot
 
   assert.equal(selected[0].frameId, "2");
   assert.equal(selected.length, 2);
+  assert.equal(selected[0].audit.selectedReason, "explicitly requested plus ranked fill");
   assert.ok(selected.some((candidate) => candidate.frameId === "1" || candidate.frameId === "3"));
 });
 
@@ -73,6 +76,7 @@ test("normalizes candidate banks and drops local paths", () => {
   assert.equal(bank.length, 1);
   assert.equal(bank[0].frameId, "a");
   assert.equal(bank[0].localPath, undefined);
+  assert.deepEqual(bank[0].audit, {});
 });
 
 test("flags weak image sets for teaching use", () => {

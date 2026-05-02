@@ -43,6 +43,14 @@ export function buildImageCandidates(study) {
       const isKeyImage = Number.isInteger(keyImageIndex) && index === keyImageIndex;
       const isCurrent = index === currentIndex;
       const focusPoints = extractFrameFocusPoints(series, index);
+      const relevance = computeFrameRelevanceAudit({
+        index,
+        currentIndex,
+        keyImageIndex,
+        annotationIndices,
+        annotationDistance,
+        studyHasAnnotations,
+      });
       candidates.push({
         url: `${IMAGE_BASE_URL}/${frame.id}/${fileName}`,
         label: [study.modality, series.specifics, series.perspective].filter(Boolean).join(" • "),
@@ -60,14 +68,15 @@ export function buildImageCandidates(study) {
         focusPoints,
         frameWidth: frame.width,
         frameHeight: frame.height,
-        relevantScore: computeFrameRelevanceScore({
-          index,
-          currentIndex,
-          keyImageIndex,
-          annotationIndices,
-          annotationDistance,
+        relevantScore: relevance.score,
+        audit: {
+          provider: "radiopaedia",
+          candidateSource: relevance.candidateSource,
+          scoreComponents: relevance.components,
+          reasons: relevance.reasons,
           studyHasAnnotations,
-        }),
+          annotationDistance,
+        },
       });
     }
   }
@@ -148,26 +157,50 @@ function buildRelevantFrameIndices({ usableLength, currentIndex, keyImageIndex, 
   );
 }
 
-function computeFrameRelevanceScore({ index, currentIndex, keyImageIndex, annotationIndices, annotationDistance, studyHasAnnotations }) {
+function computeFrameRelevanceAudit({ index, currentIndex, keyImageIndex, annotationIndices, annotationDistance, studyHasAnnotations }) {
   let score = 0;
+  const components = [];
+  const reasons = [];
+  let candidateSource = "ranked-neighbor";
 
   if (annotationIndices.includes(index)) {
     score += 420;
+    components.push({ name: "annotation", value: 420 });
+    reasons.push("contains Radiopaedia annotation");
+    candidateSource = "annotation";
   }
 
   if (Number.isInteger(keyImageIndex) && index === keyImageIndex) {
     score += 160;
+    components.push({ name: "key-image", value: 160 });
+    reasons.push("matches Radiopaedia key image");
+    candidateSource = candidateSource === "annotation" ? "annotation-key-image" : "key-image";
   } else if (annotationDistance !== null) {
-    score += Math.max(0, 70 - annotationDistance * 30);
+    const value = Math.max(0, 70 - annotationDistance * 30);
+    score += value;
+    components.push({ name: "annotation-proximity", value });
+    reasons.push("near annotated slice");
   } else if (!studyHasAnnotations) {
-    score += Math.max(0, 58 - Math.abs(index - currentIndex) * 18);
+    const value = Math.max(0, 58 - Math.abs(index - currentIndex) * 18);
+    score += value;
+    components.push({ name: "current-slice-proximity", value });
+    reasons.push("near current viewer slice");
   } else if (index === currentIndex) {
     score += 8;
+    components.push({ name: "current-slice", value: 8 });
+    reasons.push("current viewer slice");
   } else {
     score -= 30;
+    components.push({ name: "weak-unannotated-slice", value: -30 });
+    reasons.push("weak unannotated slice");
   }
 
-  return score;
+  return {
+    score,
+    components,
+    reasons,
+    candidateSource,
+  };
 }
 
 function pickDistinctImages(imageCandidates, desiredCount) {
@@ -219,7 +252,7 @@ export function selectRelevantImages(imageCandidates, desiredCount, { excludeFra
     const requestedCandidates = candidatePool.filter((candidate) => included.has(String(candidate.frameId)));
     const requestedSelection = pickDistinctImages(requestedCandidates, Math.min(desiredCount, requestedCandidates.length));
     if (requestedSelection.length >= desiredCount) {
-      return requestedSelection.slice(0, desiredCount);
+      return annotateSelections(requestedSelection.slice(0, desiredCount), "explicitly requested frame");
     }
 
     const selectedFrames = new Set(requestedSelection.map((candidate) => String(candidate.frameId)));
@@ -228,7 +261,7 @@ export function selectRelevantImages(imageCandidates, desiredCount, { excludeFra
       desiredCount - requestedSelection.length,
       { excludeFrameIds: [] },
     );
-    return [...requestedSelection, ...remainingSelection].slice(0, desiredCount);
+    return annotateSelections([...requestedSelection, ...remainingSelection].slice(0, desiredCount), "explicitly requested plus ranked fill");
   }
 
   const effectivePool = candidatePool;
@@ -238,7 +271,10 @@ export function selectRelevantImages(imageCandidates, desiredCount, { excludeFra
 
   const annotatedCandidates = effectivePool.filter((candidate) => candidate.isAnnotated);
   if (annotatedCandidates.length) {
-    return pickDistinctImages(annotatedCandidates, Math.min(desiredCount, annotatedCandidates.length));
+    return annotateSelections(
+      pickDistinctImages(annotatedCandidates, Math.min(desiredCount, annotatedCandidates.length)),
+      "annotated frame",
+    );
   }
 
   const strongCandidates = effectivePool.filter(
@@ -255,7 +291,19 @@ export function selectRelevantImages(imageCandidates, desiredCount, { excludeFra
     selected.pop();
   }
 
-  return selected.slice(0, desiredCount);
+  return annotateSelections(selected.slice(0, desiredCount), "ranked relevance");
+}
+
+function annotateSelections(images, reason) {
+  return images.map((image, index) => ({
+    ...image,
+    audit: {
+      ...(image.audit || {}),
+      selected: true,
+      selectedRank: index + 1,
+      selectedReason: reason,
+    },
+  }));
 }
 
 function serializeImageCandidate(candidate) {
@@ -274,6 +322,7 @@ function serializeImageCandidate(candidate) {
     isCurrent: Boolean(candidate.isCurrent),
     viewSignature: candidate.viewSignature || "",
     focusPoints: Array.isArray(candidate.focusPoints) ? candidate.focusPoints : [],
+    audit: candidate.audit && typeof candidate.audit === "object" ? candidate.audit : {},
   };
 }
 
