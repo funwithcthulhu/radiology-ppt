@@ -38,6 +38,11 @@ public partial class CaseReviewWindow : Window
     public ObservableCollection<ReviewImageItem> Images { get; } = [];
     public List<JsonObject> ApprovedItems { get; } = [];
 
+    private void Window_SourceInitialized(object? sender, EventArgs e)
+    {
+        WindowPlacement.ClampToVisibleWorkArea(this);
+    }
+
     private void ShowCurrentCase()
     {
         if (_currentIndex >= _items.Count)

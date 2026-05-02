@@ -2,11 +2,12 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Radiopaedia Case PowerPoint Builder"
-        Height="900"
-        Width="1320"
-        MinHeight="720"
-        MinWidth="1080"
-        WindowStartupLocation="CenterScreen">
+        Height="760"
+        Width="1240"
+        MinHeight="620"
+        MinWidth="980"
+        WindowStartupLocation="CenterScreen"
+        SourceInitialized="Window_SourceInitialized">
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="240" />

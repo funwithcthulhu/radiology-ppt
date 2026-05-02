@@ -47,6 +47,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         AppendLog($"Node runtime: {_backend.NodePath}");
     }
 
+    private void Window_SourceInitialized(object? sender, EventArgs e)
+    {
+        WindowPlacement.ClampToVisibleWorkArea(this);
+    }
+
     private void InitializeOptionControls()
     {
         ModeColumn.ItemsSource = AppOptions.RequestModes;
