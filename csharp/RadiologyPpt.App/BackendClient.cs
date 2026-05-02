@@ -9,6 +9,11 @@ namespace RadiologyPpt.App;
 public sealed class BackendClient
 {
     private Process? _currentProcess;
+    private Process? _serviceProcess;
+    private readonly SemaphoreSlim _serviceStartLock = new(1, 1);
+    private readonly SemaphoreSlim _serviceWriteLock = new(1, 1);
+    private readonly object _pendingLock = new();
+    private readonly Dictionary<string, PendingServiceRequest> _pendingRequests = new(StringComparer.Ordinal);
 
     public BackendClient()
     {
@@ -16,6 +21,7 @@ public sealed class BackendClient
         AppRoot = ProjectRoot;
         ResourceRoot = ProjectRoot;
         CliScript = Path.Combine(ResourceRoot, "src", "cli.mjs");
+        ServiceScript = Path.Combine(ResourceRoot, "src", "backend-service.mjs");
         NodePath = ResolveNodePath();
     }
 
@@ -23,6 +29,7 @@ public sealed class BackendClient
     public string AppRoot { get; }
     public string ResourceRoot { get; }
     public string CliScript { get; }
+    public string ServiceScript { get; }
     public string NodePath { get; }
 
     public string OutputsDir => Path.Combine(AppRoot, "outputs");
@@ -32,39 +39,12 @@ public sealed class BackendClient
 
     public async Task<JsonObject> PrepareAsync(IEnumerable<JsonObject> entries, GenerationSettings settings, Action<string> log, CancellationToken cancellationToken)
     {
-        var requestPath = await WriteTempJsonAsync(new JsonArray(entries.Select(entry => entry.DeepClone()).ToArray()), "requests", cancellationToken);
-        try
+        var payload = new JsonObject
         {
-            var args = new List<string>
-            {
-                "--prepare-input",
-                requestPath,
-                "--images-per-case",
-                settings.ImagesPerCase.ToString()
-            };
-            if (settings.UseClinicalHistory)
-            {
-                args.Add("--use-clinical-history");
-            }
-            if (settings.UseOllamaReview)
-            {
-                args.Add("--use-ollama-assist");
-                if (!string.IsNullOrWhiteSpace(settings.OllamaModel))
-                {
-                    args.Add("--ollama-model");
-                    args.Add(settings.OllamaModel);
-                }
-            }
-
-            var result = await RunCliAsync(args, log, cancellationToken, logStdout: false);
-            ThrowIfFailed(result, "Could not prepare case previews.");
-            return JsonNode.Parse(result.Stdout)?.AsObject()
-                ?? throw new InvalidOperationException("Prepare did not return JSON.");
-        }
-        finally
-        {
-            TryDelete(requestPath);
-        }
+            ["entries"] = new JsonArray(entries.Select(entry => entry.DeepClone()).ToArray()),
+            ["args"] = BuildPrepareArgs(settings)
+        };
+        return await RunServiceAsync("prepare", payload, log, cancellationToken);
     }
 
     public async Task<JsonObject?> PrepareSingleAsync(JsonObject request, GenerationSettings settings, Action<string> log, CancellationToken cancellationToken)
@@ -76,95 +56,52 @@ public sealed class BackendClient
 
     public async Task<JsonObject?> ScoreImagesAsync(JsonObject item, GenerationSettings settings, Action<string> log, CancellationToken cancellationToken)
     {
-        var preparedPath = await WriteTempJsonAsync(
-            new JsonObject { ["items"] = new JsonArray(item.DeepClone()) },
-            "score-images",
-            cancellationToken);
-        try
+        var payload = new JsonObject
         {
-            var args = new List<string>
+            ["item"] = item.DeepClone(),
+            ["args"] = new JsonObject
             {
-                "--score-images-input",
-                preparedPath
-            };
-            if (!string.IsNullOrWhiteSpace(settings.OllamaModel))
-            {
-                args.Add("--ollama-model");
-                args.Add(settings.OllamaModel);
+                ["ollamaModel"] = settings.OllamaModel
             }
-
-            var result = await RunCliAsync(args, log, cancellationToken, logStdout: false);
-            ThrowIfFailed(result, "Could not score images with Ollama.");
-            var payload = JsonNode.Parse(result.Stdout)?.AsObject()
-                ?? throw new InvalidOperationException("Image scoring did not return JSON.");
-            var items = payload["items"]?.AsArray();
-            return items is { Count: > 0 } ? items[0]?.AsObject() : null;
-        }
-        finally
-        {
-            TryDelete(preparedPath);
-        }
+        };
+        var result = await RunServiceAsync("scoreImages", payload, log, cancellationToken);
+        var items = result["items"]?.AsArray();
+        return items is { Count: > 0 } ? items[0]?.AsObject() : null;
     }
 
     public async Task<string> RenderAsync(IEnumerable<JsonObject> approvedItems, GenerationSettings settings, Action<string> log, CancellationToken cancellationToken)
     {
         Directory.CreateDirectory(OutputsDir);
-        var preparedPath = await WriteTempJsonAsync(
-            new JsonObject { ["items"] = new JsonArray(approvedItems.Select(item => item.DeepClone()).ToArray()) },
-            "prepared",
-            cancellationToken);
-        try
+        var payload = new JsonObject
         {
-            var args = new List<string>
+            ["items"] = new JsonArray(approvedItems.Select(item => item.DeepClone()).ToArray()),
+            ["args"] = new JsonObject
             {
-                "--render-input",
-                preparedPath,
-                "--deck-mode",
-                settings.PowerPointStyle,
-                "--theme",
-                settings.Theme
-            };
-            if (!string.IsNullOrWhiteSpace(settings.Title))
-            {
-                args.Add("--title");
-                args.Add(settings.Title);
+                ["deckMode"] = settings.PowerPointStyle,
+                ["theme"] = settings.Theme,
+                ["title"] = settings.Title,
+                ["out"] = settings.OutputPath,
+                ["includeTeachingPoints"] = settings.IncludeTeachingPoints
             }
-            if (!string.IsNullOrWhiteSpace(settings.OutputPath))
-            {
-                args.Add("--out");
-                args.Add(settings.OutputPath);
-            }
-            if (settings.IncludeTeachingPoints)
-            {
-                args.Add("--include-teaching-points");
-            }
-
-            var result = await RunCliAsync(args, log, cancellationToken);
-            ThrowIfFailed(result, "Could not create the PowerPoint.");
-            return result.Stdout;
-        }
-        finally
-        {
-            TryDelete(preparedPath);
-        }
+        };
+        var result = await RunServiceAsync("render", payload, log, cancellationToken);
+        return $"Created PowerPoint: {TextValue(result, "outputPath")}{Environment.NewLine}Created manifest: {TextValue(result, "manifestPath")}{Environment.NewLine}";
     }
 
     public async Task ImportCoreReviewPdfsAsync(IEnumerable<string> pdfPaths, string domain, Action<string> log, CancellationToken cancellationToken)
     {
         Directory.CreateDirectory(BoardReviewDir);
-        var args = new List<string>
+        var payload = new JsonObject
         {
-            "--core-review-ingest-pdf"
+            ["inputPaths"] = new JsonArray(pdfPaths.Select(path => JsonValue.Create(path)).ToArray()),
+            ["args"] = new JsonObject
+            {
+                ["out"] = BoardReviewCorpusPath,
+                ["format"] = "json",
+                ["domain"] = domain
+            }
         };
-        args.AddRange(pdfPaths);
-        args.AddRange(["--out", BoardReviewCorpusPath, "--format", "text"]);
-        if (!string.IsNullOrWhiteSpace(domain))
-        {
-            args.AddRange(["--domain", domain]);
-        }
-
-        var result = await RunCliAsync(args, log, cancellationToken);
-        ThrowIfFailed(result, "Could not import Core Boards PDFs.");
+        await RunServiceAsync("coreReviewIngestPdf", payload, log, cancellationToken);
     }
 
     public void CancelCurrentProcess()
@@ -174,6 +111,17 @@ public sealed class BackendClient
             if (_currentProcess is { HasExited: false })
             {
                 _currentProcess.Kill(entireProcessTree: true);
+            }
+        }
+        catch
+        {
+            // Best effort cancellation; the UI will report the backend result.
+        }
+        try
+        {
+            if (_serviceProcess is { HasExited: false })
+            {
+                _serviceProcess.Kill(entireProcessTree: true);
             }
         }
         catch
@@ -331,6 +279,273 @@ public sealed class BackendClient
         }
     }
 
+    private async Task<JsonObject> RunServiceAsync(string command, JsonObject payload, Action<string> log, CancellationToken cancellationToken)
+    {
+        if (!File.Exists(ServiceScript))
+        {
+            throw new FileNotFoundException("The backend service was not found.", ServiceScript);
+        }
+
+        await EnsureServiceAsync(log, cancellationToken);
+        var service = _serviceProcess ?? throw new InvalidOperationException("The backend service is not running.");
+        var id = Guid.NewGuid().ToString("N");
+        var pending = new PendingServiceRequest(log);
+        lock (_pendingLock)
+        {
+            _pendingRequests[id] = pending;
+        }
+
+        using var registration = cancellationToken.Register(() =>
+        {
+            pending.Completion.TrySetCanceled(cancellationToken);
+            CancelCurrentProcess();
+        });
+
+        try
+        {
+            var request = new JsonObject
+            {
+                ["id"] = id,
+                ["command"] = command,
+                ["payload"] = payload.DeepClone()
+            };
+            await _serviceWriteLock.WaitAsync(cancellationToken);
+            try
+            {
+                if (service.HasExited)
+                {
+                    throw new InvalidOperationException("The backend service exited before the request could be sent.");
+                }
+
+                await service.StandardInput.WriteLineAsync(request.ToJsonString());
+                await service.StandardInput.FlushAsync(cancellationToken);
+            }
+            finally
+            {
+                _serviceWriteLock.Release();
+            }
+
+            return await pending.Completion.Task.WaitAsync(cancellationToken);
+        }
+        finally
+        {
+            lock (_pendingLock)
+            {
+                _pendingRequests.Remove(id);
+            }
+        }
+    }
+
+    private async Task EnsureServiceAsync(Action<string> log, CancellationToken cancellationToken)
+    {
+        if (_serviceProcess is { HasExited: false })
+        {
+            return;
+        }
+
+        await _serviceStartLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (_serviceProcess is { HasExited: false })
+            {
+                return;
+            }
+
+            var startInfo = new ProcessStartInfo(NodePath)
+            {
+                WorkingDirectory = ProjectRoot,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                RedirectStandardInput = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                StandardOutputEncoding = Encoding.UTF8,
+                StandardErrorEncoding = Encoding.UTF8,
+                StandardInputEncoding = Encoding.UTF8
+            };
+            startInfo.ArgumentList.Add(ServiceScript);
+            startInfo.Environment["RADIOLOGY_PPT_APP_ROOT"] = AppRoot;
+            startInfo.Environment["RADIOLOGY_PPT_RESOURCE_ROOT"] = ResourceRoot;
+            startInfo.Environment["RADIOLOGY_PPT_DATABASE_PATH"] = Path.Combine(StateDir, "radiology-ppt.sqlite");
+            startInfo.Environment["NODE_NO_WARNINGS"] = "1";
+
+            var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
+            process.Exited += (_, _) => FailPendingServiceRequests("The backend service exited.");
+            if (!process.Start())
+            {
+                throw new InvalidOperationException("Could not start the backend service.");
+            }
+
+            _serviceProcess = process;
+            _ = Task.Run(() => ReadServiceStdoutAsync(process));
+            _ = Task.Run(() => ReadServiceStderrAsync(process, log));
+            log("Backend service started.");
+        }
+        finally
+        {
+            _serviceStartLock.Release();
+        }
+    }
+
+    private async Task ReadServiceStdoutAsync(Process process)
+    {
+        try
+        {
+            while (!process.HasExited)
+            {
+                var line = await process.StandardOutput.ReadLineAsync();
+                if (line is null)
+                {
+                    break;
+                }
+                HandleServiceLine(line);
+            }
+        }
+        catch (Exception exception)
+        {
+            FailPendingServiceRequests($"Could not read backend service output: {exception.Message}");
+        }
+    }
+
+    private async Task ReadServiceStderrAsync(Process process, Action<string> fallbackLog)
+    {
+        try
+        {
+            while (!process.HasExited)
+            {
+                var line = await process.StandardError.ReadLineAsync();
+                if (line is null)
+                {
+                    break;
+                }
+                if (TryParseBackendEvent(line, out var progressMessage))
+                {
+                    LogToPendingRequests(progressMessage, fallbackLog);
+                }
+                else
+                {
+                    LogToPendingRequests(line, fallbackLog);
+                }
+            }
+        }
+        catch
+        {
+            // The stdout reader handles pending request failure on service exit.
+        }
+    }
+
+    private void HandleServiceLine(string line)
+    {
+        JsonObject? message;
+        try
+        {
+            message = JsonNode.Parse(line)?.AsObject();
+        }
+        catch
+        {
+            LogToPendingRequests(line, _ => { });
+            return;
+        }
+
+        if (message is null)
+        {
+            return;
+        }
+
+        var id = TextValue(message, "id");
+        var type = TextValue(message, "type");
+        PendingServiceRequest? pending;
+        lock (_pendingLock)
+        {
+            _pendingRequests.TryGetValue(id, out pending);
+        }
+        if (pending is null)
+        {
+            return;
+        }
+
+        if (type.Equals("event", StringComparison.OrdinalIgnoreCase))
+        {
+            if (TryFormatServiceEvent(message["payload"] as JsonObject, out var displayMessage))
+            {
+                pending.Log(displayMessage);
+            }
+            return;
+        }
+        if (type.Equals("result", StringComparison.OrdinalIgnoreCase))
+        {
+            pending.Completion.TrySetResult(message["payload"]?.AsObject() ?? new JsonObject());
+            return;
+        }
+        if (type.Equals("error", StringComparison.OrdinalIgnoreCase))
+        {
+            pending.Completion.TrySetException(new InvalidOperationException(TextValue(message, "error", "Backend service request failed.")));
+        }
+    }
+
+    private void FailPendingServiceRequests(string message)
+    {
+        PendingServiceRequest[] pending;
+        lock (_pendingLock)
+        {
+            pending = _pendingRequests.Values.ToArray();
+            _pendingRequests.Clear();
+        }
+        foreach (var request in pending)
+        {
+            request.Completion.TrySetException(new InvalidOperationException(message));
+        }
+    }
+
+    private void LogToPendingRequests(string message, Action<string> fallbackLog)
+    {
+        PendingServiceRequest[] pending;
+        lock (_pendingLock)
+        {
+            pending = _pendingRequests.Values.ToArray();
+        }
+        if (pending.Length == 0)
+        {
+            fallbackLog(message);
+            return;
+        }
+        foreach (var request in pending)
+        {
+            request.Log(message);
+        }
+    }
+
+    private static JsonObject BuildPrepareArgs(GenerationSettings settings)
+    {
+        return new JsonObject
+        {
+            ["imagesPerCase"] = settings.ImagesPerCase,
+            ["useClinicalHistory"] = settings.UseClinicalHistory,
+            ["useOllamaAssist"] = settings.UseOllamaReview,
+            ["ollamaModel"] = settings.OllamaModel
+        };
+    }
+
+    private static bool TryFormatServiceEvent(JsonObject? payload, out string displayMessage)
+    {
+        displayMessage = "";
+        if (payload is null)
+        {
+            return false;
+        }
+
+        var type = TextValue(payload, "type", "progress");
+        var message = TextValue(payload, "message");
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return false;
+        }
+        displayMessage = type.Equals("warning", StringComparison.OrdinalIgnoreCase)
+            ? $"Warning: {message}"
+            : message;
+        return true;
+    }
+
     private static bool TryParseBackendEvent(string line, out string displayMessage)
     {
         displayMessage = "";
@@ -359,6 +574,23 @@ public sealed class BackendClient
         {
             displayMessage = line;
             return false;
+        }
+    }
+
+    private static string TextValue(JsonObject? node, string name, string fallback = "")
+    {
+        if (node is null || node[name] is null)
+        {
+            return fallback;
+        }
+
+        try
+        {
+            return node[name]!.ToString();
+        }
+        catch
+        {
+            return fallback;
         }
     }
 
@@ -404,4 +636,12 @@ public sealed class BackendClient
     }
 
     private sealed record BackendResult(int ExitCode, string Stdout, string Stderr);
+
+    private sealed class PendingServiceRequest(Action<string> log)
+    {
+        public TaskCompletionSource<JsonObject> Completion { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Action<string> Log { get; } = log;
+    }
 }

@@ -144,12 +144,16 @@ export async function prepareCaseItems(rawEntries, args, { readRandomHistory = t
   };
 }
 
-export async function prepareCasesFromFile(inputPath, args) {
+export async function prepareCases(entries, args) {
   emitProgress("Starting case preparation");
-  return prepareCaseItems(await loadCaseRequestEntries(path.resolve(inputPath)), args, {
+  return prepareCaseItems(entries, args, {
     readRandomHistory: true,
     writeRandomHistory: true,
   });
+}
+
+export async function prepareCasesFromFile(inputPath, args) {
+  return prepareCases(await loadCaseRequestEntries(path.resolve(inputPath)), args);
 }
 
 export async function probeCasesFromFile(inputPath) {
@@ -173,9 +177,13 @@ export async function probeCasesFromFile(inputPath) {
 }
 
 export async function scoreImagesFromFile(inputPath, args) {
-  emitProgress("Starting optional Ollama image scoring");
   const raw = JSON.parse(await fs.readFile(path.resolve(inputPath), "utf8"));
-  const items = normalizePreparedItems(raw);
+  return scoreImages(raw, args);
+}
+
+export async function scoreImages(payload, args) {
+  emitProgress("Starting optional Ollama image scoring");
+  const items = normalizePreparedItems(payload);
   if (!items.length) {
     throw new Error("No prepared cases were provided for image scoring.");
   }
@@ -188,9 +196,13 @@ export async function scoreImagesFromFile(inputPath, args) {
 }
 
 export async function renderPowerPointFromFile(inputPath, args) {
-  emitProgress("Starting PowerPoint render");
   const raw = JSON.parse(await fs.readFile(path.resolve(inputPath), "utf8"));
-  const items = normalizePreparedItems(raw);
+  return renderPowerPoint(raw, args);
+}
+
+export async function renderPowerPoint(payload, args) {
+  emitProgress("Starting PowerPoint render");
+  const items = normalizePreparedItems(payload);
   if (!items.length) {
     throw new Error("No prepared cases were provided for render.");
   }
