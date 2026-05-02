@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.IO;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json.Nodes;
@@ -393,13 +394,19 @@ public partial class CaseReviewWindow : Window
             CandidateImages.Add(new CandidateImageItem
             {
                 FrameId = frameId,
-                PreviewPath = TextValue(image, "localPath", TextValue(image, "url", "")),
+                PreviewPath = LocalPreviewPath(image),
                 Caption = BuildImageCaption(image),
                 ScoreText = $"Frame {frameId} | score {NumericValue(image, "relevantScore"):0}",
                 Source = image.DeepClone().AsObject()
             });
         }
         CandidateItemsControl.ItemsSource = CandidateImages;
+    }
+
+    private static string LocalPreviewPath(JsonObject image)
+    {
+        var localPath = TextValue(image, "localPath", "");
+        return !string.IsNullOrWhiteSpace(localPath) && File.Exists(localPath) ? localPath : "";
     }
 
     private static string TextValue(JsonObject? node, string name, string fallback)

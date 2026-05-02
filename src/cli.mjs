@@ -553,7 +553,7 @@ async function runProbe(inputPath) {
 async function runPrepare(inputPath, args) {
   const prepared = await prepareCaseItems(await loadEntries(path.resolve(inputPath)), args, {
     readRandomHistory: true,
-    writeRandomHistory: false,
+    writeRandomHistory: true,
   });
   process.stdout.write(`${JSON.stringify(prepared, null, 2)}\n`);
 }

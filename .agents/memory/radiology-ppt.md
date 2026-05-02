@@ -111,6 +111,8 @@ The Core Boards module should support:
 - C# GUI tabs are `Cases`, `Core Boards`, `PowerPoint`, and `Activity`.
 - Case review supports keep/skip/reroll/re-pick images, replace unchecked images, remove unchecked images, exact candidate-frame selection from the `Candidates` tab, and cancel long review actions.
 - Ollama review can be enabled from the PowerPoint tab and the user can choose/refresh the local model list.
+- Ollama scoring is capped by default for responsiveness: one strongest image per case, 12 seconds per image, 20 seconds per case. Env overrides: `RADIOLOGY_PPT_OLLAMA_IMAGE_TIMEOUT_MS`, `RADIOLOGY_PPT_OLLAMA_CASE_TIMEOUT_MS`, `RADIOLOGY_PPT_OLLAMA_MAX_IMAGES_PER_CASE`.
+- Random case history is written during prepare so cancelled/reviewed random runs do not immediately recycle the same cases.
 - Activity tab includes diagnostics, state folder access, scratch cleanup, and old-cache cleanup.
 - Screenshots and local temp paths from prior sessions are not durable project state.
 

@@ -158,6 +158,8 @@ Local state:
 - Optional minimal clinical history can be added to the intro slide.
 - If a local Ollama vision model is installed, the app can optionally score selected images during preparation.
 - Ollama auto-detect prefers compact vision models first to reduce slowdown.
+- Ollama review is intentionally capped for responsiveness: by default it reviews only the strongest selected image per case, with a 12-second image timeout and 20-second case budget. Advanced users can tune this with `RADIOLOGY_PPT_OLLAMA_IMAGE_TIMEOUT_MS`, `RADIOLOGY_PPT_OLLAMA_CASE_TIMEOUT_MS`, and `RADIOLOGY_PPT_OLLAMA_MAX_IMAGES_PER_CASE`.
+- Random case selections are remembered during prepare, not only after PowerPoint export, so cancelled/reviewed random runs should not keep recycling the same cases.
 - The packaged app writes outputs, cache, library data, and state inside its app folder.
 - Case preparation runs multiple cases concurrently, while preserving request order.
 - Radiopaedia image reuse in presentations is encouraged with attribution, and this app adds attribution to the slides:

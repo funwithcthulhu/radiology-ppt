@@ -56,7 +56,7 @@ public sealed class BackendClient
                 }
             }
 
-            var result = await RunCliAsync(args, log, cancellationToken);
+            var result = await RunCliAsync(args, log, cancellationToken, logStdout: false);
             ThrowIfFailed(result, "Could not prepare case previews.");
             return JsonNode.Parse(result.Stdout)?.AsObject()
                 ?? throw new InvalidOperationException("Prepare did not return JSON.");
@@ -181,7 +181,7 @@ public sealed class BackendClient
         }
     }
 
-    private async Task<BackendResult> RunCliAsync(IEnumerable<string> args, Action<string> log, CancellationToken cancellationToken)
+    private async Task<BackendResult> RunCliAsync(IEnumerable<string> args, Action<string> log, CancellationToken cancellationToken, bool logStdout = true)
     {
         if (!File.Exists(CliScript))
         {
@@ -219,7 +219,10 @@ public sealed class BackendClient
                 return;
             }
             stdout.AppendLine(eventArgs.Data);
-            log(eventArgs.Data);
+            if (logStdout)
+            {
+                log(eventArgs.Data);
+            }
         };
         process.ErrorDataReceived += (_, eventArgs) =>
         {

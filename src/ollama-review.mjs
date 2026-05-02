@@ -5,6 +5,18 @@ import { cleanText, collapseWhitespace, truncate } from "./utils.mjs";
 
 const execFileAsync = promisify(execFile);
 let OLLAMA_MODELS_PROMISE = null;
+const OLLAMA_IMAGE_TIMEOUT_MS = boundedInteger(process.env.RADIOLOGY_PPT_OLLAMA_IMAGE_TIMEOUT_MS, 12_000, 3_000, 60_000);
+const OLLAMA_CASE_TIMEOUT_MS = boundedInteger(process.env.RADIOLOGY_PPT_OLLAMA_CASE_TIMEOUT_MS, 20_000, 5_000, 120_000);
+const OLLAMA_MAX_IMAGES_PER_CASE = boundedInteger(process.env.RADIOLOGY_PPT_OLLAMA_MAX_IMAGES_PER_CASE, 1, 0, 8);
+
+function boundedInteger(rawValue, defaultValue, minimum, maximum) {
+  const parsed = Number.parseInt(rawValue ?? "", 10);
+  if (!Number.isInteger(parsed)) {
+    return defaultValue;
+  }
+
+  return Math.max(minimum, Math.min(maximum, parsed));
+}
 
 async function listOllamaModels() {
   if (!OLLAMA_MODELS_PROMISE) {
@@ -56,20 +68,27 @@ async function scoreImageWithOllama(imagePath, { visionModel, caseTitle, diagnos
 
   try {
     const imageBase64 = (await fs.readFile(imagePath)).toString("base64");
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), OLLAMA_IMAGE_TIMEOUT_MS);
     const response = await fetch("http://127.0.0.1:11434/api/generate", {
       method: "POST",
+      signal: controller.signal,
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         model: visionModel,
         stream: false,
         format: "json",
+        options: {
+          num_predict: 48,
+          temperature: 0,
+        },
         prompt:
           `You are scoring a radiology teaching image from a case titled "${caseTitle}". ` +
           `Rate how useful the image is for showing the relevant pathology or anatomy for diagnosis "${diagnosisQuery}". ` +
           'Reply only as JSON with keys "score" (0-10 integer) and "reason" (max 12 words).',
         images: [imageBase64],
       }),
-    });
+    }).finally(() => clearTimeout(timeout));
     if (!response.ok) {
       return null;
     }
@@ -101,7 +120,20 @@ export async function maybeScoreSelectedImagesWithOllama(images, request, caseTi
     return images;
   }
 
-  for (const image of images) {
+  if (OLLAMA_MAX_IMAGES_PER_CASE < 1) {
+    return images;
+  }
+
+  const startedAt = Date.now();
+  const imagesToReview = images
+    .slice()
+    .sort((left, right) => right.relevantScore - left.relevantScore)
+    .slice(0, Math.min(OLLAMA_MAX_IMAGES_PER_CASE, images.length));
+
+  for (const image of imagesToReview) {
+    if (Date.now() - startedAt > OLLAMA_CASE_TIMEOUT_MS) {
+      break;
+    }
     const review = await scoreImageWithOllama(image.localPath, {
       visionModel,
       caseTitle,
