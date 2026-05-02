@@ -239,6 +239,19 @@ public sealed class AppStorage
             LoadRecentEvents(connection));
     }
 
+    public CleanupResult CleanScratch()
+    {
+        return CleanDirectoryContents(Path.Combine(_appRoot, "scratch"), file => true);
+    }
+
+    public CleanupResult CleanOldCache(TimeSpan maxAge)
+    {
+        var cutoff = DateTimeOffset.Now.Subtract(maxAge);
+        return CleanDirectoryContents(
+            Path.Combine(_appRoot, "cache"),
+            file => file.LastWriteTimeUtc < cutoff.UtcDateTime);
+    }
+
     private void MigrateRandomHistoryFromJson()
     {
         var historyPath = Path.Combine(_appRoot, "cache", "random-history.json");
@@ -396,6 +409,48 @@ public sealed class AppStorage
         }
     }
 
+    private CleanupResult CleanDirectoryContents(string directory, Func<FileInfo, bool> shouldDelete)
+    {
+        var fullDirectory = Path.GetFullPath(directory);
+        var fullRoot = Path.GetFullPath(_appRoot);
+        if (!fullDirectory.StartsWith(fullRoot, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException($"Refusing to clean outside the app root: {fullDirectory}");
+        }
+
+        if (!Directory.Exists(fullDirectory))
+        {
+            return new CleanupResult(fullDirectory, 0, 0);
+        }
+
+        long removedBytes = 0;
+        var removedFiles = 0;
+        foreach (var filePath in Directory.EnumerateFiles(fullDirectory, "*", SearchOption.AllDirectories))
+        {
+            var file = new FileInfo(filePath);
+            if (!shouldDelete(file))
+            {
+                continue;
+            }
+
+            var length = file.Length;
+            file.Delete();
+            removedFiles += 1;
+            removedBytes += length;
+        }
+
+        foreach (var directoryPath in Directory.EnumerateDirectories(fullDirectory, "*", SearchOption.AllDirectories).OrderByDescending(path => path.Length))
+        {
+            if (!Directory.EnumerateFileSystemEntries(directoryPath).Any())
+            {
+                Directory.Delete(directoryPath);
+            }
+        }
+
+        RecordEvent("info", "Cleaned local files", $"{fullDirectory}: {removedFiles} files, {removedBytes} bytes");
+        return new CleanupResult(fullDirectory, removedFiles, removedBytes);
+    }
+
     private static void ExecuteNonQuery(SqliteConnection connection, string sql)
     {
         using var command = connection.CreateCommand();
@@ -519,3 +574,5 @@ public sealed record StorageDiagnostics(
     IReadOnlyList<AppEventSummary> RecentEvents);
 
 public sealed record AppEventSummary(string CreatedAt, string Level, string Message, string Detail);
+
+public sealed record CleanupResult(string DirectoryPath, int RemovedFiles, long RemovedBytes);

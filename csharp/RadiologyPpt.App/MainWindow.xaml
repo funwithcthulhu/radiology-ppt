@@ -215,10 +215,26 @@
                     <Grid Margin="0,16,0,0">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
                         <TextBlock Text="Activity" Style="{StaticResource PageTitle}" Margin="0,0,0,12" />
-                        <TextBox x:Name="ActivityLogBox" Grid.Row="1" IsReadOnly="True" TextWrapping="Wrap"
+                        <Border Grid.Row="1" Style="{StaticResource Card}" Margin="0,0,0,12">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock x:Name="DiagnosticsText" Text="Diagnostics have not been loaded yet." TextWrapping="Wrap" />
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
+                                    <Button Content="Refresh Diagnostics" Click="RefreshDiagnostics_Click" />
+                                    <Button Content="Clean Scratch" Click="CleanScratch_Click" />
+                                    <Button Content="Clean Old Cache" Click="CleanOldCache_Click" />
+                                    <Button Content="Open State Folder" Click="OpenStateFolder_Click" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                        <TextBox x:Name="ActivityLogBox" Grid.Row="2" IsReadOnly="True" TextWrapping="Wrap"
                                  VerticalScrollBarVisibility="Auto" FontFamily="Consolas" Background="#102132"
                                  Foreground="#D9EBF7" BorderThickness="0" Padding="12" />
                     </Grid>

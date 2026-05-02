@@ -50,6 +50,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         AppendLog($"Project root: {_backend.ProjectRoot}");
         AppendLog($"Node runtime: {_backend.NodePath}");
         AppendLog($"State database: {_storage.DatabasePath}");
+        RefreshDiagnostics();
     }
 
     private void Window_SourceInitialized(object? sender, EventArgs e)
@@ -131,7 +132,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void CasesNav_Click(object sender, RoutedEventArgs e) => MainTabs.SelectedIndex = 0;
     private void CoreBoardsNav_Click(object sender, RoutedEventArgs e) => MainTabs.SelectedIndex = 1;
     private void PowerPointNav_Click(object sender, RoutedEventArgs e) => MainTabs.SelectedIndex = 2;
-    private void ActivityNav_Click(object sender, RoutedEventArgs e) => MainTabs.SelectedIndex = 3;
+    private void ActivityNav_Click(object sender, RoutedEventArgs e)
+    {
+        MainTabs.SelectedIndex = 3;
+        RefreshDiagnostics();
+    }
 
     private void AddRow_Click(object sender, RoutedEventArgs e)
     {
@@ -386,6 +391,44 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void OpenProject_Click(object sender, RoutedEventArgs e) => OpenPath(_backend.ProjectRoot);
 
+    private void OpenStateFolder_Click(object sender, RoutedEventArgs e)
+    {
+        Directory.CreateDirectory(_backend.StateDir);
+        OpenPath(_backend.StateDir);
+    }
+
+    private void RefreshDiagnostics_Click(object sender, RoutedEventArgs e) => RefreshDiagnostics();
+
+    private void CleanScratch_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var result = _storage.CleanScratch();
+            AppendLog($"Cleaned scratch: {result.RemovedFiles} file(s), {FormatBytes(result.RemovedBytes)} removed.");
+            RefreshDiagnostics();
+        }
+        catch (Exception exception)
+        {
+            AppendLog(exception.ToString());
+            MessageBox.Show(this, exception.Message, Title, MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void CleanOldCache_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var result = _storage.CleanOldCache(TimeSpan.FromDays(30));
+            AppendLog($"Cleaned cache files older than 30 days: {result.RemovedFiles} file(s), {FormatBytes(result.RemovedBytes)} removed.");
+            RefreshDiagnostics();
+        }
+        catch (Exception exception)
+        {
+            AppendLog(exception.ToString());
+            MessageBox.Show(this, exception.Message, Title, MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
     private GenerationSettings BuildSettings()
     {
         var imagesPerCase = 3;
@@ -494,6 +537,27 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         return match.Success ? match.Groups[1].Value.Trim() : "";
     }
 
+    private void RefreshDiagnostics()
+    {
+        try
+        {
+            var diagnostics = _storage.GetDiagnostics();
+            var counts = string.Join(", ", diagnostics.Counts.Select(pair => $"{pair.Key}: {pair.Value}"));
+            var recentEvents = diagnostics.RecentEvents.Count == 0
+                ? "No recent events."
+                : string.Join(Environment.NewLine, diagnostics.RecentEvents.Take(5).Select(item => $"{item.CreatedAt} [{item.Level}] {item.Message}"));
+            DiagnosticsText.Text =
+                $"Database: {diagnostics.DatabasePath} ({FormatBytes(diagnostics.DatabaseBytes)}){Environment.NewLine}" +
+                $"Cache: {FormatBytes(diagnostics.CacheBytes)} | Scratch: {FormatBytes(diagnostics.ScratchBytes)} | Outputs: {FormatBytes(diagnostics.OutputBytes)}{Environment.NewLine}" +
+                $"Rows: {counts}{Environment.NewLine}" +
+                $"Recent: {recentEvents}";
+        }
+        catch (Exception exception)
+        {
+            DiagnosticsText.Text = $"Diagnostics unavailable: {exception.Message}";
+        }
+    }
+
     private static string ExtractManifestPath(string stdout)
     {
         var match = Regex.Match(stdout, @"Created manifest:\s*(.+)", RegexOptions.IgnoreCase);
@@ -544,6 +608,19 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         var slug = Regex.Replace(value.ToLowerInvariant(), @"[^a-z0-9]+", "-").Trim('-');
         return string.IsNullOrWhiteSpace(slug) ? "radiology-cases" : slug;
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        string[] units = ["B", "KB", "MB", "GB"];
+        var value = (double)Math.Max(0, bytes);
+        var unit = 0;
+        while (value >= 1024 && unit < units.Length - 1)
+        {
+            value /= 1024;
+            unit += 1;
+        }
+        return $"{value:0.##} {units[unit]}";
     }
 
     private void SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
