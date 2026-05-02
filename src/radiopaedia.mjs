@@ -173,7 +173,7 @@ function candidateScore(request, title, snippet = "") {
   return Math.min(0.99, Math.max(diagnosisScore, snippetScore) + hintBonus + filterBonus);
 }
 
-function parseCaseSystemsFromHtml(html) {
+export function parseCaseSystemsFromHtml(html) {
   const keywords = cleanText(extractFirst(/<meta\s+name="keywords"\s+content="([^"]+)"/i, html));
   if (!keywords) {
     return [];
@@ -187,7 +187,7 @@ function parseCaseSystemsFromHtml(html) {
   return keywordParts.filter((value) => KNOWN_CASE_SYSTEMS.includes(value));
 }
 
-function parseCaseSearchResults(html) {
+export function parseCaseSearchResults(html) {
   const results = [];
   const blocks = [...html.matchAll(/<a class="[^"]*search-result-case[^"]*" href="([^"]+)">([\s\S]*?)<\/a>/g)];
 
@@ -226,7 +226,7 @@ function parseSearchResultCandidates(html, request, limit = 5) {
     .slice(0, limit);
 }
 
-function buildCaseSearchUrl({ query = "", systems = [], page = 1 } = {}) {
+export function buildCaseSearchUrl({ query = "", systems = [], page = 1 } = {}) {
   const searchUrl = new URL(`${BASE_URL}/search`);
   searchUrl.searchParams.set("lang", "us");
   searchUrl.searchParams.set("scope", "cases");
