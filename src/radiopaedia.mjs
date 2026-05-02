@@ -32,7 +32,13 @@ import {
 } from "./image-candidates.mjs";
 import { maybeScoreSelectedImagesWithOllama } from "./ollama-review.mjs";
 import { readCacheEntry, writeCacheEntry } from "./cache-store.mjs";
-import { readAvoidedCasePaths, readRandomHistory, readRejectedFrameIds, writeRandomHistory } from "./app-store.mjs";
+import {
+  readAvoidedCasePaths,
+  readIndexedRandomCases,
+  readRandomHistory,
+  readRejectedFrameIds,
+  writeRandomHistory,
+} from "./app-store.mjs";
 import { emitProgress, emitWarning } from "./backend-events.mjs";
 import {
   APP_ROOT,
@@ -339,6 +345,61 @@ async function candidateMatchesSystems(candidate, systems, htmlCache = new Map()
     : systems.every((system) => caseSystems.includes(system));
 }
 
+function indexedCaseMatchesSystems(candidate, systems, systemMode = "all") {
+  if (!systems.length) {
+    return true;
+  }
+
+  const candidateSystems = (candidate.systems || []).map((system) => normalizePhrase(system)).filter(Boolean);
+  const requestedSystems = systems.map((system) => normalizePhrase(system)).filter(Boolean);
+  if (!candidateSystems.length) {
+    return systemMode === "any" || requestedSystems.length <= 1;
+  }
+
+  return systemMode === "any"
+    ? requestedSystems.some((system) => candidateSystems.includes(system))
+    : requestedSystems.every((system) => candidateSystems.includes(system));
+}
+
+function indexedCaseToCandidate(row) {
+  return {
+    casePath: row.casePath,
+    caseUrl: row.caseUrl || absoluteUrl(row.casePath),
+    title: row.caseTitle || titleFromCasePath(row.casePath) || "Radiopaedia case",
+    snippet: row.qualitySummary || row.diagnosisQuery || "",
+    systems: row.systems || [],
+    indexedQualityScore: row.qualityScore,
+    indexedPreparedCount: row.preparedCount,
+    source: "case-index",
+  };
+}
+
+async function collectIndexedRandomCasePool(request, excludePaths) {
+  const systems = request.randomSpec?.systems || [];
+  const systemMode = request.randomSpec?.systemMode || "all";
+  const modality = request.preferredModalities?.[0] || preferredModalitiesFromHint(request.studyHint || "")[0] || "";
+  const rows = await readIndexedRandomCases({
+    limit: Math.max(request.randomSpec.count + 24, 48),
+    excludeCasePaths: [...excludePaths],
+    modality,
+    system: systems.length === 1 ? systems[0] : "",
+    query: request.randomSpec?.queryText || "",
+    minSelectedImages: Math.min(Math.max(request.requestedImagesPerCase || 1, 1), 2),
+  });
+  const candidates = rows
+    .map(indexedCaseToCandidate)
+    .filter((candidate) => indexedCaseMatchesSystems(candidate, systems, systemMode));
+
+  if (candidates.length) {
+    emitProgress("Found cached random candidates", {
+      request: request.rawInput,
+      candidateCount: candidates.length,
+      source: "case-index",
+    });
+  }
+  return shuffle(candidates);
+}
+
 async function pickMixedCandidates(candidates, desiredCount, htmlCache) {
   const picks = [];
   const usedSystems = new Set();
@@ -353,7 +414,7 @@ async function pickMixedCandidates(candidates, desiredCount, htmlCache) {
         continue;
       }
 
-      const caseSystems = await candidateSystemList(candidate, htmlCache);
+      const caseSystems = candidate.systems?.length ? candidate.systems : await candidateSystemList(candidate, htmlCache);
       const hasNovelSystem = caseSystems.some((system) => !usedSystems.has(system));
       if (requireNovelSystem && caseSystems.length && !hasNovelSystem) {
         continue;
@@ -379,7 +440,19 @@ async function pickRandomCaseCandidates(request, { excludePaths = new Set(), all
   const startedAt = Date.now();
   let reviewedCandidates = 0;
 
+  for (const candidate of await collectIndexedRandomCasePool(request, excludePaths)) {
+    if (!candidateMap.has(candidate.casePath)) {
+      candidateMap.set(candidate.casePath, candidate);
+    }
+    if (candidateMap.size >= targetPoolSize) {
+      break;
+    }
+  }
+
   for (const query of buildRandomSearchQueries(request).slice(0, RANDOM_SEARCH_QUERY_LIMIT)) {
+    if (candidateMap.size >= request.randomSpec.count) {
+      break;
+    }
     if (Date.now() - startedAt > RANDOM_SEARCH_TIME_LIMIT_MS) {
       break;
     }

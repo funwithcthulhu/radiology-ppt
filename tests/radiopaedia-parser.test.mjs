@@ -1,10 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
+import { recordCaseIndex } from "../src/app-store.mjs";
 import {
   buildTeachingPoints,
   buildCaseSearchUrl,
+  expandCaseRequests,
   parseCaseSearchResults,
   parseCaseSystemsFromHtml,
 } from "../src/radiopaedia.mjs";
@@ -50,4 +53,46 @@ test("builds complete teaching-point sentences without ellipses", () => {
   assert.equal(points[0].endsWith("low ADC values."), true);
   assert.equal(points[0].includes("…"), false);
   assert.equal(points[0].includes("..."), false);
+});
+
+test("expands random requests from the local case index before live search", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "radiology-indexed-random-"));
+  process.env.RADIOLOGY_PPT_DATABASE_PATH = path.join(tempDir, "state.sqlite");
+
+  await recordCaseIndex({
+    caseData: {
+      casePath: "/cases/cached-ms-1?lang=us",
+      caseTitle: "Cached multiple sclerosis",
+      diagnosisQuery: "multiple sclerosis",
+      studyHint: "mri brain",
+      modalitySummary: "MRI",
+      images: [{ frameId: "a" }, { frameId: "b" }, { frameId: "c" }],
+      quality: {
+        selectedCount: 3,
+        strongCount: 2,
+        overallScore: 900,
+        summary: "3 relevant images selected.",
+      },
+    },
+    request: {
+      randomSystems: ["Central Nervous System"],
+    },
+    source: "unit-test",
+  });
+
+  const expanded = await expandCaseRequests(
+    [
+      {
+        requestMode: "random",
+        randomCount: 1,
+        randomSystems: ["Central Nervous System"],
+        modality: "MRI",
+      },
+    ],
+    { readRandomHistory: false, writeRandomHistory: false },
+  );
+
+  assert.equal(expanded.length, 1);
+  assert.equal(expanded[0].selectedCasePath, "/cases/cached-ms-1");
+  assert.equal(expanded[0].selectedCaseTitle, "Cached multiple sclerosis");
 });
