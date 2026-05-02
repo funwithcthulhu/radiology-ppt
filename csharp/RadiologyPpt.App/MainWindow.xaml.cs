@@ -16,6 +16,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private readonly BackendClient _backend = new();
     private readonly AppStorage _storage;
     private readonly AppJobRunner _jobs = new();
+    private readonly CaseLibraryViewModel _library = new();
     private string _statusText = "Ready";
     private string _lastPowerPointText = "No PowerPoint generated yet";
     private string _lastPowerPointPath = "";
@@ -23,7 +24,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public ObservableCollection<CaseRequestRow> Requests { get; } = [];
-    public ObservableCollection<CaseLibraryItem> LibraryItems { get; } = [];
 
     public string StatusText
     {
@@ -46,7 +46,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         InitializeStorage();
         LoadSavedSettings();
         RequestsGrid.ItemsSource = Requests;
-        LibraryGrid.ItemsSource = LibraryItems;
+        LibraryGrid.ItemsSource = _library.Items;
         Requests.Add(new CaseRequestRow());
         AppendLog("C# desktop app started.");
         AppendLog($"Project root: {_backend.ProjectRoot}");
@@ -135,17 +135,17 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
     }
 
-    private void CasesNav_Click(object sender, RoutedEventArgs e) => MainTabs.SelectedIndex = 0;
+    private void CasesNav_Click(object sender, RoutedEventArgs e) => SelectTab(MainTab.Cases);
     private void LibraryNav_Click(object sender, RoutedEventArgs e)
     {
-        MainTabs.SelectedIndex = 1;
+        SelectTab(MainTab.Library);
         RefreshLibrary();
     }
-    private void CoreBoardsNav_Click(object sender, RoutedEventArgs e) => MainTabs.SelectedIndex = 2;
-    private void PowerPointNav_Click(object sender, RoutedEventArgs e) => MainTabs.SelectedIndex = 3;
+    private void CoreBoardsNav_Click(object sender, RoutedEventArgs e) => SelectTab(MainTab.CoreBoards);
+    private void PowerPointNav_Click(object sender, RoutedEventArgs e) => SelectTab(MainTab.PowerPoint);
     private void ActivityNav_Click(object sender, RoutedEventArgs e)
     {
-        MainTabs.SelectedIndex = 4;
+        SelectTab(MainTab.Activity);
         RefreshDiagnostics();
     }
 
@@ -289,7 +289,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         var reviewSessionId = "";
         try
         {
-            MainTabs.SelectedIndex = 4;
+            SelectTab(MainTab.Activity);
             AppendLog($"Preparing {rows.Length} request row(s)...");
             var prepareSettings = settings with { UseOllamaReview = false };
             var prepared = await _jobs.RunAsync(
@@ -326,8 +326,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 "Creating PowerPoint...",
                 OnJobChanged,
                 token => _backend.RenderAsync(reviewWindow.ApprovedItems, settings, AppendLog, token));
-            var outputPath = ExtractOutputPath(stdout);
-            var manifestPath = ExtractManifestPath(stdout);
+            var outputPath = PowerPointResultParser.ExtractOutputPath(stdout);
+            var manifestPath = PowerPointResultParser.ExtractManifestPath(stdout);
             if (!string.IsNullOrWhiteSpace(outputPath))
             {
                 _lastPowerPointPath = outputPath;
@@ -370,7 +370,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         try
         {
-            MainTabs.SelectedIndex = 4;
+            SelectTab(MainTab.Activity);
             var domain = AppOptions.BoardDomainCliValue(BoardDomainCombo.SelectedItem?.ToString() ?? "");
             await _jobs.RunAsync(
                 "Importing PDFs...",
@@ -600,12 +600,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         return "No usable cases were prepared." + Environment.NewLine + Environment.NewLine + string.Join(Environment.NewLine, failures);
     }
 
-    private static string ExtractOutputPath(string stdout)
-    {
-        var match = Regex.Match(stdout, @"Created PowerPoint:\s*(.+)", RegexOptions.IgnoreCase);
-        return match.Success ? match.Groups[1].Value.Trim() : "";
-    }
-
     private void RefreshDiagnostics()
     {
         try
@@ -631,15 +625,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         try
         {
-            LibraryItems.Clear();
-            var items = _storage.LoadCaseLibrary(
+            var count = _library.Refresh(
+                _storage,
                 LibrarySearchBox.Text,
                 LibraryDecisionFilter.SelectedItem?.ToString() ?? "All");
-            foreach (var item in items)
-            {
-                LibraryItems.Add(item);
-            }
-            StatusText = $"Library: {LibraryItems.Count} case(s)";
+            StatusText = $"Library: {count} case(s)";
         }
         catch (Exception exception)
         {
@@ -648,10 +638,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
     }
 
-    private static string ExtractManifestPath(string stdout)
+    private void SelectTab(MainTab tab)
     {
-        var match = Regex.Match(stdout, @"Created manifest:\s*(.+)", RegexOptions.IgnoreCase);
-        return match.Success ? match.Groups[1].Value.Trim() : "";
+        MainTabs.SelectedIndex = (int)tab;
     }
 
     private static string BuildRequestSummary(IReadOnlyCollection<CaseRequestRow> rows, int preparedCount)
