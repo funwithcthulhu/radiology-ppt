@@ -8,6 +8,7 @@ gui_state.json
 node_modules/
 outputs/
 scratch/
+state/
 review-sessions/
 library/board-review/
 csharp/**/bin/

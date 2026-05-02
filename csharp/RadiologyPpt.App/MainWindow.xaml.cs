@@ -14,6 +14,7 @@ namespace RadiologyPpt.App;
 public partial class MainWindow : Window, INotifyPropertyChanged
 {
     private readonly BackendClient _backend = new();
+    private readonly AppStorage _storage;
     private CancellationTokenSource? _taskCancellation;
     private string _statusText = "Ready";
     private string _lastPowerPointText = "No PowerPoint generated yet";
@@ -38,13 +39,17 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     public MainWindow()
     {
         InitializeComponent();
+        _storage = new AppStorage(_backend.StateDir, _backend.AppRoot);
         DataContext = this;
         InitializeOptionControls();
+        InitializeStorage();
+        LoadSavedSettings();
         RequestsGrid.ItemsSource = Requests;
         Requests.Add(new CaseRequestRow());
         AppendLog("C# desktop app started.");
         AppendLog($"Project root: {_backend.ProjectRoot}");
         AppendLog($"Node runtime: {_backend.NodePath}");
+        AppendLog($"State database: {_storage.DatabasePath}");
     }
 
     private void Window_SourceInitialized(object? sender, EventArgs e)
@@ -73,6 +78,54 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         InitialMarkupCombo.ItemsSource = AppOptions.MarkupStyles;
         InitialMarkupCombo.SelectedIndex = 0;
         OllamaModelCombo.Text = "moondream";
+    }
+
+    private void InitializeStorage()
+    {
+        try
+        {
+            _storage.Initialize();
+        }
+        catch (Exception exception)
+        {
+            AppendLog($"Storage warning: {exception.Message}");
+        }
+    }
+
+    private void LoadSavedSettings()
+    {
+        try
+        {
+            var values = _storage.LoadSettings();
+            if (values.TryGetValue("title", out var title))
+            {
+                TitleBox.Text = title;
+            }
+            if (values.TryGetValue("images_per_case", out var imagesPerCase))
+            {
+                ImagesPerCaseBox.Text = imagesPerCase;
+            }
+            if (values.TryGetValue("output_path", out var outputPath))
+            {
+                OutputBox.Text = outputPath;
+            }
+            SetCheckBox(AutoOpenCheck, values, "auto_open");
+            SetCheckBox(ClinicalHistoryCheck, values, "use_clinical_history");
+            SetCheckBox(OllamaCheck, values, "use_ollama_review");
+            SetCheckBox(TeachingPointsCheck, values, "include_teaching_points");
+            SelectByCliValue(ThemeCombo, AppOptions.Themes, AppOptions.ThemeCliValue, values, "theme");
+            SelectByCliValue(PowerPointStyleCombo, AppOptions.PowerPointStyles, AppOptions.PowerPointStyleCliValue, values, "powerpoint_style");
+            SelectByCliValue(InitialCropCombo, AppOptions.CropModes, AppOptions.CropCliValue, values, "crop_mode");
+            SelectByCliValue(InitialMarkupCombo, AppOptions.MarkupStyles, AppOptions.MarkupCliValue, values, "markup_style");
+            if (values.TryGetValue("ollama_model", out var ollamaModel) && !string.IsNullOrWhiteSpace(ollamaModel))
+            {
+                OllamaModelCombo.Text = ollamaModel;
+            }
+        }
+        catch (Exception exception)
+        {
+            AppendLog($"Settings warning: {exception.Message}");
+        }
     }
 
     private void CasesNav_Click(object sender, RoutedEventArgs e) => MainTabs.SelectedIndex = 0;
@@ -191,7 +244,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
 
         var requests = rows.Select((row, index) => row.ToPayload(index + 1, settings)).ToList();
+        _storage.SaveGenerationSettings(settings);
         using var cancellation = BeginTask("Preparing cases...");
+        var reviewSessionId = "";
         try
         {
             MainTabs.SelectedIndex = 3;
@@ -211,8 +266,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 return;
             }
 
+            reviewSessionId = _storage.CreateReviewSession(prepared, BuildRequestSummary(rows, preparedItems.Count));
             StatusText = "Review cases";
-            var reviewWindow = new CaseReviewWindow(_backend, preparedItems, settings, AppendLog)
+            var reviewWindow = new CaseReviewWindow(_backend, preparedItems, settings, AppendLog, _storage, reviewSessionId)
             {
                 Owner = this
             };
@@ -225,10 +281,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             using var renderCancellation = BeginTask("Creating PowerPoint...");
             var stdout = await _backend.RenderAsync(reviewWindow.ApprovedItems, settings, AppendLog, renderCancellation.Token);
             var outputPath = ExtractOutputPath(stdout);
+            var manifestPath = ExtractManifestPath(stdout);
             if (!string.IsNullOrWhiteSpace(outputPath))
             {
                 _lastPowerPointPath = outputPath;
                 LastPowerPointText = $"Last PowerPoint: {Path.GetFileName(outputPath)}";
+                _storage.SaveGeneratedPowerPoint(settings, outputPath, manifestPath, reviewWindow.ApprovedItems.Count);
+                _storage.MarkReviewSessionExported(reviewSessionId, outputPath, reviewWindow.ApprovedItems.Count);
                 if (settings.AutoOpen)
                 {
                     OpenPath(outputPath);
@@ -273,6 +332,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             MainTabs.SelectedIndex = 3;
             var domain = AppOptions.BoardDomainCliValue(BoardDomainCombo.SelectedItem?.ToString() ?? "");
             await _backend.ImportCoreReviewPdfsAsync(dialog.FileNames, domain, AppendLog, cancellation.Token);
+            _storage.SaveCoreSourceImports(dialog.FileNames, domain);
             BoardStatusText.Text = $"Imported {dialog.FileNames.Length} PDF(s).";
             StatusText = "Core Boards import complete";
         }
@@ -422,6 +482,44 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         var match = Regex.Match(stdout, @"Created PowerPoint:\s*(.+)", RegexOptions.IgnoreCase);
         return match.Success ? match.Groups[1].Value.Trim() : "";
+    }
+
+    private static string ExtractManifestPath(string stdout)
+    {
+        var match = Regex.Match(stdout, @"Created manifest:\s*(.+)", RegexOptions.IgnoreCase);
+        return match.Success ? match.Groups[1].Value.Trim() : "";
+    }
+
+    private static string BuildRequestSummary(IReadOnlyCollection<CaseRequestRow> rows, int preparedCount)
+    {
+        return $"{rows.Count} row(s), {preparedCount} prepared case(s)";
+    }
+
+    private static void SetCheckBox(System.Windows.Controls.CheckBox checkBox, IReadOnlyDictionary<string, string> values, string key)
+    {
+        if (values.TryGetValue(key, out var value))
+        {
+            checkBox.IsChecked = value == "1" || value.Equals("true", StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    private static void SelectByCliValue(
+        System.Windows.Controls.ComboBox comboBox,
+        IEnumerable<string> labels,
+        Func<string, string> toCliValue,
+        IReadOnlyDictionary<string, string> values,
+        string key)
+    {
+        if (!values.TryGetValue(key, out var savedValue))
+        {
+            return;
+        }
+
+        var match = labels.FirstOrDefault(label => toCliValue(label).Equals(savedValue, StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrWhiteSpace(match))
+        {
+            comboBox.SelectedItem = match;
+        }
     }
 
     private static void OpenPath(string path)

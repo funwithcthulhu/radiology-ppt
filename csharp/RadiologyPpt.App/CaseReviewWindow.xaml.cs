@@ -12,6 +12,8 @@ public partial class CaseReviewWindow : Window
     private readonly BackendClient _backend;
     private readonly GenerationSettings _settings;
     private readonly Action<string> _log;
+    private readonly AppStorage _storage;
+    private readonly string _reviewSessionId;
     private readonly List<JsonObject> _items;
     private int _currentIndex;
     private CancellationTokenSource? _actionCancellation;
@@ -20,12 +22,16 @@ public partial class CaseReviewWindow : Window
         BackendClient backend,
         IReadOnlyList<JsonObject> preparedItems,
         GenerationSettings settings,
-        Action<string> log)
+        Action<string> log,
+        AppStorage storage,
+        string reviewSessionId)
     {
         InitializeComponent();
         _backend = backend;
         _settings = settings;
         _log = log;
+        _storage = storage;
+        _reviewSessionId = reviewSessionId;
         _items = preparedItems.Select(item => item.DeepClone().AsObject()).ToList();
         CropCombo.ItemsSource = AppOptions.CropModes;
         CropCombo.SelectedItem = AppOptions.CropModes.FirstOrDefault(option => AppOptions.CropCliValue(option) == settings.CropMode) ?? AppOptions.CropModes[0];
@@ -82,13 +88,16 @@ public partial class CaseReviewWindow : Window
     private void KeepNext_Click(object sender, RoutedEventArgs e)
     {
         ApplySelectedImagesToCurrentItem();
-        ApprovedItems.Add(_items[_currentIndex].DeepClone().AsObject());
+        var approved = _items[_currentIndex].DeepClone().AsObject();
+        ApprovedItems.Add(approved);
+        _storage.SaveCaseReview(_reviewSessionId, approved, "approved");
         _currentIndex += 1;
         ShowCurrentCase();
     }
 
     private void Skip_Click(object sender, RoutedEventArgs e)
     {
+        _storage.SaveCaseReview(_reviewSessionId, _items[_currentIndex].DeepClone().AsObject(), "skipped");
         _currentIndex += 1;
         ShowCurrentCase();
     }
@@ -107,6 +116,8 @@ public partial class CaseReviewWindow : Window
             }
 
             _items[_currentIndex] = replacement;
+            _storage.SaveImageCandidates(replacement["caseData"] as JsonObject);
+            _storage.RecordEvent("info", "Rerolled review case", TextValue(replacement["caseData"] as JsonObject, "caseTitle", ""));
             ShowCurrentCase();
         });
     }
@@ -169,17 +180,19 @@ public partial class CaseReviewWindow : Window
             if (replaceUncheckedOnly)
             {
                 var combined = checkedImages.Concat(replacementImages).Take(Math.Max(checkedImages.Count, checkedImages.Count + uncheckedCount)).ToList();
-                ReplaceCurrentImages(combined);
-                if (replacementImages.Count == 0)
-                {
+            ReplaceCurrentImages(combined);
+            _storage.SaveImageCandidates(_items[_currentIndex]["caseData"] as JsonObject);
+            if (replacementImages.Count == 0)
+            {
                     MessageBox.Show(this, "No alternate image was found for the unchecked slot, so that slot was left empty.", Title, MessageBoxButton.OK, MessageBoxImage.Information);
                 }
             }
             else
             {
-                ReplaceCurrentImages(replacementImages);
-                if (replacementImages.Count == 0)
-                {
+            ReplaceCurrentImages(replacementImages);
+            _storage.SaveImageCandidates(_items[_currentIndex]["caseData"] as JsonObject);
+            if (replacementImages.Count == 0)
+            {
                     MessageBox.Show(this, "No alternate images were found for this case.", Title, MessageBoxButton.OK, MessageBoxImage.Information);
                 }
             }

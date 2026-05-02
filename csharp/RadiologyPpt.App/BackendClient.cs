@@ -26,6 +26,7 @@ public sealed class BackendClient
     public string NodePath { get; }
 
     public string OutputsDir => Path.Combine(AppRoot, "outputs");
+    public string StateDir => Path.Combine(AppRoot, "state");
     public string BoardReviewDir => Path.Combine(AppRoot, "library", "board-review");
     public string BoardReviewCorpusPath => Path.Combine(BoardReviewDir, "pdf-corpus.json");
 
