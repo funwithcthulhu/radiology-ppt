@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540" role="img" aria-label="Review window overview">
+  <rect width="960" height="540" fill="#f1f4f7"/>
+  <text x="36" y="56" font-family="Segoe UI, Arial" font-size="28" font-weight="700" fill="#102132">Case Review 1 of 5</text>
+  <text x="36" y="98" font-family="Segoe UI, Arial" font-size="22" font-weight="700" fill="#102132">Example Radiology Case</text>
+  <text x="36" y="128" font-family="Segoe UI, Arial" font-size="15" fill="#516b80">Review images, keep good frames, replace weak frames, then approve or skip.</text>
+  <rect x="36" y="154" width="888" height="54" rx="10" fill="#ffffff" stroke="#c9d7e2"/>
+  <text x="60" y="187" font-family="Segoe UI, Arial" font-size="14" font-weight="700" fill="#102132">Images</text>
+  <rect x="130" y="170" width="46" height="24" fill="#ffffff" stroke="#aebdca"/>
+  <text x="148" y="187" font-family="Segoe UI, Arial" font-size="14" fill="#102132">3</text>
+  <text x="320" y="187" font-family="Segoe UI, Arial" font-size="14" font-weight="700" fill="#102132">Crop</text>
+  <rect x="370" y="170" width="120" height="24" fill="#f7fafc" stroke="#aebdca"/>
+  <text x="382" y="187" font-family="Segoe UI, Arial" font-size="14" fill="#102132">Tighter</text>
+  <text x="620" y="187" font-family="Segoe UI, Arial" font-size="14" font-weight="700" fill="#102132">Markup</text>
+  <rect x="690" y="170" width="120" height="24" fill="#f7fafc" stroke="#aebdca"/>
+  <text x="702" y="187" font-family="Segoe UI, Arial" font-size="14" fill="#102132">Focus Ring</text>
+  <rect x="36" y="230" width="270" height="210" rx="10" fill="#ffffff" stroke="#c9d7e2"/>
+  <rect x="60" y="262" width="222" height="118" fill="#0b0f14"/>
+  <circle cx="171" cy="321" r="44" fill="#d7dde5"/>
+  <text x="60" y="410" font-family="Segoe UI, Arial" font-size="14" fill="#102132">☑ Keep this image</text>
+  <text x="60" y="430" font-family="Segoe UI, Arial" font-size="12" fill="#0f766e">Ollama score appears here when used</text>
+  <rect x="346" y="230" width="270" height="210" rx="10" fill="#ffffff" stroke="#c9d7e2"/>
+  <rect x="370" y="262" width="222" height="118" fill="#0b0f14"/>
+  <circle cx="481" cy="321" r="38" fill="#d7dde5"/>
+  <text x="370" y="410" font-family="Segoe UI, Arial" font-size="14" fill="#102132">☑ Keep this image</text>
+  <rect x="656" y="230" width="270" height="210" rx="10" fill="#ffffff" stroke="#c9d7e2"/>
+  <rect x="680" y="262" width="222" height="118" fill="#0b0f14"/>
+  <circle cx="791" cy="321" r="22" fill="#d7dde5"/>
+  <text x="680" y="410" font-family="Segoe UI, Arial" font-size="14" fill="#102132">☐ Keep this image</text>
+  <rect x="36" y="468" width="120" height="38" rx="3" fill="#0f766e"/>
+  <text x="96" y="492" text-anchor="middle" font-family="Segoe UI, Arial" font-size="13" font-weight="700" fill="#ffffff">Keep &amp; Next</text>
+  <rect x="168" y="468" width="90" height="38" fill="#ffffff" stroke="#c9d7e2"/>
+  <text x="213" y="492" text-anchor="middle" font-family="Segoe UI, Arial" font-size="13" fill="#102132">Skip</text>
+  <rect x="270" y="468" width="105" height="38" fill="#ffffff" stroke="#c9d7e2"/>
+  <text x="323" y="492" text-anchor="middle" font-family="Segoe UI, Arial" font-size="13" fill="#102132">Reroll</text>
+  <rect x="387" y="468" width="136" height="38" fill="#ffffff" stroke="#c9d7e2"/>
+  <text x="455" y="492" text-anchor="middle" font-family="Segoe UI, Arial" font-size="13" fill="#102132">Replace Unchecked</text>
+  <rect x="720" y="468" width="128" height="38" fill="#ffffff" stroke="#c9d7e2"/>
+  <text x="784" y="492" text-anchor="middle" font-family="Segoe UI, Arial" font-size="13" fill="#102132">Cancel Action</text>
+</svg>

@@ -17,11 +17,19 @@ The app can:
 - review matches before export
 - let you keep, reroll, repick, replace, or remove images during review
 - choose exact replacement frames from a per-case candidate image gallery
+- apply PowerPoint presets for fast preview, higher-quality image review, Ollama-assisted review, Core Review teaching, or dark conference mode
 - choose a case-conference or Core Review PowerPoint style
 - add optional teaching-point slides; Core Review includes them automatically when available
 - keep local history so random PowerPoints do not keep repeating the same recent cases
 - cache Radiopaedia metadata and image candidate banks to speed repeated runs
 - store app state, settings, review sessions, generated PowerPoint metadata, and diagnostics in a local SQLite database
+
+## Documentation
+
+- [User guide](docs/USER_GUIDE.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Troubleshooting](docs/TROUBLESHOOTING.md)
+- [Contributing](docs/CONTRIBUTING.md)
 
 ## Main Use
 
@@ -52,7 +60,7 @@ The current desktop app is C# WPF. The Radiopaedia search, image-selection, cach
    - `Random Case`
    - `Manual Case URL`
 4. Set optional filters like modality, anatomy, subspecialty, age group, topic, or difficulty.
-5. Go to the `PowerPoint` tab and set title, output path, images per case, PowerPoint style, theme, and optional extras.
+5. Go to the `PowerPoint` tab and optionally apply a preset, then set title, output path, images per case, PowerPoint style, theme, and optional extras.
 6. Click `Generate PowerPoint`.
 7. Review each prepared case before export.
 8. Keep, reroll, repick, replace individual images, remove individual images, or skip each case.
@@ -105,7 +113,8 @@ The primary GUI is a native Windows C# WPF app. The Radiopaedia/PowerPoint backe
 - `csharp\RadiologyPpt.App`: WPF desktop UI, review flow, settings, and app orchestration
 - `csharp\RadiologyPpt.App\AppStorage.cs`: local SQLite storage for settings, review sessions, image candidates, generated PowerPoints, diagnostics, and Core Boards import metadata
 - `csharp\RadiologyPpt.App\AppJobRunner.cs`: cancellable background-task coordinator for long GUI workflows
-- `src/cli.mjs`: internal backend entrypoint used by the GUI
+- `src/cli.mjs`: thin internal backend entrypoint used by the GUI
+- `src/backend-api.mjs`: testable workflow API for prepare, probe, score, render, and Core Review operations
 - `src/contracts`: JSON schema contracts for C# to Node prepare/render payloads
 - `src/request-parser.mjs`: diagnosis, random/category, modality, and filter parsing
 - `src/radiopaedia-client.mjs`: Radiopaedia HTTP/download helpers and persistent fetch cache
@@ -113,7 +122,8 @@ The primary GUI is a native Windows C# WPF app. The Radiopaedia/PowerPoint backe
 - `src/focus-crop.mjs`: Node image focus-crop and optional focus-ring rendering
 - `src/image-candidates.mjs`: frame candidate extraction, relevance scoring, and selection
 - `src/ollama-review.mjs`: optional local Ollama vision-model scoring
-- `src/cache-store.mjs`: persistent JSON metadata cache
+- `src/app-store.mjs`: SQLite-backed backend cache, random history, and review/image decisions
+- `src/cache-store.mjs`: metadata cache compatibility layer with JSON fallback/backfill
 - `src/core_review/pdf-ingest.mjs`: Node PDF text/page/image ingestion for local Core Boards sources
 - `src/deck.mjs`: PowerPoint rendering
 
@@ -157,9 +167,9 @@ Local state:
 - The app prefers stronger finding-centered images and can use fewer images when a case does not have enough clearly useful frames.
 - When Radiopaedia exposes annotation coordinates, the app can focus-crop around the finding and optionally add a subtle focus ring.
 - Optional minimal clinical history can be added to the intro slide.
-- If a local Ollama vision model is installed, the app can optionally score selected images during preparation.
+- If a local Ollama vision model is installed, the app can optionally score selected images from the review window.
 - Ollama auto-detect prefers compact vision models first to reduce slowdown.
-- Ollama review is intentionally capped for responsiveness: by default it reviews only the strongest selected image per case, with a 12-second image timeout and 20-second case budget. Advanced users can tune this with `RADIOLOGY_PPT_OLLAMA_IMAGE_TIMEOUT_MS`, `RADIOLOGY_PPT_OLLAMA_CASE_TIMEOUT_MS`, and `RADIOLOGY_PPT_OLLAMA_MAX_IMAGES_PER_CASE`.
+- Ollama review is intentionally deferred and capped for responsiveness: by default it reviews only the strongest selected image per case, with a 12-second image timeout and 20-second case budget. Advanced users can tune this with `RADIOLOGY_PPT_OLLAMA_IMAGE_TIMEOUT_MS`, `RADIOLOGY_PPT_OLLAMA_CASE_TIMEOUT_MS`, and `RADIOLOGY_PPT_OLLAMA_MAX_IMAGES_PER_CASE`.
 - Random case selections are remembered during prepare, not only after PowerPoint export, so cancelled/reviewed random runs should not keep recycling the same cases.
 - The packaged app writes outputs, cache, library data, and state inside its app folder.
 - Case preparation runs multiple cases concurrently, while preserving request order.
