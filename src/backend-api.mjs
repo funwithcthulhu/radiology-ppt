@@ -1,7 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildDeck } from "./deck.mjs";
 import {
   buildCoreReviewQuizSession,
   coreReviewSchemaSummary,
@@ -25,6 +24,11 @@ import { radiopaediaProvider } from "./providers/radiopaedia-provider.mjs";
 const RESOURCE_ROOT =
   process.env.RADIOLOGY_PPT_RESOURCE_ROOT || path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const APP_ROOT = process.env.RADIOLOGY_PPT_APP_ROOT || RESOURCE_ROOT;
+
+async function buildDeck(options) {
+  const deck = await import("./deck.mjs");
+  return deck.buildDeck(options);
+}
 
 export async function loadCaseRequestEntries(inputPath) {
   const raw = await fs.readFile(inputPath, "utf8");
