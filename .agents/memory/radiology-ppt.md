@@ -1,6 +1,6 @@
 # radiology-ppt Canonical Memory
 
-Last updated: 2026-05-01
+Last updated: 2026-05-02
 
 This is repo-local canonical memory for the Radiopaedia Case PowerPoint Builder project.
 Read this before making project decisions, UI changes, GitHub changes, packaging changes, or
@@ -12,7 +12,8 @@ Core Boards/Core Review changes.
 - Repo name must remain `radiology-ppt`.
 - GitHub remote: `https://github.com/funwithcthulhu/radiology-ppt`
 - Check `git status --short --branch` for the current branch before making changes.
-- Main desktop app entrypoint: `gui_app.py`
+- Main desktop app entrypoint: `csharp/RadiologyPpt.App`
+- Packaged desktop app: `dist/Radiopaedia Case PowerPoint Builder/Radiopaedia Case PowerPoint Builder.exe`
 - Main Node CLI entrypoint: `src/cli.mjs`
 - Existing project GitHub workflow skill: `.agents/skills/radiology-ppt-github-workflow/SKILL.md`
 - Core Review handoff note: `CORE_REVIEW_HANDOFF.md`
@@ -40,6 +41,16 @@ This app is evolving from a Radiopaedia case PowerPoint builder into two related
 
 Core Boards is not a playful label. It refers to the ABR Core Exam taken by R3/PGY-4
 radiology residents and should cover the broad diagnostic radiology curriculum.
+
+## C# Desktop Migration
+
+- Primary GUI is now a native Windows C# WPF app under `csharp/RadiologyPpt.App`.
+- Keep using the existing Node backend (`src/cli.mjs` and modules under `src/`) for Radiopaedia search, image selection, caching, Core Boards ingestion, and PowerPoint rendering.
+- Build and publish the desktop app with `build-csharp-app.ps1`.
+- Refresh the desktop shortcut with `create-desktop-shortcut.ps1`.
+- The packaged app path remains `dist/Radiopaedia Case PowerPoint Builder/Radiopaedia Case PowerPoint Builder.exe`.
+- The WPF main/review windows should clamp to the visible Windows work area so title bars do not open above the screen on scaled displays.
+- `gui_app.py` is legacy/reference during migration unless the user explicitly asks to work on the old Python GUI.
 
 ## Core Boards Requirements
 
@@ -92,7 +103,10 @@ The Core Boards module should support:
 ## Current UI State
 
 - Do not assume an app process is already running.
-- Relaunch from source with `pythonw .\gui_app.py`, or use the packaged desktop shortcut after rebuilding.
+- Relaunch from source with `dotnet run --project .\csharp\RadiologyPpt.App\RadiologyPpt.App.csproj`, or use the packaged desktop shortcut after rebuilding.
+- C# GUI tabs are `Cases`, `Core Boards`, `PowerPoint`, and `Activity`.
+- Case review supports keep/skip/reroll/re-pick images, replace unchecked images, remove unchecked images, and cancel long review actions.
+- Ollama review can be enabled from the PowerPoint tab and the user can choose/refresh the local model list.
 - Screenshots and local temp paths from prior sessions are not durable project state.
 
 ## Verification Commands Already Run
@@ -112,6 +126,17 @@ git.exe diff --check
 ```
 
 `git.exe diff --check` emitted only CRLF normalization warnings for tracked text files.
+
+From the repo root on 2026-05-02 during C# migration:
+
+```powershell
+dotnet build .\csharp\RadiologyPpt.App\RadiologyPpt.App.csproj
+npm test
+.\build-csharp-app.ps1
+.\create-desktop-shortcut.ps1
+```
+
+The packaged C# executable was smoke-launched successfully.
 
 ## Next Product Steps
 

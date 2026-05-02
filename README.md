@@ -1,6 +1,6 @@
 # Radiopaedia Case PowerPoint Builder
 
-Desktop GUI app for building case-based radiology PowerPoints from Radiopaedia.
+Native Windows desktop GUI app for building case-based radiology PowerPoints from Radiopaedia.
 
 For each case, the app prepares a teaching sequence like:
 
@@ -39,6 +39,8 @@ If the packaged app is not present yet, you can launch the source GUI directly:
 dotnet run --project .\csharp\RadiologyPpt.App\RadiologyPpt.App.csproj
 ```
 
+The current desktop app is C# WPF. The Radiopaedia search, image-selection, caching, Core Boards ingestion, and PowerPoint rendering engine remains in Node under `src\`.
+
 ## GUI Workflow
 
 1. Open the app.
@@ -53,6 +55,8 @@ dotnet run --project .\csharp\RadiologyPpt.App\RadiologyPpt.App.csproj
 7. Review each prepared case before export.
 8. Keep, reroll, repick, replace individual images, remove individual images, or skip each case.
 9. Export the final PowerPoint.
+
+The window is clamped to the visible Windows work area on launch, including high-DPI/scaled displays, so it should not open above the top of the screen.
 
 ## Request Types
 
@@ -104,6 +108,36 @@ The primary GUI is a native Windows C# WPF app. The Radiopaedia/PowerPoint backe
 - `src/ollama-review.mjs`: optional local Ollama vision-model scoring
 - `src/cache-store.mjs`: persistent JSON metadata cache
 - `src/deck.mjs`: PowerPoint rendering
+
+Legacy `gui_app.py` is still present for reference during the migration, but normal use should go through the C# app and desktop shortcut.
+
+## Developer Setup
+
+Prerequisites:
+
+- .NET 8 SDK / Windows Desktop runtime
+- Node.js with dependencies installed by `npm install`
+- PowerShell for the Windows build and shortcut scripts
+
+Build and refresh the packaged desktop app:
+
+```powershell
+.\build-csharp-app.ps1
+.\create-desktop-shortcut.ps1
+```
+
+Run from source while developing:
+
+```powershell
+dotnet run --project .\csharp\RadiologyPpt.App\RadiologyPpt.App.csproj
+```
+
+Run checks before pushing:
+
+```powershell
+dotnet build .\csharp\RadiologyPpt.App\RadiologyPpt.App.csproj
+npm test
+```
 
 ## Notes
 

@@ -23,7 +23,7 @@ The system should support:
 - Added repo-local canonical memory:
   - `.agents/memory/radiology-ppt.md`
   - `AGENTS.md` points future agents to read it first.
-- Added visible GUI navigation for `Core Boards`.
+- Added visible GUI navigation for `Core Boards`; current primary GUI is the C# WPF app under `csharp/RadiologyPpt.App`.
 - Keep user-facing language simple and prefer `PowerPoint` over unexplained `deck` wording.
 - Added Core Boards GUI workspace with:
   - default domain selector
@@ -31,7 +31,7 @@ The system should support:
   - knowledge-base folder shortcut
   - knowledge-base status summary
   - visible question-mode roadmap
-- Added PowerPoint style selector in `gui_app.py`: `Case Conference` and `Core Review`.
+- Added PowerPoint style selector: `Case Conference` and `Core Review`.
 - Added compact-first Ollama auto-detect:
   - Prefer `moondream`
   - Then `minicpm`
@@ -48,7 +48,8 @@ The system should support:
   - `--core-review-ingest-pdf`
   - `--core-review-quiz`
 - Added `library/board-review/` to `.gitignore` so private PDFs, extracted page images, and generated corpora stay local.
-- Updated `build-windows-app.ps1` so packaged builds can include `core_review_pdf_ingest.exe`.
+- Added `build-csharp-app.ps1` for the current C# desktop package.
+- Older `build-windows-app.ps1` remains relevant only to the legacy Python package path.
 
 ## PDF Ingestion Behavior
 
@@ -97,6 +98,14 @@ node.exe .\src\cli.mjs --core-review-ingest-pdf "C:\path\to\atlas.pdf" --out .\l
   - 2 page-render assets
   - 2 text chunks
 - Prior screenshots were temporary artifacts and should not be treated as durable project state.
+
+During the C# desktop migration, these checks also passed:
+
+- `dotnet build csharp\RadiologyPpt.App\RadiologyPpt.App.csproj`
+- `npm test`
+- `.\build-csharp-app.ps1`
+- `.\create-desktop-shortcut.ps1`
+- Packaged executable smoke launch
 
 ## Next Build Steps
 

@@ -37,7 +37,8 @@ Useful baseline:
 ```powershell
 git.exe status -sb
 git.exe diff --stat
-python.exe -m py_compile gui_app.py scripts\focus_crop.py
+dotnet.exe build .\csharp\RadiologyPpt.App\RadiologyPpt.App.csproj
+npm.exe test
 node.exe --check src\cli.mjs
 node.exe --check src\deck.mjs
 node.exe --check src\radiopaedia.mjs
@@ -60,12 +61,15 @@ Keep these out of normal commits:
 - `__pycache__/`
 - `gui_state.json`
 - generated `.pptx`, logs, preview images, and temporary operator-test artifacts
+- `csharp/**/bin/`
+- `csharp/**/obj/`
 
 The repo `.gitignore` already covers the main generated directories.
 
 ## Packaging Notes
 
-- `build-windows-app.ps1` should build through a staged dist folder and then copy into the packaged app directory while preserving `outputs`, `cache`, `scratch`, and `library`.
+- Current primary desktop package is C# WPF. Build it with `build-csharp-app.ps1`.
+- `build-windows-app.ps1` is the older Python/Tkinter packaging path and should not be the default unless the user asks for legacy GUI work.
 - The packaged app lives under:
   `dist\Radiopaedia Case PowerPoint Builder\Radiopaedia Case PowerPoint Builder.exe`
 - Before rebuilding, close any running `Radiopaedia Case PowerPoint Builder` process.

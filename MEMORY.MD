@@ -13,6 +13,8 @@ This is the lightweight repo-local memory index. Read this first when returning 
 ## Current North Star
 
 - Keep the repo/project name as `radiology-ppt`.
+- Primary desktop app is the C# WPF project at `csharp/RadiologyPpt.App`.
+- The Node backend under `src/` remains the Radiopaedia/Core Boards/PowerPoint engine.
 - Use clear GUI labels such as `Cases`, `PowerPoint`, and `Core Boards`.
 - Use `Core Boards` for ABR Core Exam prep infrastructure.
 - Treat Core Boards as a serious radiology board-review workflow with PDF/source ingestion,
