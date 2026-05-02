@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://funwithcthulhu.github.io/radiology-ppt/prepared-output.schema.json",
+  "title": "Radiology PowerPoint Prepared Output",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["entries", "items", "failures"],
+  "properties": {
+    "entries": {
+      "type": "array",
+      "items": { "$ref": "case-request.schema.json" }
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["request", "caseData"],
+        "properties": {
+          "request": { "$ref": "case-request.schema.json" },
+          "caseData": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["caseTitle", "casePath", "images"],
+            "properties": {
+              "caseTitle": { "type": "string", "minLength": 1 },
+              "casePath": { "type": "string", "minLength": 1 },
+              "caseUrl": { "type": "string" },
+              "caseIntro": { "type": "string" },
+              "diagnosisQuery": { "type": "string" },
+              "modalitySummary": { "type": "string" },
+              "quality": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "images": {
+                "type": "array",
+                "items": { "$ref": "image-candidate.schema.json" }
+              },
+              "imageCandidateBank": {
+                "type": "array",
+                "items": { "$ref": "image-candidate.schema.json" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "failures": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

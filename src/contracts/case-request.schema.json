@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://funwithcthulhu.github.io/radiology-ppt/case-request.schema.json",
+  "title": "Radiology PowerPoint Case Request",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["requestMode", "rawInput"],
+  "properties": {
+    "requestId": { "type": "string" },
+    "requestMode": {
+      "type": "string",
+      "enum": ["specific", "random", "manual"]
+    },
+    "rawInput": { "type": "string", "minLength": 1 },
+    "diagnosis": { "type": "string" },
+    "selectedCasePath": { "type": "string" },
+    "selectedCaseTitle": { "type": "string" },
+    "randomCount": { "type": "integer", "minimum": 1, "maximum": 20 },
+    "randomSystems": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "randomSystemMode": {
+      "type": "string",
+      "enum": ["", "all", "any"]
+    },
+    "randomDiversity": { "type": "string" },
+    "randomQuery": { "type": "string" },
+    "modality": { "type": "string" },
+    "secondaryModality": { "type": "string" },
+    "anatomy": { "type": "string" },
+    "ageGroup": { "type": "string" },
+    "topicFocus": { "type": "string" },
+    "difficulty": { "type": "string" },
+    "requestedImagesPerCase": { "type": "integer", "minimum": 1, "maximum": 8 },
+    "includeClinicalHistory": { "type": "boolean" },
+    "useOllamaAssist": { "type": "boolean" },
+    "ollamaModel": { "type": "string" },
+    "cropMode": {
+      "type": "string",
+      "enum": ["default", "tighter", "wider"]
+    },
+    "markupStyle": {
+      "type": "string",
+      "enum": ["none", "focus-ring"]
+    },
+    "excludeCasePaths": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "excludeFrameIds": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "includeFrameIds": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "imageCandidateBank": {
+      "type": "array",
+      "items": { "$ref": "image-candidate.schema.json" }
+    }
+  }
+}
