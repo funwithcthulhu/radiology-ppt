@@ -316,6 +316,7 @@ async function prepareEntry(entry, args, cacheDir) {
     const caseData = await fetchRadiopaediaCase(entry, {
       cacheDir,
       imagesPerCase: entry.requestedImagesPerCase || args.imagesPerCase,
+      maxFallbackAttempts: isRandomPreparedRequest(entry) ? 1 : null,
     });
     emitProgress("Prepared case", { request: entry.rawInput, caseTitle: caseData.caseTitle });
     return { item: { request: entry, caseData }, failure: null };

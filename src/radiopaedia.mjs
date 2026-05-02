@@ -242,6 +242,10 @@ export function buildCaseSearchUrl({ query = "", systems = [], page = 1 } = {}) 
   return searchUrl.toString();
 }
 
+function comparableCasePath(value) {
+  return collapseWhitespace(value).replace(/\?.*$/, "");
+}
+
 function extractSearchPageNumbers(html) {
   return dedupe(
     [...html.matchAll(/href="[^"]*page=(\d+)[^"]*scope=cases[^"]*"/g)]
@@ -257,6 +261,14 @@ function shuffle(values) {
     [items[index], items[swapIndex]] = [items[swapIndex], items[index]];
   }
   return items;
+}
+
+function rotate(values, offset) {
+  if (!values.length) {
+    return [];
+  }
+  const start = Math.abs(offset) % values.length;
+  return [...values.slice(start), ...values.slice(0, start)];
 }
 
 function buildRandomSearchQueries(request) {
@@ -430,9 +442,9 @@ async function pickRandomCaseCandidates(request, { excludePaths = new Set(), all
     title: candidate.title,
   }));
 
-  return picks.map((candidate) => ({
+  return picks.map((candidate, index) => ({
     ...candidate,
-    fallbackCandidates,
+    fallbackCandidates: rotate(fallbackCandidates, index),
   }));
 }
 
@@ -1026,18 +1038,18 @@ async function fetchRadiopaediaCaseByPath(request, casePath, { cacheDir, imagesP
   };
 }
 
-export async function fetchRadiopaediaCase(input, { cacheDir, imagesPerCase = 3 }) {
+export async function fetchRadiopaediaCase(input, { cacheDir, imagesPerCase = 3, maxFallbackAttempts = null }) {
   const request = parseCaseRequest(input);
   const fallbackCandidates = Array.isArray(request.fallbackCandidates) ? request.fallbackCandidates : [];
-  const excludedPaths = new Set((request.excludeCasePaths ?? []).map((value) => collapseWhitespace(value)).filter(Boolean));
+  const excludedPaths = new Set((request.excludeCasePaths ?? []).map((value) => comparableCasePath(value)).filter(Boolean));
   const candidateQueue = [];
 
-  if (request.selectedCasePath && !excludedPaths.has(request.selectedCasePath)) {
+  if (request.selectedCasePath && !excludedPaths.has(comparableCasePath(request.selectedCasePath))) {
     candidateQueue.push(request.selectedCasePath);
   }
 
   for (const candidate of fallbackCandidates) {
-    if (candidate?.casePath && !excludedPaths.has(candidate.casePath)) {
+    if (candidate?.casePath && !excludedPaths.has(comparableCasePath(candidate.casePath))) {
       candidateQueue.push(candidate.casePath);
     }
   }
@@ -1045,7 +1057,7 @@ export async function fetchRadiopaediaCase(input, { cacheDir, imagesPerCase = 3 
   if (!candidateQueue.length) {
     const probe = await inspectRadiopaediaCaseCandidates(request, { limit: 6 });
     for (const candidate of probe.candidates) {
-      if (!excludedPaths.has(candidate.casePath)) {
+      if (!excludedPaths.has(comparableCasePath(candidate.casePath))) {
         candidateQueue.push(candidate.casePath);
       }
     }
@@ -1056,12 +1068,31 @@ export async function fetchRadiopaediaCase(input, { cacheDir, imagesPerCase = 3 
     throw new Error(`No Radiopaedia case results found for "${request.rawInput}".`);
   }
 
+  const fallbackLimit =
+    Number.isInteger(maxFallbackAttempts) && maxFallbackAttempts >= 0 ? maxFallbackAttempts : Number.POSITIVE_INFINITY;
+  if (Number.isFinite(fallbackLimit) && fallbackCandidates.length > fallbackLimit) {
+    emitProgress("Limiting fallback case search", {
+      request: request.rawInput,
+      fallbackAttempts: fallbackLimit,
+      availableFallbacks: fallbackCandidates.length,
+    });
+  }
+
   let lastError = null;
   let bestCase = null;
   const attemptErrors = [];
+  let fallbackAttempts = 0;
   for (const candidatePath of dedupedQueue) {
+    const isPrimarySelection = candidatePath === request.selectedCasePath;
+    if (!isPrimarySelection && fallbackAttempts >= fallbackLimit) {
+      break;
+    }
+    if (!isPrimarySelection) {
+      fallbackAttempts += 1;
+    }
+
     const caseTitleHint =
-      candidatePath === request.selectedCasePath
+      isPrimarySelection
         ? request.selectedCaseTitle || request.diagnosis
         : fallbackCandidates.find((candidate) => candidate.casePath === candidatePath)?.title || "";
 
@@ -1081,6 +1112,7 @@ export async function fetchRadiopaediaCase(input, { cacheDir, imagesPerCase = 3 
       lastError = error;
       attemptErrors.push({
         casePath: candidatePath,
+        primarySelection: isPrimarySelection,
         message: error.message,
       });
     }
