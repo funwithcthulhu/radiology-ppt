@@ -9,20 +9,19 @@ public static class WindowPlacement
         var workArea = SystemParameters.WorkArea;
         const double margin = 12;
 
-        var maxWidth = Math.Max(window.MinWidth, workArea.Width - (margin * 2));
-        var maxHeight = Math.Max(window.MinHeight, workArea.Height - (margin * 2));
+        // Clamp only the restored launch size. Do not set MaxWidth/MaxHeight;
+        // WPF uses those limits when maximizing, which would leave a desktop gap.
+        var launchMaxWidth = Math.Max(window.MinWidth, workArea.Width - (margin * 2));
+        var launchMaxHeight = Math.Max(window.MinHeight, workArea.Height - (margin * 2));
 
-        window.MaxWidth = maxWidth;
-        window.MaxHeight = maxHeight;
-
-        if (window.Width > maxWidth)
+        if (window.Width > launchMaxWidth)
         {
-            window.Width = maxWidth;
+            window.Width = launchMaxWidth;
         }
 
-        if (window.Height > maxHeight)
+        if (window.Height > launchMaxHeight)
         {
-            window.Height = maxHeight;
+            window.Height = launchMaxHeight;
         }
 
         var left = workArea.Left + ((workArea.Width - window.Width) / 2);
