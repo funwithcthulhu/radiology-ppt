@@ -14,6 +14,8 @@ public sealed class BackendClient
     private readonly SemaphoreSlim _serviceWriteLock = new(1, 1);
     private readonly object _pendingLock = new();
     private readonly Dictionary<string, PendingServiceRequest> _pendingRequests = new(StringComparer.Ordinal);
+    private static readonly TimeSpan LongRunningLogDelay = TimeSpan.FromSeconds(12);
+    private static readonly TimeSpan LongRunningLogInterval = TimeSpan.FromSeconds(20);
 
     public BackendClient()
     {
@@ -325,7 +327,24 @@ public sealed class BackendClient
                 _serviceWriteLock.Release();
             }
 
-            return await pending.Completion.Task.WaitAsync(cancellationToken);
+            using var longRunningLogCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            var longRunningLogTask = LogLongRunningRequestAsync(command, pending, longRunningLogCancellation.Token);
+            try
+            {
+                return await pending.Completion.Task.WaitAsync(cancellationToken);
+            }
+            finally
+            {
+                longRunningLogCancellation.Cancel();
+                try
+                {
+                    await longRunningLogTask;
+                }
+                catch (OperationCanceledException)
+                {
+                    // Expected when the backend finishes before the reminder loop fires again.
+                }
+            }
         }
         finally
         {
@@ -334,6 +353,39 @@ public sealed class BackendClient
                 _pendingRequests.Remove(id);
             }
         }
+    }
+
+    private static async Task LogLongRunningRequestAsync(string command, PendingServiceRequest pending, CancellationToken cancellationToken)
+    {
+        var startedAt = DateTimeOffset.Now;
+        await Task.Delay(LongRunningLogDelay, cancellationToken);
+        while (!cancellationToken.IsCancellationRequested && !pending.Completion.Task.IsCompleted)
+        {
+            var elapsed = DateTimeOffset.Now - startedAt;
+            pending.Log($"Still working on {DescribeCommand(command)} ({FormatElapsed(elapsed)} elapsed)...");
+            await Task.Delay(LongRunningLogInterval, cancellationToken);
+        }
+    }
+
+    private static string DescribeCommand(string command)
+    {
+        return command switch
+        {
+            "prepare" => "case preparation",
+            "render" => "PowerPoint creation",
+            "scoreImages" => "Ollama scoring",
+            "coreReviewIngestPdf" => "Core Boards PDF import",
+            "coreReviewIngest" => "Core Boards text import",
+            "coreReviewQuiz" => "Core Boards quiz generation",
+            _ => command
+        };
+    }
+
+    private static string FormatElapsed(TimeSpan elapsed)
+    {
+        return elapsed.TotalMinutes >= 1
+            ? $"{elapsed.TotalMinutes:0.0} min"
+            : $"{elapsed.TotalSeconds:0} sec";
     }
 
     private async Task EnsureServiceAsync(Action<string> log, CancellationToken cancellationToken)

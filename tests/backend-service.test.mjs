@@ -39,6 +39,8 @@ test("backend service responds to structured ping requests", async () => {
     assert.equal(response.type, "result");
     assert.equal(response.payload.ok, true);
     assert.equal(response.payload.protocolVersion, 1);
+    assert.equal(typeof response.payload.uptimeMs, "number");
+    assert.equal(response.payload.handledRequests, 1);
   } finally {
     child.kill();
   }

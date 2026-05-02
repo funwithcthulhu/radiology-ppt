@@ -19,6 +19,9 @@ const rl = readline.createInterface({
 });
 
 let queue = Promise.resolve();
+const serviceStartedAt = Date.now();
+let handledRequests = 0;
+let lastRequestAt = null;
 
 function send(message) {
   process.stdout.write(`${JSON.stringify(message)}\n`);
@@ -54,6 +57,10 @@ async function runCommand(command, payload = {}) {
       pid: process.pid,
       service: "radiology-ppt-backend",
       protocolVersion: 1,
+      handledRequests,
+      startedAt: new Date(serviceStartedAt).toISOString(),
+      uptimeMs: Date.now() - serviceStartedAt,
+      lastRequestAt: lastRequestAt ? new Date(lastRequestAt).toISOString() : null,
     };
   }
   if (command === "prepare") {
@@ -134,6 +141,8 @@ async function handleLine(line) {
   }
 
   try {
+    handledRequests += 1;
+    lastRequestAt = Date.now();
     const payload = await withJobEvents(id, () => runCommand(request.command, request.payload || {}));
     send({ id, type: "result", payload });
   } catch (error) {
