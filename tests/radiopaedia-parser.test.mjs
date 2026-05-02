@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import {
+  buildTeachingPoints,
   buildCaseSearchUrl,
   parseCaseSearchResults,
   parseCaseSystemsFromHtml,
@@ -32,4 +33,21 @@ test("builds stable Radiopaedia case search URLs", () => {
   assert.equal(url.searchParams.get("q"), "multiple sclerosis");
   assert.equal(url.searchParams.get("page"), "2");
   assert.deepEqual(url.searchParams.getAll("system[]"), ["Central Nervous System", "Paediatrics"]);
+});
+
+test("builds complete teaching-point sentences without ellipses", () => {
+  const points = buildTeachingPoints({
+    request: {},
+    description: "",
+    findings:
+      "An ovoid shaped lesion in the splenium of the corpus callosum shows high signal intensity on T2WI and FLAIR, restricted diffusion, and low ADC values. Follow-up imaging usually demonstrates interval resolution.",
+    diagnosis: "Cytotoxic lesion of the corpus callosum",
+    caseTitle: "Cytotoxic lesions of the corpus callosum (CLOCCs)",
+    modalitySummary: "MRI brain",
+    images: [{}, {}],
+  });
+
+  assert.equal(points[0].endsWith("low ADC values."), true);
+  assert.equal(points[0].includes("…"), false);
+  assert.equal(points[0].includes("..."), false);
 });

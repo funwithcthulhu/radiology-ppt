@@ -595,16 +595,16 @@ function addTeachingPointsSlide(slide, caseData, caseNumber, deckTitle, theme, {
   );
 
   const bullets = Array.isArray(caseData.teachingPoints) ? caseData.teachingPoints.filter(Boolean) : [];
-  bullets.slice(0, 4).forEach((bullet, index) => {
-    const top = 300 + index * 90;
+  bullets.slice(0, 3).forEach((bullet, index) => {
+    const top = 292 + index * 124;
     addShape(slide, "ellipse", { left: 92, top: top + 10, width: 16, height: 16 }, theme.colors.accent, TRANSPARENT, 0);
     addText(
       slide,
       bullet,
-      { left: 126, top, width: 1040, height: 64 },
+      { left: 126, top, width: 1040, height: 104 },
       theme,
       {
-        fontSize: 26,
+        fontSize: 23,
         color: theme.colors.ink,
         face: theme.fonts.body,
       },

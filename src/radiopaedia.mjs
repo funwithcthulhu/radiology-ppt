@@ -766,7 +766,15 @@ function cleanRedactedTeachingText(text) {
     .trim();
 }
 
-function buildTeachingPoints({ request, description, findings, diagnosis, caseTitle, modalitySummary, images }) {
+function normalizeTeachingPoint(sentence) {
+  return cleanRedactedTeachingText(sentence)
+    .replace(/(?:\.\.\.|…)+$/g, "")
+    .replace(/[;:,]+$/g, ".")
+    .replace(/(?<![.!?])$/u, ".")
+    .trim();
+}
+
+export function buildTeachingPoints({ request, description, findings, diagnosis, caseTitle, modalitySummary, images }) {
   const bullets = [];
   const seen = new Set();
 
@@ -775,10 +783,7 @@ function buildTeachingPoints({ request, description, findings, diagnosis, caseTi
     .flatMap((text) => cleanText(text).split(/(?<=[.!?])\s+/));
 
   for (const sentence of candidateSentences) {
-    const bullet = truncate(
-      cleanRedactedTeachingText(redactTerms(sentence, [diagnosis, caseTitle])),
-      135,
-    );
+    const bullet = normalizeTeachingPoint(redactTerms(sentence, [diagnosis, caseTitle]));
     const key = normalizePhrase(bullet);
     if (!bullet || bullet.length < 18 || seen.has(key)) {
       continue;
