@@ -54,6 +54,20 @@ test("does not reselect excluded image frames", () => {
   assert.deepEqual(selected, []);
 });
 
+test("can explicitly select requested image frames before filling remaining slots", () => {
+  const candidates = [
+    { frameId: "1", seriesId: "a", viewSignature: "a", relevantScore: 500, url: "https://example.com/1.jpg" },
+    { frameId: "2", seriesId: "b", viewSignature: "b", relevantScore: 120, url: "https://example.com/2.jpg" },
+    { frameId: "3", seriesId: "c", viewSignature: "c", relevantScore: 450, url: "https://example.com/3.jpg" },
+  ];
+
+  const selected = selectRelevantImages(candidates, 2, { includeFrameIds: ["2"] });
+
+  assert.equal(selected[0].frameId, "2");
+  assert.equal(selected.length, 2);
+  assert.ok(selected.some((candidate) => candidate.frameId === "1" || candidate.frameId === "3"));
+});
+
 test("normalizes candidate banks and drops local paths", () => {
   const bank = normalizeImageCandidateBank([{ url: "https://example.test/a.jpg", frameId: "a", localPath: "cached.jpg" }]);
   assert.equal(bank.length, 1);

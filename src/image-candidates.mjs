@@ -209,11 +209,28 @@ function pickDistinctImages(imageCandidates, desiredCount) {
   return selected.slice(0, desiredCount);
 }
 
-export function selectRelevantImages(imageCandidates, desiredCount, { excludeFrameIds = [] } = {}) {
+export function selectRelevantImages(imageCandidates, desiredCount, { excludeFrameIds = [], includeFrameIds = [] } = {}) {
   const excluded = new Set((excludeFrameIds ?? []).map((value) => String(value)));
   const candidatePool = excluded.size
     ? imageCandidates.filter((candidate) => !excluded.has(String(candidate.frameId)))
     : imageCandidates;
+  const included = new Set((includeFrameIds ?? []).map((value) => String(value)).filter(Boolean));
+  if (included.size) {
+    const requestedCandidates = candidatePool.filter((candidate) => included.has(String(candidate.frameId)));
+    const requestedSelection = pickDistinctImages(requestedCandidates, Math.min(desiredCount, requestedCandidates.length));
+    if (requestedSelection.length >= desiredCount) {
+      return requestedSelection.slice(0, desiredCount);
+    }
+
+    const selectedFrames = new Set(requestedSelection.map((candidate) => String(candidate.frameId)));
+    const remainingSelection = selectRelevantImages(
+      candidatePool.filter((candidate) => !selectedFrames.has(String(candidate.frameId))),
+      desiredCount - requestedSelection.length,
+      { excludeFrameIds: [] },
+    );
+    return [...requestedSelection, ...remainingSelection].slice(0, desiredCount);
+  }
+
   const effectivePool = candidatePool;
   if (!effectivePool.length) {
     return [];

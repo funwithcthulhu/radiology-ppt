@@ -963,6 +963,7 @@ async function fetchRadiopaediaCaseByPath(request, casePath, { cacheDir, imagesP
   }
   const selectedImages = selectRelevantImages(imageCandidates, Math.max(1, imagesPerCase), {
     excludeFrameIds: request.excludeFrameIds || [],
+    includeFrameIds: request.includeFrameIds || [],
   });
   const imageDir = path.join(cacheDir, "images", caseSlug);
   const images = [];

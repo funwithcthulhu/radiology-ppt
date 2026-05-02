@@ -42,6 +42,7 @@ public partial class CaseReviewWindow : Window
     }
 
     public ObservableCollection<ReviewImageItem> Images { get; } = [];
+    public ObservableCollection<CandidateImageItem> CandidateImages { get; } = [];
     public List<JsonObject> ApprovedItems { get; } = [];
 
     private void Window_SourceInitialized(object? sender, EventArgs e)
@@ -83,6 +84,7 @@ public partial class CaseReviewWindow : Window
             });
         }
         ImageItemsControl.ItemsSource = Images;
+        LoadCandidateImages(caseData);
     }
 
     private void KeepNext_Click(object sender, RoutedEventArgs e)
@@ -130,6 +132,41 @@ public partial class CaseReviewWindow : Window
     private async void ReplaceUnchecked_Click(object sender, RoutedEventArgs e)
     {
         await ReplaceImagesAsync(excludeCurrentImages: true, replaceUncheckedOnly: true);
+    }
+
+    private async void UseSelectedCandidates_Click(object sender, RoutedEventArgs e)
+    {
+        var selectedCandidates = CandidateImages.Where(candidate => candidate.Use).ToArray();
+        if (selectedCandidates.Length == 0)
+        {
+            MessageBox.Show(this, "Choose at least one candidate image first.", Title, MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        await RunReplacementActionAsync("Fetching selected candidate images...", async token =>
+        {
+            var request = BuildSameCaseRequest(selectedCandidates.Length);
+            request["includeFrameIds"] = new JsonArray(selectedCandidates.Select(candidate => JsonValue.Create(candidate.FrameId)).ToArray());
+            var replacement = await _backend.PrepareSingleAsync(
+                request,
+                SettingsForReviewControls() with { ImagesPerCase = selectedCandidates.Length },
+                _log,
+                token);
+            var replacementImages = replacement?["caseData"]?["images"]?.AsArray()
+                .Select(node => node?.DeepClone().AsObject())
+                .Where(image => image is not null)
+                .Cast<JsonObject>()
+                .ToList()
+                ?? [];
+
+            ReplaceCurrentImages(replacementImages);
+            _storage.SaveImageCandidates(_items[_currentIndex]["caseData"] as JsonObject);
+            if (replacementImages.Count < selectedCandidates.Length)
+            {
+                MessageBox.Show(this, "Some selected candidate frames could not be fetched, so only the available images were kept.", Title, MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            ShowCurrentCase();
+        });
     }
 
     private void RemoveUnchecked_Click(object sender, RoutedEventArgs e)
@@ -341,6 +378,30 @@ public partial class CaseReviewWindow : Window
         }.Where(value => !string.IsNullOrWhiteSpace(value)));
     }
 
+    private void LoadCandidateImages(JsonObject? caseData)
+    {
+        CandidateImages.Clear();
+        var selectedFrameIds = new HashSet<string>(Images.Select(image => image.FrameId), StringComparer.OrdinalIgnoreCase);
+        var candidates = (caseData?["imageCandidateBank"] as JsonArray) ?? [];
+        foreach (var image in candidates
+            .OfType<JsonObject>()
+            .Where(candidate => !selectedFrameIds.Contains(TextValue(candidate, "frameId", "")))
+            .OrderByDescending(candidate => NumericValue(candidate, "relevantScore"))
+            .Take(80))
+        {
+            var frameId = TextValue(image, "frameId", "");
+            CandidateImages.Add(new CandidateImageItem
+            {
+                FrameId = frameId,
+                PreviewPath = TextValue(image, "localPath", TextValue(image, "url", "")),
+                Caption = BuildImageCaption(image),
+                ScoreText = $"Frame {frameId} | score {NumericValue(image, "relevantScore"):0}",
+                Source = image.DeepClone().AsObject()
+            });
+        }
+        CandidateItemsControl.ItemsSource = CandidateImages;
+    }
+
     private static string TextValue(JsonObject? node, string name, string fallback)
     {
         if (node is null || node[name] is null)
@@ -355,6 +416,18 @@ public partial class CaseReviewWindow : Window
         catch
         {
             return fallback;
+        }
+    }
+
+    private static double NumericValue(JsonObject node, string name)
+    {
+        try
+        {
+            return node[name]?.GetValue<double>() ?? 0;
+        }
+        catch
+        {
+            return 0;
         }
     }
 }
@@ -381,6 +454,33 @@ public sealed class ReviewImageItem : INotifyPropertyChanged
 
     public string LocalPath { get; init; } = "";
     public string Caption { get; init; } = "";
+    public string FrameId { get; init; } = "";
+    public JsonObject Source { get; init; } = new();
+}
+
+public sealed class CandidateImageItem : INotifyPropertyChanged
+{
+    private bool _use;
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    public bool Use
+    {
+        get => _use;
+        set
+        {
+            if (_use == value)
+            {
+                return;
+            }
+            _use = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Use)));
+        }
+    }
+
+    public string PreviewPath { get; init; } = "";
+    public string Caption { get; init; } = "";
+    public string ScoreText { get; init; } = "";
     public string FrameId { get; init; } = "";
     public JsonObject Source { get; init; } = new();
 }
