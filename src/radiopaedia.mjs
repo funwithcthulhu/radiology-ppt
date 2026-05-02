@@ -2,7 +2,6 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { fileURLToPath } from "node:url";
 import {
   cleanText,
   collapseWhitespace,
@@ -24,21 +23,21 @@ import {
   titleFromCasePath,
   tokenOverlapScore,
 } from "./request-parser.mjs";
+import {
+  APP_ROOT,
+  BASE_URL,
+  IMAGE_BASE_URL,
+  RESOURCE_ROOT,
+  absoluteUrl,
+  downloadFile,
+  fetchJson,
+  fetchText,
+  fileExists,
+} from "./radiopaedia-client.mjs";
 
-const BASE_URL = "https://radiopaedia.org";
-const IMAGE_BASE_URL = "https://prod-images-static.radiopaedia.org/images";
-const RESOURCE_ROOT =
-  process.env.RADIOLOGY_PPT_RESOURCE_ROOT || path.resolve(fileURLToPath(new URL("..", import.meta.url)));
-const APP_ROOT = process.env.RADIOLOGY_PPT_APP_ROOT || RESOURCE_ROOT;
 const FOCUS_CROP_SCRIPT = path.join(RESOURCE_ROOT, "scripts", "focus_crop.py");
 const FOCUS_CROP_EXE = path.join(APP_ROOT, "scripts", "focus_crop.exe");
 const execFileAsync = promisify(execFile);
-const REQUEST_HEADERS = {
-  "accept": "text/html,application/xhtml+xml",
-  "accept-language": "en-US,en;q=0.9",
-  "user-agent": "Mozilla/5.0",
-};
-const TEXT_CACHE = new Map();
 const RANDOM_HISTORY_LIMIT = 240;
 const RANDOM_HISTORY_PATH = path.join(APP_ROOT, "cache", "random-selection-history.json");
 const RANDOM_SEARCH_QUERY_LIMIT = 5;
@@ -167,13 +166,6 @@ function shouldRememberRandomEntry(request) {
   );
 }
 
-function absoluteUrl(value) {
-  if (!value) {
-    return null;
-  }
-  return value.startsWith("http") ? value : `${BASE_URL}${value}`;
-}
-
 function extractFirst(pattern, text) {
   const match = pattern.exec(text);
   return match ? match[1] : null;
@@ -196,97 +188,6 @@ function licenseNameFromUrl(url) {
     return "Creative Commons";
   }
   return url;
-}
-
-function buildCurlArgs(url, extraHeaders = {}, outputPath = null) {
-  const args = [
-    "-sS",
-    "-L",
-    "-A",
-    REQUEST_HEADERS["user-agent"],
-    "-H",
-    `Accept: ${REQUEST_HEADERS.accept}`,
-    "-H",
-    `Accept-Language: ${REQUEST_HEADERS["accept-language"]}`,
-  ];
-
-  for (const [key, value] of Object.entries(extraHeaders)) {
-    args.push("-H", `${key}: ${value}`);
-  }
-
-  if (outputPath) {
-    args.push("-o", outputPath);
-  }
-
-  args.push(url);
-  return args;
-}
-
-function looksLikeInterstitial(text) {
-  const body = String(text ?? "");
-  return /Just a moment/i.test(body) || /Attention Required/i.test(body) || /cf-browser-verification/i.test(body);
-}
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function fileExists(filePath) {
-  try {
-    await fs.access(filePath);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function fetchText(url, extraHeaders = {}, attempt = 1) {
-  const cacheKey = JSON.stringify({ url, extraHeaders });
-  if (TEXT_CACHE.has(cacheKey)) {
-    return TEXT_CACHE.get(cacheKey);
-  }
-
-  const { stdout } = await execFileAsync("curl.exe", buildCurlArgs(url, extraHeaders), {
-    maxBuffer: 50 * 1024 * 1024,
-  });
-  if (looksLikeInterstitial(stdout) && attempt < 3) {
-    await sleep(350 * attempt);
-    return fetchText(url, extraHeaders, attempt + 1);
-  }
-  TEXT_CACHE.set(cacheKey, stdout);
-  return stdout;
-}
-
-async function fetchJson(url, extraHeaders = {}, attempt = 1) {
-  const text = await fetchText(url, {
-    "accept": "application/json,text/javascript,*/*;q=0.1",
-    "x-requested-with": "XMLHttpRequest",
-    ...extraHeaders,
-  });
-  try {
-    return JSON.parse(text);
-  } catch (error) {
-    if (attempt < 3 && /^\s*</.test(text)) {
-      await sleep(350 * attempt);
-      return fetchJson(url, extraHeaders, attempt + 1);
-    }
-    throw error;
-  }
-}
-
-async function downloadFile(url, filePath) {
-  try {
-    await fs.access(filePath);
-    return filePath;
-  } catch {
-    // fall through
-  }
-
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
-  await execFileAsync("curl.exe", buildCurlArgs(url, {}, filePath), {
-    maxBuffer: 10 * 1024 * 1024,
-  });
-  return filePath;
 }
 
 async function applyFocusCrop(imagePath, focusPoints, { cropMode = "default", markupStyle = "none" } = {}) {
