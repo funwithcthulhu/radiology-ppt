@@ -34,6 +34,64 @@ public static class AppOptions
     public static readonly string[] PowerPointStyles = ["Case Conference", "Core Review"];
     public static readonly string[] CropModes = ["Default", "Tighter", "Wider"];
     public static readonly string[] MarkupStyles = ["None", "Focus Ring"];
+    public static readonly PowerPointPreset[] PowerPointPresets =
+    [
+        new(
+            "Fast Preview",
+            "Fastest workflow: no Ollama, no teaching slides, standard crops.",
+            3,
+            "case-conference",
+            "classic",
+            "default",
+            "none",
+            UseClinicalHistory: true,
+            UseOllamaReview: false,
+            IncludeTeachingPoints: false),
+        new(
+            "Image Quality Review",
+            "Use tighter crops and focus rings so review starts from more teaching-focused images.",
+            3,
+            "case-conference",
+            "classic",
+            "tighter",
+            "focus-ring",
+            UseClinicalHistory: true,
+            UseOllamaReview: false,
+            IncludeTeachingPoints: false),
+        new(
+            "Ollama Assisted",
+            "Keep preparation fast, then optionally score individual cases in the review window.",
+            3,
+            "case-conference",
+            "classic",
+            "tighter",
+            "focus-ring",
+            UseClinicalHistory: true,
+            UseOllamaReview: true,
+            IncludeTeachingPoints: false),
+        new(
+            "Core Review Teaching",
+            "Board-review flavored slides with teaching points when they are available.",
+            3,
+            "core-review",
+            "teaching-warm",
+            "tighter",
+            "focus-ring",
+            UseClinicalHistory: true,
+            UseOllamaReview: false,
+            IncludeTeachingPoints: true),
+        new(
+            "Dark Conference",
+            "A darker case-conference look for presenting in a reading room or lecture room.",
+            3,
+            "case-conference",
+            "conference-dark",
+            "default",
+            "none",
+            UseClinicalHistory: true,
+            UseOllamaReview: false,
+            IncludeTeachingPoints: false)
+    ];
 
     public static readonly string[] BoardDomains =
     [
@@ -112,3 +170,15 @@ public static class AppOptions
         _ => ""
     };
 }
+
+public sealed record PowerPointPreset(
+    string Name,
+    string Description,
+    int ImagesPerCase,
+    string PowerPointStyle,
+    string Theme,
+    string CropMode,
+    string MarkupStyle,
+    bool UseClinicalHistory,
+    bool UseOllamaReview,
+    bool IncludeTeachingPoints);

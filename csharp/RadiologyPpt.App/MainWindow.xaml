@@ -201,6 +201,10 @@
                                 <TextBlock Text="Ready To Create" FontSize="20" FontWeight="SemiBold" />
                                 <TextBlock Text="The app will prepare cases, show a review window, then create the PowerPoint after you approve cases."
                                            Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,4,0,16" />
+                                <TextBlock Text="Preset" FontWeight="SemiBold" />
+                                <ComboBox x:Name="PresetCombo" DisplayMemberPath="Name" SelectionChanged="PresetCombo_SelectionChanged" Margin="0,6,0,6" />
+                                <TextBlock x:Name="PresetDescriptionText" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,8" />
+                                <Button Content="Apply Preset" Click="ApplyPreset_Click" Margin="0,0,0,16" />
                                 <Button x:Name="GenerateButton" Content="Generate PowerPoint" Style="{StaticResource PrimaryButton}" Click="Generate_Click" Margin="0,0,0,10" />
                                 <Button x:Name="CancelButton" Content="Cancel Current Task" Click="Cancel_Click" IsEnabled="False" Margin="0,0,0,10" />
                                 <Button Content="Open Last PowerPoint" Click="OpenLastPowerPoint_Click" Margin="0,0,0,10" />

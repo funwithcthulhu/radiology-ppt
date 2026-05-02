@@ -78,6 +78,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         InitialCropCombo.SelectedIndex = 0;
         InitialMarkupCombo.ItemsSource = AppOptions.MarkupStyles;
         InitialMarkupCombo.SelectedIndex = 0;
+        PresetCombo.ItemsSource = AppOptions.PowerPointPresets;
+        PresetCombo.SelectedIndex = 0;
         OllamaModelCombo.Text = "moondream";
     }
 
@@ -236,6 +238,31 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             StatusText = "No Ollama models found. You can still type a model name.";
         }
+    }
+
+    private void PresetCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        PresetDescriptionText.Text = PresetCombo.SelectedItem is PowerPointPreset preset
+            ? preset.Description
+            : "";
+    }
+
+    private void ApplyPreset_Click(object sender, RoutedEventArgs e)
+    {
+        if (PresetCombo.SelectedItem is not PowerPointPreset preset)
+        {
+            return;
+        }
+
+        ImagesPerCaseBox.Text = preset.ImagesPerCase.ToString();
+        SelectComboByCliValue(PowerPointStyleCombo, AppOptions.PowerPointStyles, AppOptions.PowerPointStyleCliValue, preset.PowerPointStyle);
+        SelectComboByCliValue(ThemeCombo, AppOptions.Themes, AppOptions.ThemeCliValue, preset.Theme);
+        SelectComboByCliValue(InitialCropCombo, AppOptions.CropModes, AppOptions.CropCliValue, preset.CropMode);
+        SelectComboByCliValue(InitialMarkupCombo, AppOptions.MarkupStyles, AppOptions.MarkupCliValue, preset.MarkupStyle);
+        ClinicalHistoryCheck.IsChecked = preset.UseClinicalHistory;
+        OllamaCheck.IsChecked = preset.UseOllamaReview;
+        TeachingPointsCheck.IsChecked = preset.IncludeTeachingPoints;
+        StatusText = $"Applied preset: {preset.Name}";
     }
 
     private async void Generate_Click(object sender, RoutedEventArgs e)
@@ -591,6 +618,19 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
 
         var match = labels.FirstOrDefault(label => toCliValue(label).Equals(savedValue, StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrWhiteSpace(match))
+        {
+            comboBox.SelectedItem = match;
+        }
+    }
+
+    private static void SelectComboByCliValue(
+        System.Windows.Controls.ComboBox comboBox,
+        IEnumerable<string> labels,
+        Func<string, string> toCliValue,
+        string cliValue)
+    {
+        var match = labels.FirstOrDefault(label => toCliValue(label).Equals(cliValue, StringComparison.OrdinalIgnoreCase));
         if (!string.IsNullOrWhiteSpace(match))
         {
             comboBox.SelectedItem = match;
