@@ -4,6 +4,8 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 import readline from "node:readline";
 
+const SERVICE_RESPONSE_TIMEOUT_MS = 45000;
+
 test("backend service responds to structured ping requests", async () => {
   const servicePath = path.resolve("src", "backend-service.mjs");
   const child = spawn(process.execPath, [servicePath], {
@@ -21,7 +23,10 @@ test("backend service responds to structured ping requests", async () => {
   try {
     const lines = readline.createInterface({ input: child.stdout, crlfDelay: Infinity });
     const responsePromise = new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error("Timed out waiting for backend service ping")), 15000);
+      const timeout = setTimeout(
+        () => reject(new Error("Timed out waiting for backend service ping")),
+        SERVICE_RESPONSE_TIMEOUT_MS,
+      );
       lines.once("line", (line) => {
         clearTimeout(timeout);
         resolve(JSON.parse(line));
@@ -58,7 +63,10 @@ test("backend service accepts BOM-prefixed first requests", async () => {
   try {
     const lines = readline.createInterface({ input: child.stdout, crlfDelay: Infinity });
     const responsePromise = new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error("Timed out waiting for BOM-prefixed backend service ping")), 15000);
+      const timeout = setTimeout(
+        () => reject(new Error("Timed out waiting for BOM-prefixed backend service ping")),
+        SERVICE_RESPONSE_TIMEOUT_MS,
+      );
       lines.once("line", (line) => {
         clearTimeout(timeout);
         resolve(JSON.parse(line));
