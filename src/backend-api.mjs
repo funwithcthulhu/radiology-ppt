@@ -20,6 +20,7 @@ import {
 } from "./radiopaedia.mjs";
 import { parseCaseRequest } from "./request-parser.mjs";
 import { collapseWhitespace, formatTimestamp, slugify } from "./utils.mjs";
+import { radiopaediaProvider } from "./providers/radiopaedia-provider.mjs";
 
 const RESOURCE_ROOT =
   process.env.RADIOLOGY_PPT_RESOURCE_ROOT || path.resolve(fileURLToPath(new URL("..", import.meta.url)));
@@ -146,10 +147,12 @@ export async function prepareCaseItems(rawEntries, args, { readRandomHistory = t
 
 export async function prepareCases(entries, args) {
   emitProgress("Starting case preparation");
-  return prepareCaseItems(entries, args, {
+  const prepared = await prepareCaseItems(entries, args, {
     readRandomHistory: true,
     writeRandomHistory: true,
   });
+  scheduleFallbackCasePrefetch(prepared.items);
+  return prepared;
 }
 
 export async function prepareCasesFromFile(inputPath, args) {
@@ -331,6 +334,44 @@ function defaultDeckTitle(entries) {
     return `${entries[0].rawInput} case review`;
   }
   return "Radiology case review";
+}
+
+function scheduleFallbackCasePrefetch(items) {
+  if (process.env.RADIOLOGY_PPT_BACKEND_SERVICE !== "1") {
+    return;
+  }
+
+  const fallbackPaths = [];
+  const seen = new Set();
+  for (const item of items || []) {
+    for (const fallback of item.request?.fallbackCandidates || []) {
+      const casePath = collapseWhitespace(fallback.casePath || "");
+      if (casePath && !seen.has(casePath)) {
+        seen.add(casePath);
+        fallbackPaths.push(casePath);
+      }
+      if (fallbackPaths.length >= 8) {
+        break;
+      }
+    }
+    if (fallbackPaths.length >= 8) {
+      break;
+    }
+  }
+
+  if (!fallbackPaths.length) {
+    return;
+  }
+
+  setTimeout(async () => {
+    for (const casePath of fallbackPaths) {
+      try {
+        await radiopaediaProvider.fetchText(radiopaediaProvider.absoluteUrl(casePath));
+      } catch {
+        // Background cache warming must never affect the foreground review workflow.
+      }
+    }
+  }, 0);
 }
 
 function ensurePptxPath(outPath) {

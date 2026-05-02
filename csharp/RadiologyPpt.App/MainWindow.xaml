@@ -27,6 +27,7 @@
                                FontWeight="SemiBold"
                                Margin="0,12,0,22" />
                     <Button Content="Cases" Click="CasesNav_Click" Margin="0,0,0,8" />
+                    <Button Content="Library" Click="LibraryNav_Click" Margin="0,0,0,8" />
                     <Button Content="Core Boards" Click="CoreBoardsNav_Click" Margin="0,0,0,8" />
                     <Button Content="PowerPoint" Click="PowerPointNav_Click" Margin="0,0,0,8" />
                     <Button Content="Activity" Click="ActivityNav_Click" Margin="0,0,0,8" />
@@ -85,6 +86,50 @@
                                     <DataGridComboBoxColumn x:Name="AgeColumn" Header="Age" SelectedItemBinding="{Binding AgeGroup, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="120" />
                                     <DataGridComboBoxColumn x:Name="TopicColumn" Header="Focus" SelectedItemBinding="{Binding TopicFocus, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="130" />
                                     <DataGridComboBoxColumn x:Name="DifficultyColumn" Header="Difficulty" SelectedItemBinding="{Binding Difficulty, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="120" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Border>
+                    </Grid>
+                </TabItem>
+
+                <TabItem Header="Library">
+                    <Grid Margin="0,16,0,0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <StackPanel Grid.Row="0">
+                            <TextBlock Text="Case Library" Style="{StaticResource PageTitle}" />
+                            <TextBlock Text="Browse cases you approved, skipped, rejected, or favorited. This is local history only."
+                                       Style="{StaticResource PageSubtitle}" Margin="0,4,0,12" />
+                        </StackPanel>
+
+                        <DockPanel Grid.Row="1" Margin="0,0,0,12">
+                            <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
+                                <TextBox x:Name="LibrarySearchBox" Width="260" Margin="0,0,8,0" />
+                                <ComboBox x:Name="LibraryDecisionFilter" Width="130" Margin="0,0,8,0" />
+                                <Button Content="Search" Click="RefreshLibrary_Click" />
+                                <Button Content="Refresh" Click="RefreshLibrary_Click" />
+                            </StackPanel>
+                            <Button DockPanel.Dock="Right" Content="Open Selected Case" Click="OpenLibraryCase_Click" />
+                        </DockPanel>
+
+                        <Border Grid.Row="2" Style="{StaticResource Card}">
+                            <DataGrid x:Name="LibraryGrid"
+                                      AutoGenerateColumns="False"
+                                      IsReadOnly="True"
+                                      SelectionMode="Single"
+                                      GridLinesVisibility="Horizontal"
+                                      RowHeaderWidth="0">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Title" Binding="{Binding CaseTitle}" Width="*" />
+                                    <DataGridTextColumn Header="Decision" Binding="{Binding Decision}" Width="110" />
+                                    <DataGridTextColumn Header="Seen" Binding="{Binding LastSeenAt}" Width="190" />
+                                    <DataGridTextColumn Header="Images" Binding="{Binding ImageCount}" Width="75" />
+                                    <DataGridTextColumn Header="Best Score" Binding="{Binding BestScore, StringFormat=0}" Width="90" />
+                                    <DataGridTextColumn Header="Path" Binding="{Binding CasePath}" Width="260" />
                                 </DataGrid.Columns>
                             </DataGrid>
                         </Border>

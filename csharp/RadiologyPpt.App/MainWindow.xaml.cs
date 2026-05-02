@@ -23,6 +23,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public ObservableCollection<CaseRequestRow> Requests { get; } = [];
+    public ObservableCollection<CaseLibraryItem> LibraryItems { get; } = [];
 
     public string StatusText
     {
@@ -45,6 +46,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         InitializeStorage();
         LoadSavedSettings();
         RequestsGrid.ItemsSource = Requests;
+        LibraryGrid.ItemsSource = LibraryItems;
         Requests.Add(new CaseRequestRow());
         AppendLog("C# desktop app started.");
         AppendLog($"Project root: {_backend.ProjectRoot}");
@@ -67,6 +69,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         AgeColumn.ItemsSource = AppOptions.AgeGroups;
         TopicColumn.ItemsSource = AppOptions.TopicFocuses;
         DifficultyColumn.ItemsSource = AppOptions.Difficulties;
+        LibraryDecisionFilter.ItemsSource = new[] { "All", "approved", "favorite", "skipped", "rejected" };
+        LibraryDecisionFilter.SelectedIndex = 0;
 
         BoardDomainCombo.ItemsSource = AppOptions.BoardDomains;
         BoardDomainCombo.SelectedIndex = 0;
@@ -132,11 +136,16 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     }
 
     private void CasesNav_Click(object sender, RoutedEventArgs e) => MainTabs.SelectedIndex = 0;
-    private void CoreBoardsNav_Click(object sender, RoutedEventArgs e) => MainTabs.SelectedIndex = 1;
-    private void PowerPointNav_Click(object sender, RoutedEventArgs e) => MainTabs.SelectedIndex = 2;
+    private void LibraryNav_Click(object sender, RoutedEventArgs e)
+    {
+        MainTabs.SelectedIndex = 1;
+        RefreshLibrary();
+    }
+    private void CoreBoardsNav_Click(object sender, RoutedEventArgs e) => MainTabs.SelectedIndex = 2;
+    private void PowerPointNav_Click(object sender, RoutedEventArgs e) => MainTabs.SelectedIndex = 3;
     private void ActivityNav_Click(object sender, RoutedEventArgs e)
     {
-        MainTabs.SelectedIndex = 3;
+        MainTabs.SelectedIndex = 4;
         RefreshDiagnostics();
     }
 
@@ -280,7 +289,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         var reviewSessionId = "";
         try
         {
-            MainTabs.SelectedIndex = 3;
+            MainTabs.SelectedIndex = 4;
             AppendLog($"Preparing {rows.Length} request row(s)...");
             var prepareSettings = settings with { UseOllamaReview = false };
             var prepared = await _jobs.RunAsync(
@@ -361,7 +370,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         try
         {
-            MainTabs.SelectedIndex = 3;
+            MainTabs.SelectedIndex = 4;
             var domain = AppOptions.BoardDomainCliValue(BoardDomainCombo.SelectedItem?.ToString() ?? "");
             await _jobs.RunAsync(
                 "Importing PDFs...",
@@ -426,6 +435,19 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     }
 
     private void RefreshDiagnostics_Click(object sender, RoutedEventArgs e) => RefreshDiagnostics();
+
+    private void RefreshLibrary_Click(object sender, RoutedEventArgs e) => RefreshLibrary();
+
+    private void OpenLibraryCase_Click(object sender, RoutedEventArgs e)
+    {
+        if (LibraryGrid.SelectedItem is not CaseLibraryItem item)
+        {
+            MessageBox.Show(this, "Select a library case first.", Title, MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        OpenPath(item.CaseUrl);
+    }
 
     private void CleanScratch_Click(object sender, RoutedEventArgs e)
     {
@@ -602,6 +624,27 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         catch (Exception exception)
         {
             DiagnosticsText.Text = $"Diagnostics unavailable: {exception.Message}";
+        }
+    }
+
+    private void RefreshLibrary()
+    {
+        try
+        {
+            LibraryItems.Clear();
+            var items = _storage.LoadCaseLibrary(
+                LibrarySearchBox.Text,
+                LibraryDecisionFilter.SelectedItem?.ToString() ?? "All");
+            foreach (var item in items)
+            {
+                LibraryItems.Add(item);
+            }
+            StatusText = $"Library: {LibraryItems.Count} case(s)";
+        }
+        catch (Exception exception)
+        {
+            AppendLog(exception.ToString());
+            MessageBox.Show(this, exception.Message, Title, MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 

@@ -139,6 +139,7 @@
         <DockPanel Grid.Row="2" Margin="0,16,0,0" LastChildFill="False">
             <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
                 <Button x:Name="KeepNextButton" Content="Keep Case &amp; Next" Style="{StaticResource PrimaryButton}" Click="KeepNext_Click" />
+                <Button x:Name="FavoriteNextButton" Content="Favorite &amp; Next" Click="FavoriteNext_Click" />
                 <Button Content="Skip Case" Click="Skip_Click" />
                 <Button x:Name="RerollButton" Content="Reroll Case" Click="Reroll_Click" />
                 <Button x:Name="RepickButton" Content="Re-pick Images" Click="Repick_Click" />

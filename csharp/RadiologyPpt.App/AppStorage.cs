@@ -256,6 +256,58 @@ public sealed class AppStorage
             LoadRecentEvents(connection));
     }
 
+    public IReadOnlyList<CaseLibraryItem> LoadCaseLibrary(string searchText = "", string decisionFilter = "", int limit = 300)
+    {
+        using var connection = OpenConnection();
+        using var command = connection.CreateCommand();
+        var where = new List<string>();
+        if (!string.IsNullOrWhiteSpace(searchText))
+        {
+            where.Add("(cd.case_title LIKE $search OR cd.case_path LIKE $search)");
+            command.Parameters.AddWithValue("$search", $"%{searchText.Trim()}%");
+        }
+        if (!string.IsNullOrWhiteSpace(decisionFilter) && !decisionFilter.Equals("All", StringComparison.OrdinalIgnoreCase))
+        {
+            where.Add("cd.decision = $decision");
+            command.Parameters.AddWithValue("$decision", decisionFilter.Trim().ToLowerInvariant());
+        }
+
+        command.CommandText = $"""
+            SELECT
+              cd.case_path,
+              COALESCE(NULLIF(cd.case_title, ''), cd.case_path) AS case_title,
+              cd.decision,
+              cd.last_seen_at,
+              cd.count,
+              COUNT(ic.id) AS image_count,
+              COALESCE(MAX(ic.score), 0) AS best_score,
+              COALESCE(MAX(CASE WHEN ic.is_selected = 1 THEN ic.local_path ELSE '' END), '') AS thumbnail_path
+            FROM case_decisions cd
+            LEFT JOIN image_candidates ic ON ic.case_path = cd.case_path
+            {(where.Count > 0 ? "WHERE " + string.Join(" AND ", where) : "")}
+            GROUP BY cd.case_path, cd.case_title, cd.decision, cd.last_seen_at, cd.count
+            ORDER BY cd.last_seen_at DESC
+            LIMIT $limit;
+            """;
+        command.Parameters.AddWithValue("$limit", Math.Max(1, Math.Min(1000, limit)));
+
+        using var reader = command.ExecuteReader();
+        var items = new List<CaseLibraryItem>();
+        while (reader.Read())
+        {
+            items.Add(new CaseLibraryItem(
+                reader.GetString(0),
+                reader.GetString(1),
+                reader.GetString(2),
+                reader.GetString(3),
+                Convert.ToInt32(reader.GetInt64(4)),
+                Convert.ToInt32(reader.GetInt64(5)),
+                reader.GetDouble(6),
+                reader.GetString(7)));
+        }
+        return items;
+    }
+
     public CleanupResult CleanScratch()
     {
         return CleanDirectoryContents(Path.Combine(_appRoot, "scratch"), file => true);
@@ -799,3 +851,18 @@ public sealed record CleanupResult(string DirectoryPath, int RemovedFiles, long 
 public sealed record StorageMaintenanceResult(CleanupResult Scratch, CleanupResult Cache, long DatabaseBytes);
 
 internal sealed record StorageMigration(string Id, string Description, string Sql);
+
+public sealed record CaseLibraryItem(
+    string CasePath,
+    string CaseTitle,
+    string Decision,
+    string LastSeenAt,
+    int ReviewCount,
+    int ImageCount,
+    double BestScore,
+    string ThumbnailPath)
+{
+    public string CaseUrl => CasePath.StartsWith("http", StringComparison.OrdinalIgnoreCase)
+        ? CasePath
+        : $"https://radiopaedia.org{CasePath}";
+}

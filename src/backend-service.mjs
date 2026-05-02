@@ -11,6 +11,8 @@ import {
   scoreImages,
 } from "./backend-api.mjs";
 
+process.env.RADIOLOGY_PPT_BACKEND_SERVICE = "1";
+
 const rl = readline.createInterface({
   input: process.stdin,
   crlfDelay: Infinity,

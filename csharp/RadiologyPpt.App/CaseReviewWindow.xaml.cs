@@ -92,10 +92,20 @@ public partial class CaseReviewWindow : Window
 
     private void KeepNext_Click(object sender, RoutedEventArgs e)
     {
+        ApproveCurrentCase("approved");
+    }
+
+    private void FavoriteNext_Click(object sender, RoutedEventArgs e)
+    {
+        ApproveCurrentCase("favorite");
+    }
+
+    private void ApproveCurrentCase(string status)
+    {
         ApplySelectedImagesToCurrentItem();
         var approved = _items[_currentIndex].DeepClone().AsObject();
         ApprovedItems.Add(approved);
-        _storage.SaveCaseReview(_reviewSessionId, approved, "approved");
+        _storage.SaveCaseReview(_reviewSessionId, approved, status);
         _currentIndex += 1;
         ShowCurrentCase();
     }
@@ -311,6 +321,7 @@ public partial class CaseReviewWindow : Window
         ReplaceUncheckedButton.IsEnabled = !busy;
         OllamaScoreButton.IsEnabled = !busy && _settings.UseOllamaReview;
         KeepNextButton.IsEnabled = !busy;
+        FavoriteNextButton.IsEnabled = !busy;
     }
 
     private void ApplySelectedImagesToCurrentItem()
