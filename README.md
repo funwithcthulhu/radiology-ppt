@@ -15,12 +15,11 @@ The app can:
 - pull random cases by subspecialty, modality, anatomy, or mixed category
 - use manual Radiopaedia case URLs
 - review matches before export
-- let you keep, reroll, repick images, favorite, or block cases during review
+- let you keep, reroll, repick, replace, or remove images during review
 - choose a case-conference or Core Review PowerPoint style
 - add optional teaching-point slides; Core Review includes them automatically when available
-- keep local history so random decks do not keep repeating the same recent cases
+- keep local history so random PowerPoints do not keep repeating the same recent cases
 - cache Radiopaedia metadata and image candidate banks to speed repeated runs
-- save the latest review session so an interrupted review can be resumed
 
 ## Main Use
 
@@ -37,7 +36,7 @@ Packaged app:
 If the packaged app is not present yet, you can launch the source GUI directly:
 
 ```powershell
-pythonw .\gui_app.py
+dotnet run --project .\csharp\RadiologyPpt.App\RadiologyPpt.App.csproj
 ```
 
 ## GUI Workflow
@@ -52,8 +51,8 @@ pythonw .\gui_app.py
 5. Go to the `PowerPoint` tab and set title, output path, images per case, PowerPoint style, theme, and optional extras.
 6. Click `Generate PowerPoint`.
 7. Review each prepared case before export.
-8. Keep, reroll, repick, favorite, block, or skip each case.
-9. Export the final deck.
+8. Keep, reroll, repick, replace individual images, remove individual images, or skip each case.
+9. Export the final PowerPoint.
 
 ## Request Types
 
@@ -72,7 +71,7 @@ pythonw .\gui_app.py
   - subspecialty
   - modality
   - anatomy
-  - mixed deck
+  - mixed PowerPoint
 
 `Manual Case URL`
 
@@ -88,17 +87,15 @@ From the review screen you can:
 - reroll to a different case
 - repick images from the same case
 - uncheck specific images, then replace or remove only those images
-- favorite the case
-- mark the case as never use again
 - skip the case
 
-If you cancel during review, use `PowerPoint` -> `More` -> `Resume Last Review Session` to reopen the most recently prepared review bundle.
+If a review action hangs, use `Cancel Action` in the review window. If the larger build/import step hangs, use `Cancel Current Task` on the PowerPoint tab.
 
 ## Architecture
 
-The GUI is Python/Tkinter. The Radiopaedia/PowerPoint backend is Node.
+The primary GUI is a native Windows C# WPF app. The Radiopaedia/PowerPoint backend remains Node so the migration can keep the working search, image-selection, caching, and PowerPoint-generation engine.
 
-- `gui_app.py`: desktop UI, review flow, settings, and app orchestration
+- `csharp\RadiologyPpt.App`: WPF desktop UI, review flow, settings, and app orchestration
 - `src/cli.mjs`: internal backend entrypoint used by the GUI
 - `src/request-parser.mjs`: diagnosis, random/category, modality, and filter parsing
 - `src/radiopaedia-client.mjs`: Radiopaedia HTTP/download helpers and persistent fetch cache
@@ -135,10 +132,10 @@ PDF ingestion copies source PDFs into a local source vault, renders pages to PNG
 
 ## Maintenance
 
-These scripts are for maintaining the desktop app, not for normal deck generation:
+These scripts are for maintaining the desktop app, not for normal PowerPoint generation:
 
 ```powershell
-.\build-windows-app.ps1
+.\build-csharp-app.ps1
 .\create-desktop-shortcut.ps1
 ```
 

@@ -10,3 +10,6 @@ outputs/
 scratch/
 review-sessions/
 library/board-review/
+csharp/**/bin/
+csharp/**/obj/
+.vs/

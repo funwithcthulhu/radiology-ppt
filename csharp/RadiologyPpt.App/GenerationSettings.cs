@@ -1,0 +1,17 @@
+namespace RadiologyPpt.App;
+
+public sealed record GenerationSettings
+{
+    public string Title { get; init; } = "";
+    public int ImagesPerCase { get; init; } = 3;
+    public string OutputPath { get; init; } = "";
+    public bool AutoOpen { get; init; } = true;
+    public bool UseClinicalHistory { get; init; } = true;
+    public bool UseOllamaReview { get; init; }
+    public string OllamaModel { get; init; } = "";
+    public string Theme { get; init; } = "classic";
+    public string PowerPointStyle { get; init; } = "case-conference";
+    public string CropMode { get; init; } = "default";
+    public string MarkupStyle { get; init; } = "none";
+    public bool IncludeTeachingPoints { get; init; }
+}

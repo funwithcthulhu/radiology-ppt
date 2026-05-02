@@ -3,13 +3,13 @@ $ErrorActionPreference = "Stop"
 $projectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $desktopPath = [Environment]::GetFolderPath("Desktop")
 $shortcutPath = Join-Path $desktopPath "Radiopaedia Case PowerPoint Builder.lnk"
-$packagedExe = Join-Path $projectRoot "dist\Radiopaedia Case PowerPoint Builder\Radiopaedia Case PowerPoint Builder.exe"
+$csharpExe = Join-Path $projectRoot "dist\Radiopaedia Case PowerPoint Builder\Radiopaedia Case PowerPoint Builder.exe"
 
-if (Test-Path $packagedExe) {
-  $targetPath = $packagedExe
+if (Test-Path $csharpExe) {
+  $targetPath = $csharpExe
   $arguments = ""
-  $workingDirectory = Split-Path -Parent $packagedExe
-  $iconLocation = "$packagedExe,0"
+  $workingDirectory = Split-Path -Parent $csharpExe
+  $iconLocation = "$csharpExe,0"
 } else {
   $pythonwCommand = Get-Command pythonw -ErrorAction SilentlyContinue
   $pythonw = if ($pythonwCommand) { $pythonwCommand.Source } else { $null }

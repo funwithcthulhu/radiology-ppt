@@ -1,0 +1,233 @@
+<Window x:Class="RadiologyPpt.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Radiopaedia Case PowerPoint Builder"
+        Height="900"
+        Width="1320"
+        MinHeight="720"
+        MinWidth="1080"
+        WindowStartupLocation="CenterScreen">
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="240" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <Border Grid.Column="0" Background="#0B1F35">
+            <DockPanel Margin="18,24,18,18">
+                <StackPanel DockPanel.Dock="Top">
+                    <Border Width="58" Height="48" CornerRadius="10" Background="#173A63" HorizontalAlignment="Left">
+                        <TextBlock Text="RP" Foreground="#DBEAFE" FontSize="18" FontWeight="SemiBold"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <TextBlock Text="Radiopaedia Case&#x0a;PowerPoint Builder"
+                               Foreground="White"
+                               FontSize="15"
+                               FontWeight="SemiBold"
+                               Margin="0,12,0,22" />
+                    <Button Content="Cases" Click="CasesNav_Click" Margin="0,0,0,8" />
+                    <Button Content="Core Boards" Click="CoreBoardsNav_Click" Margin="0,0,0,8" />
+                    <Button Content="PowerPoint" Click="PowerPointNav_Click" Margin="0,0,0,8" />
+                    <Button Content="Activity" Click="ActivityNav_Click" Margin="0,0,0,8" />
+                </StackPanel>
+
+                <StackPanel DockPanel.Dock="Bottom">
+                    <TextBlock Text="{Binding StatusText}" Foreground="#DBEAFE" FontWeight="SemiBold" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding LastPowerPointText}" Foreground="#8FB3D8" FontSize="11"
+                               TextWrapping="Wrap" Margin="0,8,0,0" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <Grid Grid.Column="1" Margin="28,24,28,16">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <TabControl x:Name="MainTabs" Grid.Row="0">
+                <TabItem Header="Cases">
+                    <Grid Margin="0,16,0,0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <DockPanel Grid.Row="0" Margin="0,0,0,12">
+                            <StackPanel DockPanel.Dock="Left">
+                                <TextBlock Text="Cases" Style="{StaticResource PageTitle}" />
+                                <TextBlock Text="Add diagnoses, random pulls, or exact Radiopaedia URLs. Use the dropdowns instead of typing filter shorthand."
+                                           Style="{StaticResource PageSubtitle}" Margin="0,4,0,0" />
+                            </StackPanel>
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
+                                <Button Content="Add Row" Click="AddRow_Click" />
+                                <Button Content="Remove Selected" Click="RemoveSelectedRow_Click" />
+                                <Button Content="Load File" Click="LoadFile_Click" />
+                            </StackPanel>
+                        </DockPanel>
+
+                        <Border Grid.Row="1" Style="{StaticResource Card}">
+                            <DataGrid x:Name="RequestsGrid"
+                                      AutoGenerateColumns="False"
+                                      CanUserAddRows="False"
+                                      HeadersVisibility="Column"
+                                      SelectionMode="Single"
+                                      GridLinesVisibility="Horizontal"
+                                      RowHeaderWidth="0">
+                                <DataGrid.Columns>
+                                    <DataGridComboBoxColumn x:Name="ModeColumn" Header="Type" SelectedItemBinding="{Binding Mode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="150" />
+                                    <DataGridTextColumn Header="Diagnosis / Random Text / URL" Binding="{Binding Query, UpdateSourceTrigger=PropertyChanged}" Width="*" />
+                                    <DataGridTextColumn Header="Count" Binding="{Binding Count, UpdateSourceTrigger=PropertyChanged}" Width="70" />
+                                    <DataGridComboBoxColumn x:Name="ModalityColumn" Header="Modality" SelectedItemBinding="{Binding Modality, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="130" />
+                                    <DataGridComboBoxColumn x:Name="AnatomyColumn" Header="Anatomy" SelectedItemBinding="{Binding Anatomy, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="160" />
+                                    <DataGridComboBoxColumn x:Name="SubspecialtyColumn" Header="Area" SelectedItemBinding="{Binding Subspecialty, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="160" />
+                                    <DataGridComboBoxColumn x:Name="AgeColumn" Header="Age" SelectedItemBinding="{Binding AgeGroup, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="120" />
+                                    <DataGridComboBoxColumn x:Name="TopicColumn" Header="Focus" SelectedItemBinding="{Binding TopicFocus, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="130" />
+                                    <DataGridComboBoxColumn x:Name="DifficultyColumn" Header="Difficulty" SelectedItemBinding="{Binding Difficulty, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="120" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Border>
+                    </Grid>
+                </TabItem>
+
+                <TabItem Header="Core Boards">
+                    <Grid Margin="0,16,0,0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <StackPanel Grid.Row="0">
+                            <TextBlock Text="Core Boards" Style="{StaticResource PageTitle}" />
+                            <TextBlock Text="Import your own PDFs into a private local knowledge base. This is scaffolding for future board-style quiz workflows."
+                                       Style="{StaticResource PageSubtitle}" Margin="0,4,0,12" />
+                        </StackPanel>
+
+                        <Grid Grid.Row="1">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="2*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Border Style="{StaticResource Card}" Margin="0,0,12,0">
+                                <StackPanel>
+                                    <TextBlock Text="Knowledge Base" FontSize="18" FontWeight="SemiBold" />
+                                    <TextBlock Text="PDFs and extracted assets stay local under library\board-review, which is ignored by Git."
+                                               Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,4,0,16" />
+                                    <TextBlock Text="Default topic" FontWeight="SemiBold" />
+                                    <ComboBox x:Name="BoardDomainCombo" Margin="0,6,0,14" />
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button Content="Import PDFs" Style="{StaticResource PrimaryButton}" Click="ImportPdfs_Click" />
+                                        <Button Content="Open Folder" Click="OpenBoardFolder_Click" />
+                                    </StackPanel>
+                                    <TextBlock x:Name="BoardStatusText" TextWrapping="Wrap" Margin="0,16,0,0" />
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Column="1" Style="{StaticResource Card}">
+                                <StackPanel>
+                                    <TextBlock Text="Roadmap" FontSize="18" FontWeight="SemiBold" />
+                                    <TextBlock Text="1. Import PDFs" Margin="0,14,0,3" FontWeight="SemiBold" />
+                                    <TextBlock Text="Extract text, page images, embedded images, and source metadata." TextWrapping="Wrap" />
+                                    <TextBlock Text="2. Draft questions" Margin="0,14,0,3" FontWeight="SemiBold" />
+                                    <TextBlock Text="Generate source-grounded practice items for human review." TextWrapping="Wrap" />
+                                    <TextBlock Text="3. Practice" Margin="0,14,0,3" FontWeight="SemiBold" />
+                                    <TextBlock Text="Run Core-style sessions with explanations and image localization." TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                    </Grid>
+                </TabItem>
+
+                <TabItem Header="PowerPoint">
+                    <Grid Margin="0,16,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="2*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <Border Style="{StaticResource Card}" Margin="0,0,12,0">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="180" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.ColumnSpan="2" Text="PowerPoint Settings" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,16" />
+                                <TextBlock Grid.Row="1" Text="Title" FontWeight="SemiBold" />
+                                <TextBox x:Name="TitleBox" Grid.Row="1" Grid.Column="1" Margin="0,0,0,10" />
+                                <TextBlock Grid.Row="2" Text="Images per case" FontWeight="SemiBold" />
+                                <TextBox x:Name="ImagesPerCaseBox" Grid.Row="2" Grid.Column="1" Text="3" Width="80" HorizontalAlignment="Left" Margin="0,0,0,10" />
+                                <TextBlock Grid.Row="3" Text="PowerPoint style" FontWeight="SemiBold" />
+                                <ComboBox x:Name="PowerPointStyleCombo" Grid.Row="3" Grid.Column="1" Margin="0,0,0,10" />
+                                <TextBlock Grid.Row="4" Text="Theme" FontWeight="SemiBold" />
+                                <ComboBox x:Name="ThemeCombo" Grid.Row="4" Grid.Column="1" Margin="0,0,0,10" />
+                                <TextBlock Grid.Row="5" Text="Image crop" FontWeight="SemiBold" />
+                                <ComboBox x:Name="InitialCropCombo" Grid.Row="5" Grid.Column="1" Margin="0,0,0,10" />
+                                <TextBlock Grid.Row="6" Text="Image markup" FontWeight="SemiBold" />
+                                <ComboBox x:Name="InitialMarkupCombo" Grid.Row="6" Grid.Column="1" Margin="0,0,0,10" />
+                                <TextBlock Grid.Row="7" Text="Output .pptx" FontWeight="SemiBold" />
+                                <DockPanel Grid.Row="7" Grid.Column="1" LastChildFill="True" Margin="0,0,0,10">
+                                    <Button DockPanel.Dock="Right" Content="Browse" Click="BrowseOutput_Click" Margin="8,0,0,0" />
+                                    <TextBox x:Name="OutputBox" />
+                                </DockPanel>
+                                <CheckBox x:Name="AutoOpenCheck" Grid.Row="8" Grid.Column="1" Content="Open PowerPoint when finished" IsChecked="True" Margin="0,0,0,8" />
+                                <CheckBox x:Name="ClinicalHistoryCheck" Grid.Row="9" Grid.Column="1" Content="Show patient age/sex when available" IsChecked="True" Margin="0,0,0,8" />
+                                <CheckBox x:Name="TeachingPointsCheck" Grid.Row="10" Grid.Column="1" Content="Add teaching-points slides when available" Margin="0,0,0,8" />
+                                <StackPanel Grid.Row="11" Grid.Column="1">
+                                    <CheckBox x:Name="OllamaCheck" Content="Use Ollama image review" Margin="0,0,0,8" />
+                                    <DockPanel>
+                                        <Button DockPanel.Dock="Right" Content="Refresh Models" Click="RefreshOllama_Click" Margin="8,0,0,0" />
+                                        <ComboBox x:Name="OllamaModelCombo" IsEditable="True" />
+                                    </DockPanel>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Column="1" Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="Ready To Create" FontSize="20" FontWeight="SemiBold" />
+                                <TextBlock Text="The app will prepare cases, show a review window, then create the PowerPoint after you approve cases."
+                                           Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,4,0,16" />
+                                <Button x:Name="GenerateButton" Content="Generate PowerPoint" Style="{StaticResource PrimaryButton}" Click="Generate_Click" Margin="0,0,0,10" />
+                                <Button x:Name="CancelButton" Content="Cancel Current Task" Click="Cancel_Click" IsEnabled="False" Margin="0,0,0,10" />
+                                <Button Content="Open Last PowerPoint" Click="OpenLastPowerPoint_Click" Margin="0,0,0,10" />
+                                <Button Content="Open Outputs Folder" Click="OpenOutputs_Click" Margin="0,0,0,10" />
+                                <Button Content="Open Project Folder" Click="OpenProject_Click" Margin="0,0,0,10" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </TabItem>
+
+                <TabItem Header="Activity">
+                    <Grid Margin="0,16,0,0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Text="Activity" Style="{StaticResource PageTitle}" Margin="0,0,0,12" />
+                        <TextBox x:Name="ActivityLogBox" Grid.Row="1" IsReadOnly="True" TextWrapping="Wrap"
+                                 VerticalScrollBarVisibility="Auto" FontFamily="Consolas" Background="#102132"
+                                 Foreground="#D9EBF7" BorderThickness="0" Padding="12" />
+                    </Grid>
+                </TabItem>
+            </TabControl>
+
+            <DockPanel Grid.Row="1" Margin="0,12,0,0">
+                <ProgressBar x:Name="Progress" Width="190" Height="8" IsIndeterminate="True" Visibility="Collapsed" />
+                <TextBlock Text="{Binding StatusText}" Margin="12,0,0,0" VerticalAlignment="Center" FontWeight="SemiBold" />
+            </DockPanel>
+        </Grid>
+    </Grid>
+</Window>
