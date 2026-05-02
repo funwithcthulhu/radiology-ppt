@@ -9,7 +9,8 @@ import {
   renderCoreReviewQuizText,
 } from "./core_review/index.mjs";
 import { ingestCoreReviewPdfs } from "./core_review/pdf-ingest.mjs";
-import { emitProgress, emitWarning } from "./backend-events.mjs";
+import { emitProgress, emitWarning, withBackendStage } from "./backend-events.mjs";
+import { recordCaseIndex } from "./app-store.mjs";
 import { scorePreparedItemsWithOllama } from "./ollama-review.mjs";
 import {
   expandCaseRequests,
@@ -120,15 +121,21 @@ export async function prepareCaseItems(rawEntries, args, { readRandomHistory = t
       ollamaModel: collapseWhitespace(args.ollamaModel || entry.ollamaModel || ""),
     }),
   );
-  entries = await expandCaseRequests(entries, {
-    readRandomHistory,
-    writeRandomHistory,
-  });
+  entries = await withBackendStage("case request expansion", { inputCount: entries.length }, () =>
+    expandCaseRequests(entries, {
+      readRandomHistory,
+      writeRandomHistory,
+    }),
+  );
   emitProgress("Preparing case previews", { requestCount: entries.length });
 
   const cacheDir = path.join(APP_ROOT, "cache");
-  const preparedResults = await mapWithConcurrency(entries, 3, (entry) => prepareEntry(entry, args, cacheDir));
-  const uniqueResults = await replaceDuplicateRandomPreparedResults(preparedResults, entries, args, cacheDir);
+  const preparedResults = await withBackendStage("case preview preparation", { requestCount: entries.length }, () =>
+    mapWithConcurrency(entries, 3, (entry) => prepareEntry(entry, args, cacheDir)),
+  );
+  const uniqueResults = await withBackendStage("duplicate random case check", { requestCount: preparedResults.length }, () =>
+    replaceDuplicateRandomPreparedResults(preparedResults, entries, args, cacheDir),
+  );
   const items = uniqueResults.map((result) => result.item).filter(Boolean);
   if (writeRandomHistory) {
     await rememberRandomHistoryFromPreparedItems(items);
@@ -225,15 +232,17 @@ export async function renderPowerPoint(payload, args) {
     "utf8",
   );
 
-  const result = await buildDeck({
-    cases,
-    deckTitle,
-    outputPath,
-    scratchDir,
-    deckMode,
-    theme: args.theme || "classic",
-    includeTeachingPoints: Boolean(args.includeTeachingPoints),
-  });
+  const result = await withBackendStage("PowerPoint render", { caseCount: cases.length, outputPath }, () =>
+    buildDeck({
+      cases,
+      deckTitle,
+      outputPath,
+      scratchDir,
+      deckMode,
+      theme: args.theme || "classic",
+      includeTeachingPoints: Boolean(args.includeTeachingPoints),
+    }),
+  );
 
   await rememberRandomHistoryFromPreparedItems(items);
   emitProgress("PowerPoint render complete", { outputPath: result.outputPath });
@@ -316,11 +325,17 @@ async function mapWithConcurrency(items, limit, mapper) {
 
 async function prepareEntry(entry, args, cacheDir) {
   try {
-    emitProgress("Preparing case", { request: entry.rawInput });
-    const caseData = await fetchRadiopaediaCase(entry, {
-      cacheDir,
-      imagesPerCase: entry.requestedImagesPerCase || args.imagesPerCase,
-      maxFallbackAttempts: isRandomPreparedRequest(entry) ? 1 : null,
+    const caseData = await withBackendStage("case preparation", { request: entry.rawInput }, () =>
+      fetchRadiopaediaCase(entry, {
+        cacheDir,
+        imagesPerCase: entry.requestedImagesPerCase || args.imagesPerCase,
+        maxFallbackAttempts: isRandomPreparedRequest(entry) ? 1 : null,
+      }),
+    );
+    await recordCaseIndex({
+      caseData,
+      request: entry,
+      source: isRandomPreparedRequest(entry) ? "random" : "specific",
     });
     emitProgress("Prepared case", { request: entry.rawInput, caseTitle: caseData.caseTitle });
     return { item: { request: entry, caseData }, failure: null };

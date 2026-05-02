@@ -5,10 +5,12 @@ import os from "node:os";
 import path from "node:path";
 import {
   readRandomHistory,
+  readIndexedRandomCases,
   readAvoidedCasePaths,
   readRejectedFrameIds,
   readStoreCache,
   recordCaseDecision,
+  recordCaseIndex,
   recordImageDecision,
   writeRandomHistory,
   writeStoreCache,
@@ -58,4 +60,72 @@ test("reads skipped and rejected case paths for future random avoidance", async 
   });
 
   assert.deepEqual(await readAvoidedCasePaths(), ["/cases/skip-me"]);
+});
+
+test("indexes prepared cases for cached random reuse and filtering", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "radiology-store-case-index-"));
+  process.env.RADIOLOGY_PPT_DATABASE_PATH = path.join(tempDir, "state.sqlite");
+
+  await recordCaseIndex({
+    caseData: {
+      casePath: "/cases/ms-brain-1?lang=us",
+      caseTitle: "Multiple sclerosis",
+      caseUrl: "https://radiopaedia.org/cases/ms-brain-1?lang=us",
+      displayUrl: "radiopaedia.org/cases/ms-brain-1",
+      diagnosisQuery: "multiple sclerosis",
+      studyHint: "mri brain",
+      modalitySummary: "MRI",
+      images: [{ frameId: "a" }, { frameId: "b" }, { frameId: "c" }],
+      imageCandidateBank: [{ frameId: "a" }, { frameId: "b" }, { frameId: "c" }, { frameId: "d" }],
+      quality: {
+        selectedCount: 3,
+        strongCount: 2,
+        overallScore: 760,
+        summary: "3 relevant images selected.",
+      },
+    },
+    request: {
+      randomSystems: ["neuroradiology"],
+      studyHint: "mri brain",
+    },
+    source: "unit-test",
+  });
+  await recordCaseIndex({
+    caseData: {
+      casePath: "/cases/appendicitis-ct-1",
+      caseTitle: "Appendicitis",
+      diagnosisQuery: "appendicitis",
+      modalitySummary: "CT",
+      images: [{ frameId: "a" }],
+      quality: {
+        selectedCount: 1,
+        overallScore: 100,
+        summary: "1 relevant image selected.",
+      },
+    },
+    request: {
+      randomSystems: ["gastrointestinal"],
+    },
+    source: "unit-test",
+  });
+
+  const indexed = await readIndexedRandomCases({
+    modality: "mri",
+    system: "neuro",
+    minSelectedImages: 2,
+    limit: 5,
+  });
+
+  assert.equal(indexed.length, 1);
+  assert.equal(indexed[0].casePath, "/cases/ms-brain-1");
+  assert.equal(indexed[0].caseTitle, "Multiple sclerosis");
+  assert.deepEqual(indexed[0].systems, ["neuroradiology"]);
+
+  const excluded = await readIndexedRandomCases({
+    excludeCasePaths: ["/cases/ms-brain-1"],
+    limit: 5,
+  });
+  assert.equal(excluded.length, 1);
+  assert.equal(excluded[0].casePath, "/cases/appendicitis-ct-1");
+  assert.equal(excluded[0].selectedImageCount, 1);
 });

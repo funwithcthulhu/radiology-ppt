@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { collapseWhitespace } from "./utils.mjs";
+import { collapseWhitespace, dedupe } from "./utils.mjs";
 
 const RESOURCE_ROOT =
   process.env.RADIOLOGY_PPT_RESOURCE_ROOT || path.resolve(fileURLToPath(new URL("..", import.meta.url)));
@@ -40,6 +40,18 @@ function isFresh(createdAt, ttlMs) {
   }
   const parsed = Date.parse(createdAt || "");
   return Number.isFinite(parsed) && Date.now() - parsed <= ttlMs;
+}
+
+function normalizedCasePath(value) {
+  return collapseWhitespace(value).replace(/\?.*$/, "");
+}
+
+function normalizedLower(value) {
+  return collapseWhitespace(value).toLowerCase();
+}
+
+function safeJsonArray(values) {
+  return JSON.stringify(Array.isArray(values) ? values.filter(Boolean) : []);
 }
 
 function tableColumns(db, tableName) {
@@ -119,15 +131,37 @@ function ensureSchema(db) {
       UNIQUE(case_path, frame_id, url, decision)
     );
 
+    CREATE TABLE IF NOT EXISTS case_index (
+      case_path TEXT PRIMARY KEY,
+      case_title TEXT NOT NULL DEFAULT '',
+      case_url TEXT NOT NULL DEFAULT '',
+      display_url TEXT NOT NULL DEFAULT '',
+      diagnosis_query TEXT NOT NULL DEFAULT '',
+      study_hint TEXT NOT NULL DEFAULT '',
+      modality_summary TEXT NOT NULL DEFAULT '',
+      systems_json TEXT NOT NULL DEFAULT '[]',
+      selected_image_count INTEGER NOT NULL DEFAULT 0,
+      candidate_image_count INTEGER NOT NULL DEFAULT 0,
+      strong_image_count INTEGER NOT NULL DEFAULT 0,
+      quality_score REAL NOT NULL DEFAULT 0,
+      quality_summary TEXT NOT NULL DEFAULT '',
+      source TEXT NOT NULL DEFAULT 'prepare',
+      last_prepared_at TEXT NOT NULL,
+      prepared_count INTEGER NOT NULL DEFAULT 1
+    );
+
     CREATE INDEX IF NOT EXISTS idx_random_history_seen ON random_history(last_seen_at DESC);
     CREATE INDEX IF NOT EXISTS idx_image_decisions_case_decision ON image_decisions(case_path, decision);
     CREATE INDEX IF NOT EXISTS idx_case_decisions_decision ON case_decisions(decision, last_seen_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_case_index_quality ON case_index(quality_score DESC, selected_image_count DESC);
+    CREATE INDEX IF NOT EXISTS idx_case_index_prepared ON case_index(prepared_count ASC, last_prepared_at ASC);
   `);
 
   ensureColumn(db, "random_history", "use_count", "INTEGER NOT NULL DEFAULT 1");
   ensureColumn(db, "case_decisions", "count", "INTEGER NOT NULL DEFAULT 1");
   ensureColumn(db, "image_decisions", "count", "INTEGER NOT NULL DEFAULT 1");
   recordSchemaMigration(db, "node-001-backend-store", "Create Node backend cache/history/decision tables.");
+  recordSchemaMigration(db, "node-002-case-index", "Create reusable prepared case index for faster random workflows.");
 }
 
 function recordSchemaMigration(db, migrationId, description) {
@@ -281,6 +315,154 @@ export async function recordImageDecision({ casePath, frameId = "", url = "", la
       now,
     );
   }).catch(() => {});
+}
+
+export async function recordCaseIndex({ caseData, request = {}, source = "prepare" } = {}) {
+  const cleanCasePath = normalizedCasePath(caseData?.casePath || request?.selectedCasePath || "");
+  if (!cleanCasePath) {
+    return;
+  }
+
+  const quality = caseData?.quality && typeof caseData.quality === "object" ? caseData.quality : {};
+  const systems = [
+    ...(Array.isArray(request?.randomSystems) ? request.randomSystems : []),
+    ...(Array.isArray(request?.systems) ? request.systems : []),
+    ...(Array.isArray(caseData?.systems) ? caseData.systems : []),
+  ].map((value) => collapseWhitespace(value)).filter(Boolean);
+  const selectedImageCount = Array.isArray(caseData?.images)
+    ? caseData.images.length
+    : Number.isFinite(quality.selectedCount)
+      ? quality.selectedCount
+      : 0;
+  const candidateImageCount = Array.isArray(caseData?.imageCandidateBank)
+    ? caseData.imageCandidateBank.length
+    : 0;
+
+  await withDb((db) => {
+    db.prepare(`
+      INSERT INTO case_index
+        (
+          case_path,
+          case_title,
+          case_url,
+          display_url,
+          diagnosis_query,
+          study_hint,
+          modality_summary,
+          systems_json,
+          selected_image_count,
+          candidate_image_count,
+          strong_image_count,
+          quality_score,
+          quality_summary,
+          source,
+          last_prepared_at,
+          prepared_count
+        )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+      ON CONFLICT(case_path) DO UPDATE SET
+        case_title = COALESCE(NULLIF(excluded.case_title, ''), case_index.case_title),
+        case_url = COALESCE(NULLIF(excluded.case_url, ''), case_index.case_url),
+        display_url = COALESCE(NULLIF(excluded.display_url, ''), case_index.display_url),
+        diagnosis_query = COALESCE(NULLIF(excluded.diagnosis_query, ''), case_index.diagnosis_query),
+        study_hint = COALESCE(NULLIF(excluded.study_hint, ''), case_index.study_hint),
+        modality_summary = COALESCE(NULLIF(excluded.modality_summary, ''), case_index.modality_summary),
+        systems_json = excluded.systems_json,
+        selected_image_count = excluded.selected_image_count,
+        candidate_image_count = excluded.candidate_image_count,
+        strong_image_count = excluded.strong_image_count,
+        quality_score = excluded.quality_score,
+        quality_summary = excluded.quality_summary,
+        source = excluded.source,
+        last_prepared_at = excluded.last_prepared_at,
+        prepared_count = case_index.prepared_count + 1;
+    `).run(
+      cleanCasePath,
+      collapseWhitespace(caseData?.caseTitle || request?.selectedCaseTitle || ""),
+      collapseWhitespace(caseData?.caseUrl || ""),
+      collapseWhitespace(caseData?.displayUrl || ""),
+      collapseWhitespace(caseData?.diagnosisQuery || request?.diagnosis || ""),
+      collapseWhitespace(caseData?.studyHint || request?.studyHint || ""),
+      collapseWhitespace(caseData?.modalitySummary || ""),
+      safeJsonArray(dedupe(systems)),
+      selectedImageCount,
+      candidateImageCount,
+      Number.isFinite(quality.strongCount) ? quality.strongCount : 0,
+      Number.isFinite(quality.overallScore) ? quality.overallScore : 0,
+      collapseWhitespace(quality.summary || ""),
+      collapseWhitespace(source) || "prepare",
+      timestamp(),
+    );
+  }).catch(() => {});
+}
+
+export async function readIndexedRandomCases({
+  limit = 20,
+  excludeCasePaths = [],
+  modality = "",
+  system = "",
+  query = "",
+  minSelectedImages = 1,
+} = {}) {
+  const excluded = dedupe((excludeCasePaths || []).map((value) => normalizedCasePath(value)).filter(Boolean));
+  const clauses = ["selected_image_count >= ?"];
+  const parameters = [Math.max(0, Number.parseInt(minSelectedImages, 10) || 0)];
+
+  if (excluded.length) {
+    clauses.push(`case_path NOT IN (${excluded.map(() => "?").join(", ")})`);
+    parameters.push(...excluded);
+  }
+
+  const cleanModality = normalizedLower(modality);
+  if (cleanModality && cleanModality !== "any") {
+    clauses.push("LOWER(modality_summary) LIKE ?");
+    parameters.push(`%${cleanModality}%`);
+  }
+
+  const cleanSystem = normalizedLower(system);
+  if (cleanSystem && cleanSystem !== "any") {
+    clauses.push("LOWER(systems_json) LIKE ?");
+    parameters.push(`%${cleanSystem}%`);
+  }
+
+  const cleanQuery = normalizedLower(query);
+  if (cleanQuery) {
+    clauses.push("LOWER(case_title || ' ' || diagnosis_query || ' ' || study_hint || ' ' || modality_summary) LIKE ?");
+    parameters.push(`%${cleanQuery}%`);
+  }
+
+  const effectiveLimit = Math.max(1, Math.min(200, Number.parseInt(limit, 10) || 20));
+  return withDb((db) =>
+    db
+      .prepare(`
+        SELECT
+          case_path AS casePath,
+          case_title AS caseTitle,
+          case_url AS caseUrl,
+          display_url AS displayUrl,
+          diagnosis_query AS diagnosisQuery,
+          study_hint AS studyHint,
+          modality_summary AS modalitySummary,
+          systems_json AS systemsJson,
+          selected_image_count AS selectedImageCount,
+          candidate_image_count AS candidateImageCount,
+          strong_image_count AS strongImageCount,
+          quality_score AS qualityScore,
+          quality_summary AS qualitySummary,
+          source,
+          last_prepared_at AS lastPreparedAt,
+          prepared_count AS preparedCount
+        FROM case_index
+        WHERE ${clauses.join(" AND ")}
+        ORDER BY prepared_count ASC, quality_score DESC, last_prepared_at ASC
+        LIMIT ?;
+      `)
+      .all(...parameters, effectiveLimit)
+      .map((row) => ({
+        ...row,
+        systems: JSON.parse(row.systemsJson || "[]"),
+      })),
+  ).catch(() => []);
 }
 
 export async function readRejectedFrameIds(casePath) {

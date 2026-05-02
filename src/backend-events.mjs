@@ -19,3 +19,37 @@ export function emitProgress(message, detail = {}) {
 export function emitWarning(message, detail = {}) {
   emitBackendEvent("warning", message, detail);
 }
+
+function formatDuration(durationMs) {
+  if (!Number.isFinite(durationMs)) {
+    return "";
+  }
+  if (durationMs < 1000) {
+    return `${Math.round(durationMs)} ms`;
+  }
+  return `${(durationMs / 1000).toFixed(1)} s`;
+}
+
+export async function withBackendStage(message, detail, callback) {
+  const stageDetail = detail && typeof detail === "object" ? detail : {};
+  const startedAt = Date.now();
+  emitBackendEvent("stage-start", message, stageDetail);
+
+  try {
+    const result = await callback();
+    const durationMs = Date.now() - startedAt;
+    emitBackendEvent("stage-complete", `Completed ${message} (${formatDuration(durationMs)})`, {
+      ...stageDetail,
+      durationMs,
+    });
+    return result;
+  } catch (error) {
+    const durationMs = Date.now() - startedAt;
+    emitBackendEvent("stage-error", `Failed ${message} (${formatDuration(durationMs)})`, {
+      ...stageDetail,
+      durationMs,
+      error: error?.message || String(error),
+    });
+    throw error;
+  }
+}
