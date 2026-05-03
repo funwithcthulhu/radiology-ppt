@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Latest Windows installer
+    url: https://github.com/funwithcthulhu/radiology-ppt/releases/latest
+    about: Download the latest released installer.

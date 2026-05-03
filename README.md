@@ -1,5 +1,10 @@
 # Radiopaedia Case PowerPoint Builder
 
+[![CI](https://github.com/funwithcthulhu/radiology-ppt/actions/workflows/ci.yml/badge.svg)](https://github.com/funwithcthulhu/radiology-ppt/actions/workflows/ci.yml)
+[![Latest Release](https://img.shields.io/github/v/release/funwithcthulhu/radiology-ppt?label=latest%20installer)](https://github.com/funwithcthulhu/radiology-ppt/releases/latest)
+[![License: MIT](https://img.shields.io/github/license/funwithcthulhu/radiology-ppt)](LICENSE)
+[![Windows App](https://img.shields.io/badge/app-C%23%20WPF%20%2B%20Node-0f766e)](docs/ARCHITECTURE.md)
+
 Native Windows desktop app for building case-based radiology PowerPoints from Radiopaedia.
 
 The supported product is the GUI. You add case requests, review the cases/images, and the app creates a PowerPoint after you approve the reviewed cases. The runtime is C# WPF plus a local Node backend.
@@ -36,6 +41,7 @@ The case intro slide avoids giving away the diagnosis when possible. If clean pa
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
 - [Contributing](docs/CONTRIBUTING.md)
 - [Releasing](docs/RELEASING.md)
+- [Security And Privacy](SECURITY.md)
 
 ## Main Use
 

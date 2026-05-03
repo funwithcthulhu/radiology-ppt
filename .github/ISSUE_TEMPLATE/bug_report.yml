@@ -1,0 +1,49 @@
+name: Bug report
+description: Report something broken in the desktop app or backend workflow.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve the app. Please do not attach private patient data, private PDFs, or generated PowerPoints containing material you cannot share.
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Describe the problem and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the app
+        2. Add this kind of request
+        3. Click this button
+        4. See this error or bad output
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: App version or installer version
+      placeholder: "v0.1.0"
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Cases / Radiopaedia search
+        - Review window
+        - PowerPoint export
+        - Core Boards
+        - Installer / launch
+        - Other
+  - type: textarea
+    id: logs
+    attributes:
+      label: Activity log or error text
+      description: Paste relevant Activity tab lines or error text. Remove private paths or sensitive content if needed.
+      render: text

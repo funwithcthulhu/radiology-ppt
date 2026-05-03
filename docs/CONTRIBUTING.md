@@ -195,6 +195,8 @@ git push origin main
 
 Keep commits focused. This app is changing quickly, so small checkpoints are easier to recover from.
 
+GitHub issue and pull request templates live under `.github\`. Use them to keep bug reports, feature requests, and validation notes consistent.
+
 ## Security And Privacy
 
 - Core Boards PDFs and generated corpora are local/private and ignored by Git.

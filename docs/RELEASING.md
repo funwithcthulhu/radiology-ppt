@@ -53,6 +53,13 @@ Use a matching semantic version and tag:
 ```powershell
 git tag v0.1.0
 git push origin main v0.1.0
+```
+
+Pushing a `v*` tag runs the `Build Windows Installer` workflow. The workflow builds the installer, uploads it as a workflow artifact, and attaches it to the GitHub Release for that tag. If the release does not exist yet, the workflow creates it.
+
+For a local/manual repair, build the installer and upload it yourself:
+
+```powershell
 gh release create v0.1.0 `
   .\dist\installer\Radiopaedia-Case-PowerPoint-Builder-Setup-v0.1.0.exe `
   --title "Radiopaedia Case PowerPoint Builder v0.1.0" `
