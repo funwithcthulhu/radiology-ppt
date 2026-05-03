@@ -78,10 +78,11 @@
                                                 <CheckBox DockPanel.Dock="Top" Content="Keep this image" IsChecked="{Binding Keep, Mode=TwoWay}" FontWeight="SemiBold" Margin="0,0,0,8" />
                                                 <StackPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
                                                     <TextBlock Text="{Binding Caption}" TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" />
+                                                    <TextBlock Text="{Binding SelectionExplanation}" TextWrapping="Wrap" Foreground="#334155" FontSize="11" Margin="0,4,0,0" />
                                                     <TextBlock Text="{Binding OllamaText}" TextWrapping="Wrap" Foreground="#0F766E" FontSize="11" Margin="0,4,0,0" />
                                                 </StackPanel>
                                                 <Border Background="Black" CornerRadius="6" ClipToBounds="True">
-                                                    <Image Source="{Binding LocalPath}" Stretch="Uniform" MaxHeight="330" />
+                                                    <Image Source="{Binding ImageSource}" Stretch="Uniform" MaxHeight="330" />
                                                 </Border>
                                             </DockPanel>
                                         </Border>
@@ -129,7 +130,7 @@
                                                     <TextBlock Text="{Binding ScoreText}" TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" FontSize="11" />
                                                 </StackPanel>
                                                 <Border Background="Black" CornerRadius="6" ClipToBounds="True">
-                                                    <Image Source="{Binding PreviewPath}" Stretch="Uniform" MaxHeight="170" />
+                                                    <Image Source="{Binding PreviewSource}" Stretch="Uniform" MaxHeight="170" />
                                                 </Border>
                                             </DockPanel>
                                         </Border>

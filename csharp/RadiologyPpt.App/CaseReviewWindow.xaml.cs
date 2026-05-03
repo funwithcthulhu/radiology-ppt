@@ -82,8 +82,9 @@ public partial class CaseReviewWindow : Window
             Images.Add(new ReviewImageItem
             {
                 Keep = true,
-                LocalPath = TextValue(imageObject, "localPath", ""),
+                ImageSource = ReviewImageSource(imageObject),
                 Caption = BuildImageCaption(imageObject),
+                SelectionExplanation = BuildImageExplanation(imageObject),
                 OllamaText = BuildOllamaText(imageObject),
                 FrameId = TextValue(imageObject, "frameId", ""),
                 Source = imageObject.DeepClone().AsObject()
@@ -547,6 +548,12 @@ public partial class CaseReviewWindow : Window
         builder.AppendLine("Warnings:");
         builder.AppendLine(string.Join(Environment.NewLine, warnings ?? []));
         builder.AppendLine();
+        builder.AppendLine("Selected image rationale:");
+        foreach (var image in caseData?["images"]?.AsArray().OfType<JsonObject>() ?? [])
+        {
+            builder.AppendLine($"- {BuildImageCaption(image)}: {BuildImageExplanation(image)}");
+        }
+        builder.AppendLine();
         builder.AppendLine("Prompt:");
         builder.AppendLine(TextValue(caseData, "promptText", ""));
         return builder.ToString();
@@ -575,6 +582,27 @@ public partial class CaseReviewWindow : Window
             TextValue(image, "label", ""),
             TextValue(image, "plane", "")
         }.Where(value => !string.IsNullOrWhiteSpace(value)));
+    }
+
+    private static string BuildImageExplanation(JsonObject image)
+    {
+        var explanation = TextValue(image, "selectionExplanation", "");
+        if (!string.IsNullOrWhiteSpace(explanation))
+        {
+            return explanation;
+        }
+
+        var audit = image["audit"] as JsonObject;
+        var reasons = audit?["reasons"]?.AsArray()
+            .Select(node => node?.ToString() ?? "")
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray()
+            ?? [];
+        var score = NumericValue(image, "relevantScore");
+        return reasons.Length == 0
+            ? $"Relevance score {score:0}."
+            : $"Relevance score {score:0}: {string.Join("; ", reasons)}.";
     }
 
     private static string BuildOllamaText(JsonObject image)
@@ -606,19 +634,24 @@ public partial class CaseReviewWindow : Window
             CandidateImages.Add(new CandidateImageItem
             {
                 FrameId = frameId,
-                PreviewPath = LocalPreviewPath(image),
+                PreviewSource = ReviewImageSource(image),
                 Caption = BuildImageCaption(image),
-                ScoreText = $"Frame {frameId} | score {NumericValue(image, "relevantScore"):0}",
+                ScoreText = $"Frame {frameId} | {BuildImageExplanation(image)}",
                 Source = image.DeepClone().AsObject()
             });
         }
         CandidateItemsControl.ItemsSource = CandidateImages;
     }
 
-    private static string LocalPreviewPath(JsonObject image)
+    private static string ReviewImageSource(JsonObject image)
     {
         var localPath = TextValue(image, "localPath", "");
-        return !string.IsNullOrWhiteSpace(localPath) && File.Exists(localPath) ? localPath : "";
+        if (!string.IsNullOrWhiteSpace(localPath) && File.Exists(localPath))
+        {
+            return localPath;
+        }
+
+        return TextValue(image, "url", "");
     }
 
     private static string TextValue(JsonObject? node, string name, string fallback)
@@ -671,8 +704,9 @@ public sealed class ReviewImageItem : INotifyPropertyChanged
         }
     }
 
-    public string LocalPath { get; init; } = "";
+    public string ImageSource { get; init; } = "";
     public string Caption { get; init; } = "";
+    public string SelectionExplanation { get; init; } = "";
     public string OllamaText { get; init; } = "";
     public string FrameId { get; init; } = "";
     public JsonObject Source { get; init; } = new();
@@ -698,7 +732,7 @@ public sealed class CandidateImageItem : INotifyPropertyChanged
         }
     }
 
-    public string PreviewPath { get; init; } = "";
+    public string PreviewSource { get; init; } = "";
     public string Caption { get; init; } = "";
     public string ScoreText { get; init; } = "";
     public string FrameId { get; init; } = "";

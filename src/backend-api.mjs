@@ -458,6 +458,9 @@ function scheduleFallbackCasePrefetch(items) {
   if (process.env.RADIOLOGY_PPT_BACKEND_SERVICE !== "1") {
     return;
   }
+  if (process.env.RADIOLOGY_PPT_PREFETCH_FALLBACKS !== "1") {
+    return;
+  }
 
   const fallbackPaths = [];
   const seen = new Set();
@@ -537,7 +540,11 @@ function toManifest(cases, entries, deckTitle, deckMode) {
         label: image.label,
         url: image.url,
         localPath: image.localPath,
+        frameId: image.frameId || "",
+        modality: image.modality || "",
         relevantScore: image.relevantScore,
+        selectionExplanation: image.selectionExplanation || "",
+        audit: image.audit || {},
         ollamaScore: image.ollamaScore ?? null,
       })),
     })),

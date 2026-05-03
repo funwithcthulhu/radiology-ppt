@@ -566,10 +566,19 @@ public partial class MainWindow : Window
             var recentEvents = diagnostics.RecentEvents.Count == 0
                 ? "No recent events."
                 : string.Join(Environment.NewLine, diagnostics.RecentEvents.Take(5).Select(item => $"{item.CreatedAt} [{item.Level}] {item.Message}"));
+            var recentJobs = diagnostics.RecentBackendJobs.Count == 0
+                ? "No recent backend jobs."
+                : string.Join(Environment.NewLine, diagnostics.RecentBackendJobs.Select(item =>
+                {
+                    var seconds = item.DurationMs / 1000.0;
+                    var suffix = string.IsNullOrWhiteSpace(item.Error) ? "" : $" - {item.Error}";
+                    return $"{item.UpdatedAt} [{item.Status}] {item.Command} ({seconds:0.0}s){suffix}";
+                }));
             DiagnosticsText.Text =
                 $"Database: {diagnostics.DatabasePath} ({FormatBytes(diagnostics.DatabaseBytes)}){Environment.NewLine}" +
                 $"Cache: {FormatBytes(diagnostics.CacheBytes)} | Scratch: {FormatBytes(diagnostics.ScratchBytes)} | Outputs: {FormatBytes(diagnostics.OutputBytes)}{Environment.NewLine}" +
                 $"Rows: {counts}{Environment.NewLine}" +
+                $"Recent backend jobs: {recentJobs}{Environment.NewLine}" +
                 $"Recent: {recentEvents}";
         }
         catch (Exception exception)

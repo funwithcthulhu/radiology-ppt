@@ -10,6 +10,10 @@ import {
   renderPowerPoint,
   scoreImages,
 } from "./backend-api.mjs";
+import {
+  recordBackendJobFinish,
+  recordBackendJobStart,
+} from "./app-store.mjs";
 
 process.env.RADIOLOGY_PPT_BACKEND_SERVICE = "1";
 
@@ -143,15 +147,53 @@ async function handleLine(line) {
   try {
     handledRequests += 1;
     lastRequestAt = Date.now();
+    const shouldRecordJob = request.command !== "ping";
+    if (shouldRecordJob) {
+      await recordBackendJobStart({
+        jobId: id,
+        command: String(request.command || ""),
+        detail: {
+          payloadKeys: Object.keys(request.payload || {}),
+        },
+      });
+    }
     const payload = await withJobEvents(id, () => runCommand(request.command, request.payload || {}));
+    if (shouldRecordJob) {
+      await recordBackendJobFinish({
+        jobId: id,
+        status: "completed",
+        summary: `Completed ${request.command}`,
+        detail: summarizeResultPayload(payload),
+      });
+    }
     send({ id, type: "result", payload });
   } catch (error) {
+    if (request.command !== "ping") {
+      await recordBackendJobFinish({
+        jobId: id,
+        status: "failed",
+        summary: `Failed ${request.command}`,
+        error: error?.message || String(error),
+      });
+    }
     send({
       id,
       type: "error",
       error: error?.stack || error?.message || String(error),
     });
   }
+}
+
+function summarizeResultPayload(payload) {
+  if (!payload || typeof payload !== "object") {
+    return {};
+  }
+  return {
+    itemCount: Array.isArray(payload.items) ? payload.items.length : undefined,
+    failureCount: Array.isArray(payload.failures) ? payload.failures.length : undefined,
+    outputPath: typeof payload.outputPath === "string" ? payload.outputPath : undefined,
+    manifestPath: typeof payload.manifestPath === "string" ? payload.manifestPath : undefined,
+  };
 }
 
 rl.on("line", (line) => {

@@ -243,6 +243,7 @@ public sealed class AppStorage
             ["case_index"] = Count(connection, "case_index"),
             ["case_decisions"] = Count(connection, "case_decisions"),
             ["image_decisions"] = Count(connection, "image_decisions"),
+            ["backend_jobs"] = Count(connection, "backend_jobs"),
             ["schema_migrations"] = Count(connection, "schema_migrations"),
             ["events"] = Count(connection, "app_events")
         };
@@ -254,7 +255,8 @@ public sealed class AppStorage
             DirectorySize(Path.Combine(_appRoot, "scratch")),
             DirectorySize(Path.Combine(_appRoot, "outputs")),
             counts,
-            LoadRecentEvents(connection));
+            LoadRecentEvents(connection),
+            LoadRecentBackendJobs(connection));
     }
 
     public IReadOnlyList<CaseLibraryItem> LoadCaseLibrary(string searchText = "", string decisionFilter = "", int limit = 300)
@@ -445,6 +447,7 @@ public sealed class AppStorage
     {
         var connection = new SqliteConnection($"Data Source={DatabasePath}");
         connection.Open();
+        ExecuteNonQuery(connection, "PRAGMA busy_timeout=5000;");
         return connection;
     }
 
@@ -579,6 +582,30 @@ public sealed class AppStorage
                 reader.IsDBNull(3) ? "" : reader.GetString(3)));
         }
         return events;
+    }
+
+    private static List<BackendJobSummary> LoadRecentBackendJobs(SqliteConnection connection)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT command, status, updated_at, duration_ms, summary, error
+            FROM backend_jobs
+            ORDER BY updated_at DESC
+            LIMIT 5;
+            """;
+        using var reader = command.ExecuteReader();
+        var jobs = new List<BackendJobSummary>();
+        while (reader.Read())
+        {
+            jobs.Add(new BackendJobSummary(
+                reader.GetString(0),
+                reader.GetString(1),
+                reader.GetString(2),
+                reader.GetInt64(3),
+                reader.GetString(4),
+                reader.GetString(5)));
+        }
+        return jobs;
     }
 
     private static long DirectorySize(string path)
@@ -853,6 +880,19 @@ public sealed class AppStorage
             last_prepared_at TEXT NOT NULL DEFAULT '',
             prepared_count INTEGER NOT NULL DEFAULT 1
         );
+
+        CREATE TABLE IF NOT EXISTS backend_jobs (
+            job_id TEXT PRIMARY KEY,
+            command TEXT NOT NULL,
+            status TEXT NOT NULL,
+            started_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            completed_at TEXT NOT NULL DEFAULT '',
+            duration_ms INTEGER NOT NULL DEFAULT 0,
+            summary TEXT NOT NULL DEFAULT '',
+            error TEXT NOT NULL DEFAULT '',
+            detail_json TEXT NOT NULL DEFAULT '{}'
+        );
         """;
 
     private static readonly StorageMigration[] StorageMigrations =
@@ -903,6 +943,32 @@ public sealed class AppStorage
             CREATE INDEX IF NOT EXISTS idx_case_index_quality_csharp ON case_index(quality_score DESC, selected_image_count DESC);
             CREATE INDEX IF NOT EXISTS idx_case_index_prepared_csharp ON case_index(prepared_count ASC, last_prepared_at ASC);
             """)
+        ,
+        new(
+            "csharp-004-backend-jobs",
+            "Add durable backend job diagnostics written by the Node service.",
+            """
+            CREATE TABLE IF NOT EXISTS backend_jobs (
+                job_id TEXT PRIMARY KEY,
+                command TEXT NOT NULL,
+                status TEXT NOT NULL,
+                started_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                completed_at TEXT NOT NULL DEFAULT '',
+                duration_ms INTEGER NOT NULL DEFAULT 0,
+                summary TEXT NOT NULL DEFAULT '',
+                error TEXT NOT NULL DEFAULT '',
+                detail_json TEXT NOT NULL DEFAULT '{}'
+            );
+            CREATE INDEX IF NOT EXISTS idx_backend_jobs_status_updated_csharp ON backend_jobs(status, updated_at DESC);
+            """)
+        ,
+        new(
+            "csharp-005-random-history-use-index",
+            "Prefer less-used random cases when the backend reuses the prepared-case index.",
+            """
+            CREATE INDEX IF NOT EXISTS idx_random_history_use_csharp ON random_history(use_count ASC, last_seen_at ASC);
+            """)
     ];
 }
 
@@ -913,9 +979,18 @@ public sealed record StorageDiagnostics(
     long ScratchBytes,
     long OutputBytes,
     IReadOnlyDictionary<string, long> Counts,
-    IReadOnlyList<AppEventSummary> RecentEvents);
+    IReadOnlyList<AppEventSummary> RecentEvents,
+    IReadOnlyList<BackendJobSummary> RecentBackendJobs);
 
 public sealed record AppEventSummary(string CreatedAt, string Level, string Message, string Detail);
+
+public sealed record BackendJobSummary(
+    string Command,
+    string Status,
+    string UpdatedAt,
+    long DurationMs,
+    string Summary,
+    string Error);
 
 public sealed record CleanupResult(string DirectoryPath, int RemovedFiles, long RemovedBytes);
 

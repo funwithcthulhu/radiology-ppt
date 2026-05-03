@@ -11,6 +11,8 @@ const NODE_STORAGE_MIGRATIONS = [
   ["node-001-backend-store", "Create Node backend cache/history/decision tables."],
   ["node-002-case-index", "Create reusable prepared case index for faster random workflows."],
   ["node-003-schema-metadata", "Record Node backend schema ownership metadata."],
+  ["node-004-backend-jobs", "Record durable backend job status and timing."],
+  ["node-005-random-index-order", "Add random selection indexes that prefer less-used cases."],
 ];
 let sqlitePromise = null;
 let schemaReady = new Set();
@@ -83,6 +85,7 @@ async function withDb(callback) {
   try {
     db.exec("PRAGMA journal_mode=WAL;");
     db.exec("PRAGMA foreign_keys=ON;");
+    db.exec("PRAGMA busy_timeout=5000;");
     if (!schemaReady.has(dbPath)) {
       ensureSchema(db);
       schemaReady.add(dbPath);
@@ -122,7 +125,8 @@ function ensureSchema(db) {
     CREATE TABLE IF NOT EXISTS random_history (
       case_path TEXT PRIMARY KEY,
       last_seen_at TEXT NOT NULL,
-      source TEXT NOT NULL
+      source TEXT NOT NULL,
+      use_count INTEGER NOT NULL DEFAULT 1
     );
 
     CREATE TABLE IF NOT EXISTS case_decisions (
@@ -167,16 +171,31 @@ function ensureSchema(db) {
       prepared_count INTEGER NOT NULL DEFAULT 1
     );
 
+    CREATE TABLE IF NOT EXISTS backend_jobs (
+      job_id TEXT PRIMARY KEY,
+      command TEXT NOT NULL,
+      status TEXT NOT NULL,
+      started_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      completed_at TEXT NOT NULL DEFAULT '',
+      duration_ms INTEGER NOT NULL DEFAULT 0,
+      summary TEXT NOT NULL DEFAULT '',
+      error TEXT NOT NULL DEFAULT '',
+      detail_json TEXT NOT NULL DEFAULT '{}'
+    );
+
     CREATE INDEX IF NOT EXISTS idx_random_history_seen ON random_history(last_seen_at DESC);
     CREATE INDEX IF NOT EXISTS idx_image_decisions_case_decision ON image_decisions(case_path, decision);
     CREATE INDEX IF NOT EXISTS idx_case_decisions_decision ON case_decisions(decision, last_seen_at DESC);
     CREATE INDEX IF NOT EXISTS idx_case_index_quality ON case_index(quality_score DESC, selected_image_count DESC);
     CREATE INDEX IF NOT EXISTS idx_case_index_prepared ON case_index(prepared_count ASC, last_prepared_at ASC);
+    CREATE INDEX IF NOT EXISTS idx_backend_jobs_status_updated ON backend_jobs(status, updated_at DESC);
   `);
 
   ensureColumn(db, "random_history", "use_count", "INTEGER NOT NULL DEFAULT 1");
   ensureColumn(db, "case_decisions", "count", "INTEGER NOT NULL DEFAULT 1");
   ensureColumn(db, "image_decisions", "count", "INTEGER NOT NULL DEFAULT 1");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_random_history_use ON random_history(use_count ASC, last_seen_at ASC);");
   for (const [migrationId, description] of NODE_STORAGE_MIGRATIONS) {
     recordSchemaMigration(db, migrationId, description);
   }
@@ -240,13 +259,76 @@ export async function writeStoreCache(namespace, key, value) {
   });
 }
 
-export async function readRandomHistory({ limit = 240 } = {}) {
+export async function readRandomHistory({ limit = 1000 } = {}) {
   return withDb((db) =>
     db
       .prepare("SELECT case_path FROM random_history ORDER BY last_seen_at DESC, rowid DESC LIMIT ?")
       .all(limit)
       .map((row) => row.case_path),
   ).catch(() => []);
+}
+
+export async function recordBackendJobStart({ jobId, command, detail = {} } = {}) {
+  const cleanJobId = collapseWhitespace(jobId);
+  const cleanCommand = collapseWhitespace(command);
+  if (!cleanJobId || !cleanCommand) {
+    return;
+  }
+
+  await withDb((db) => {
+    const now = timestamp();
+    db.prepare(`
+      INSERT INTO backend_jobs
+        (job_id, command, status, started_at, updated_at, detail_json)
+      VALUES
+        (?, ?, 'running', ?, ?, ?)
+      ON CONFLICT(job_id) DO UPDATE SET
+        command = excluded.command,
+        status = 'running',
+        started_at = excluded.started_at,
+        updated_at = excluded.updated_at,
+        completed_at = '',
+        duration_ms = 0,
+        summary = '',
+        error = '',
+        detail_json = excluded.detail_json;
+    `).run(cleanJobId, cleanCommand, now, now, JSON.stringify(detail || {}));
+  }).catch(() => {});
+}
+
+export async function recordBackendJobFinish({ jobId, status, summary = "", error = "", detail = {} } = {}) {
+  const cleanJobId = collapseWhitespace(jobId);
+  const cleanStatus = collapseWhitespace(status).toLowerCase();
+  if (!cleanJobId || !cleanStatus) {
+    return;
+  }
+
+  await withDb((db) => {
+    const row = db.prepare("SELECT started_at FROM backend_jobs WHERE job_id = ?").get(cleanJobId);
+    const now = timestamp();
+    const startedAt = Date.parse(row?.started_at || "");
+    const durationMs = Number.isFinite(startedAt) ? Math.max(0, Date.now() - startedAt) : 0;
+    db.prepare(`
+      UPDATE backend_jobs
+      SET status = ?,
+          updated_at = ?,
+          completed_at = ?,
+          duration_ms = ?,
+          summary = ?,
+          error = ?,
+          detail_json = ?
+      WHERE job_id = ?;
+    `).run(
+      cleanStatus,
+      now,
+      now,
+      durationMs,
+      collapseWhitespace(summary),
+      collapseWhitespace(error),
+      JSON.stringify(detail || {}),
+      cleanJobId,
+    );
+  }).catch(() => {});
 }
 
 export async function writeRandomHistory(casePaths, { source = "prepare", limit = 240 } = {}) {
@@ -434,29 +516,29 @@ export async function readIndexedRandomCases({
   minSelectedImages = 1,
 } = {}) {
   const excluded = dedupe((excludeCasePaths || []).map((value) => normalizedCasePath(value)).filter(Boolean));
-  const clauses = ["selected_image_count >= ?"];
+  const clauses = ["ci.selected_image_count >= ?"];
   const parameters = [Math.max(0, Number.parseInt(minSelectedImages, 10) || 0)];
 
   if (excluded.length) {
-    clauses.push(`case_path NOT IN (${excluded.map(() => "?").join(", ")})`);
+    clauses.push(`ci.case_path NOT IN (${excluded.map(() => "?").join(", ")})`);
     parameters.push(...excluded);
   }
 
   const cleanModality = normalizedLower(modality);
   if (cleanModality && cleanModality !== "any") {
-    clauses.push("LOWER(modality_summary) LIKE ?");
+    clauses.push("LOWER(ci.modality_summary) LIKE ?");
     parameters.push(`%${cleanModality}%`);
   }
 
   const cleanSystem = normalizedLower(system);
   if (cleanSystem && cleanSystem !== "any") {
-    clauses.push("LOWER(systems_json) LIKE ?");
+    clauses.push("LOWER(ci.systems_json) LIKE ?");
     parameters.push(`%${cleanSystem}%`);
   }
 
   const cleanQuery = normalizedLower(query);
   if (cleanQuery) {
-    clauses.push("LOWER(case_title || ' ' || diagnosis_query || ' ' || study_hint || ' ' || modality_summary) LIKE ?");
+    clauses.push("LOWER(ci.case_title || ' ' || ci.diagnosis_query || ' ' || ci.study_hint || ' ' || ci.modality_summary) LIKE ?");
     parameters.push(`%${cleanQuery}%`);
   }
 
@@ -465,25 +547,33 @@ export async function readIndexedRandomCases({
     db
       .prepare(`
         SELECT
-          case_path AS casePath,
-          case_title AS caseTitle,
-          case_url AS caseUrl,
-          display_url AS displayUrl,
-          diagnosis_query AS diagnosisQuery,
-          study_hint AS studyHint,
-          modality_summary AS modalitySummary,
-          systems_json AS systemsJson,
-          selected_image_count AS selectedImageCount,
-          candidate_image_count AS candidateImageCount,
-          strong_image_count AS strongImageCount,
-          quality_score AS qualityScore,
-          quality_summary AS qualitySummary,
-          source,
-          last_prepared_at AS lastPreparedAt,
-          prepared_count AS preparedCount
-        FROM case_index
+          ci.case_path AS casePath,
+          ci.case_title AS caseTitle,
+          ci.case_url AS caseUrl,
+          ci.display_url AS displayUrl,
+          ci.diagnosis_query AS diagnosisQuery,
+          ci.study_hint AS studyHint,
+          ci.modality_summary AS modalitySummary,
+          ci.systems_json AS systemsJson,
+          ci.selected_image_count AS selectedImageCount,
+          ci.candidate_image_count AS candidateImageCount,
+          ci.strong_image_count AS strongImageCount,
+          ci.quality_score AS qualityScore,
+          ci.quality_summary AS qualitySummary,
+          ci.source,
+          ci.last_prepared_at AS lastPreparedAt,
+          ci.prepared_count AS preparedCount,
+          COALESCE(rh.use_count, 0) AS randomUseCount,
+          COALESCE(rh.last_seen_at, '') AS randomLastSeenAt
+        FROM case_index ci
+        LEFT JOIN random_history rh ON rh.case_path = ci.case_path
         WHERE ${clauses.join(" AND ")}
-        ORDER BY prepared_count ASC, quality_score DESC, last_prepared_at ASC
+        ORDER BY
+          COALESCE(rh.use_count, 0) ASC,
+          COALESCE(rh.last_seen_at, '') ASC,
+          ci.prepared_count ASC,
+          ci.quality_score DESC,
+          ci.last_prepared_at ASC
         LIMIT ?;
       `)
       .all(...parameters, effectiveLimit)

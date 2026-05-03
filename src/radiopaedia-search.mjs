@@ -31,12 +31,12 @@ import {
   fetchText,
 } from "./providers/radiopaedia-provider.mjs";
 
-const RANDOM_HISTORY_LIMIT = 240;
+const RANDOM_HISTORY_LIMIT = 1000;
 const RANDOM_HISTORY_PATH = path.join(APP_ROOT, "cache", "random-selection-history.json");
 const RANDOM_SEARCH_QUERY_LIMIT = 5;
-const RANDOM_SEARCH_PAGE_LIMIT = 3;
-const RANDOM_CANDIDATE_REVIEW_LIMIT = 48;
-const RANDOM_SEARCH_TIME_LIMIT_MS = 45000;
+const RANDOM_SEARCH_PAGE_LIMIT = 2;
+const RANDOM_CANDIDATE_REVIEW_LIMIT = 32;
+const RANDOM_SEARCH_TIME_LIMIT_MS = 30000;
 
 async function loadRandomHistory(historyPath = RANDOM_HISTORY_PATH) {
   if (historyPath === RANDOM_HISTORY_PATH) {
@@ -254,7 +254,11 @@ async function collectRandomCasePool(query, systems) {
 
     for (const candidate of parseCaseSearchResults(html)) {
       if (!poolMap.has(candidate.casePath)) {
-        poolMap.set(candidate.casePath, candidate);
+        poolMap.set(candidate.casePath, {
+          ...candidate,
+          searchedSystems: dedupe(systems || []),
+          systemsFilterTrusted: Boolean((systems || []).length),
+        });
       }
     }
   }
@@ -274,6 +278,15 @@ async function candidateSystemList(candidate, htmlCache = new Map()) {
 
 async function candidateMatchesSystems(candidate, systems, htmlCache = new Map(), systemMode = "all") {
   if (!systems.length) {
+    return true;
+  }
+
+  const searchedSystems = candidate.searchedSystems || [];
+  if (
+    candidate.systemsFilterTrusted &&
+    searchedSystems.length &&
+    (systemMode === "any" || systems.every((system) => searchedSystems.includes(system)))
+  ) {
     return true;
   }
 

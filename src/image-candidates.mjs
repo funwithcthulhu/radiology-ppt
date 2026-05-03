@@ -297,6 +297,7 @@ export function selectRelevantImages(imageCandidates, desiredCount, { excludeFra
 function annotateSelections(images, reason) {
   return images.map((image, index) => ({
     ...image,
+    selectionExplanation: explainImageSelection(image, reason, index + 1),
     audit: {
       ...(image.audit || {}),
       selected: true,
@@ -304,6 +305,32 @@ function annotateSelections(images, reason) {
       selectedReason: reason,
     },
   }));
+}
+
+export function explainImageSelection(image, selectedReason = "", selectedRank = null) {
+  const reasons = Array.isArray(image.audit?.reasons) ? image.audit.reasons : [];
+  const reasonText = dedupe([
+    collapseWhitespace(selectedReason),
+    ...reasons.map((reason) => collapseWhitespace(reason)),
+  ].filter(Boolean)).join("; ");
+  const score = Number.isFinite(image.relevantScore) ? `score ${Math.round(image.relevantScore)}` : "unscored";
+  const rankText = Number.isInteger(selectedRank) ? `rank ${selectedRank}, ` : "";
+  const source = collapseWhitespace(image.audit?.candidateSource || "");
+  const sourceText = source ? ` from ${source}` : "";
+  return collapseWhitespace(
+    `Selected ${rankText}${score}${sourceText}${reasonText ? `: ${reasonText}.` : "."}`,
+  );
+}
+
+function explainImageCandidate(image) {
+  const reasons = Array.isArray(image.audit?.reasons) ? image.audit.reasons : [];
+  const reasonText = dedupe(reasons.map((reason) => collapseWhitespace(reason)).filter(Boolean)).join("; ");
+  const score = Number.isFinite(image.relevantScore) ? `score ${Math.round(image.relevantScore)}` : "unscored";
+  const source = collapseWhitespace(image.audit?.candidateSource || "");
+  const sourceText = source ? ` from ${source}` : "";
+  return collapseWhitespace(
+    `Candidate ${score}${sourceText}${reasonText ? `: ${reasonText}.` : "."}`,
+  );
 }
 
 function serializeImageCandidate(candidate) {
@@ -322,6 +349,7 @@ function serializeImageCandidate(candidate) {
     isCurrent: Boolean(candidate.isCurrent),
     viewSignature: candidate.viewSignature || "",
     focusPoints: Array.isArray(candidate.focusPoints) ? candidate.focusPoints : [],
+    selectionExplanation: candidate.selectionExplanation || explainImageCandidate(candidate),
     audit: candidate.audit && typeof candidate.audit === "object" ? candidate.audit : {},
   };
 }

@@ -16,6 +16,11 @@
     "plane": { "type": "string" },
     "sliceIndex": { "type": ["integer", "null"] },
     "relevantScore": { "type": "number" },
+    "selectionExplanation": { "type": "string" },
+    "audit": {
+      "type": "object",
+      "additionalProperties": true
+    },
     "ollamaScore": { "type": ["number", "null"] },
     "isAnnotated": { "type": "boolean" },
     "isKeyImage": { "type": "boolean" },
