@@ -130,8 +130,20 @@ function cleanRedactedTeachingText(text) {
     .trim();
 }
 
+function sentenceSafeTrim(text, maxLength = 220) {
+  const clean = collapseWhitespace(text);
+  if (clean.length <= maxLength) {
+    return clean;
+  }
+
+  const withoutTerminal = clean.replace(/[.!?]+$/u, "");
+  const boundary = withoutTerminal.lastIndexOf(" ", maxLength - 1);
+  const cutAt = boundary >= Math.floor(maxLength * 0.6) ? boundary : maxLength - 1;
+  return withoutTerminal.slice(0, cutAt).trim();
+}
+
 function normalizeTeachingPoint(sentence) {
-  return cleanRedactedTeachingText(sentence)
+  return sentenceSafeTrim(cleanRedactedTeachingText(sentence))
     .replace(/(?:\.\.\.|…)+$/g, "")
     .replace(/[;:,]+$/g, ".")
     .replace(/(?<![.!?])$/u, ".")

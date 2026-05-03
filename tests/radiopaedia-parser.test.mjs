@@ -42,7 +42,7 @@ test("builds stable Radiopaedia case search URLs", () => {
 test("matches excluded manual case paths even when query strings differ", async () => {
   const result = await inspectRadiopaediaCaseCandidates({
     requestMode: "manual",
-    selectedCasePath: "/cases/colonic-diverticulosis-1",
+    selectedCasePath: "https://radiopaedia.org/cases/colonic-diverticulosis-1?lang=us",
     excludeCasePaths: ["/cases/colonic-diverticulosis-1?lang=us"],
   });
 
@@ -65,6 +65,23 @@ test("builds complete teaching-point sentences without ellipses", () => {
   assert.equal(points[0].endsWith("low ADC values."), true);
   assert.equal(points[0].includes("…"), false);
   assert.equal(points[0].includes("..."), false);
+});
+
+test("shortens oversized teaching points at word boundaries", () => {
+  const points = buildTeachingPoints({
+    request: {},
+    description: "",
+    findings:
+      "This deliberately oversized teaching sentence contains enough detail to overflow a teaching slide if inserted verbatim, including imaging appearance, anatomic distribution, clinical context, follow-up considerations, and several extra clauses that should not create a mid-word or ellipsis cutoff in PowerPoint.",
+    diagnosis: "Example diagnosis",
+    caseTitle: "Example case",
+    modalitySummary: "",
+    images: [],
+  });
+
+  assert.equal(points[0].endsWith("."), true);
+  assert.equal(points[0].includes("..."), false);
+  assert.equal(points[0].length <= 221, true);
 });
 
 test("expands random requests from the local case index before live search", async () => {

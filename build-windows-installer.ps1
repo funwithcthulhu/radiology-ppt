@@ -20,7 +20,13 @@ function Assert-ChildPath {
 
   $resolvedPath = [System.IO.Path]::GetFullPath($Path)
   $resolvedParent = [System.IO.Path]::GetFullPath($Parent)
-  if (-not $resolvedPath.StartsWith($resolvedParent, [System.StringComparison]::OrdinalIgnoreCase)) {
+  $normalizedPath = $resolvedPath.TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
+  $normalizedParent = $resolvedParent.TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
+  $isChild = $normalizedPath.StartsWith(
+    "$normalizedParent$([System.IO.Path]::DirectorySeparatorChar)",
+    [System.StringComparison]::OrdinalIgnoreCase
+  )
+  if ($normalizedPath -ne $normalizedParent -and -not $isChild) {
     throw "Refusing to operate outside expected parent. Path: $resolvedPath Parent: $resolvedParent"
   }
 }
@@ -56,6 +62,20 @@ if (-not (Test-Path $issPath)) {
   throw "Inno Setup script not found: $issPath"
 }
 
+foreach ($directoryName in @("src", "node_modules")) {
+  $source = Join-Path $projectRoot $directoryName
+  if (-not (Test-Path $source)) {
+    throw "Required installer resource was not found: $source"
+  }
+}
+
+if (-not $SkipCompile) {
+  $iscc = Resolve-InnoCompiler
+  if (-not $iscc) {
+    throw "Inno Setup compiler was not found. Install it with: winget install --id JRSoftware.InnoSetup -e --scope user"
+  }
+}
+
 New-Item -ItemType Directory -Path $distRoot -Force | Out-Null
 Assert-ChildPath -Path $packageDir -Parent $distRoot
 Assert-ChildPath -Path $installerDir -Parent $distRoot
@@ -81,9 +101,6 @@ if (-not (Test-Path $exePath)) {
 foreach ($directoryName in @("src", "node_modules")) {
   $source = Join-Path $projectRoot $directoryName
   $target = Join-Path $packageDir $directoryName
-  if (-not (Test-Path $source)) {
-    throw "Required installer resource was not found: $source"
-  }
   Copy-Item -LiteralPath $source -Destination $target -Recurse -Force
 }
 
@@ -129,11 +146,6 @@ Copy-Item -LiteralPath $nodeCandidates[0] -Destination (Join-Path $runtimeDir "n
 if ($SkipCompile) {
   Write-Output $packageDir
   return
-}
-
-$iscc = Resolve-InnoCompiler
-if (-not $iscc) {
-  throw "Inno Setup compiler was not found. Install it with: winget install --id JRSoftware.InnoSetup -e --scope user"
 }
 
 & $iscc `

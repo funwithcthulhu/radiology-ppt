@@ -144,8 +144,11 @@ public sealed class BackendClient
                 return [];
             }
 
-            var stdout = await process.StandardOutput.ReadToEndAsync();
+            var stdoutTask = process.StandardOutput.ReadToEndAsync();
+            var stderrTask = process.StandardError.ReadToEndAsync();
             await process.WaitForExitAsync();
+            _ = await stderrTask;
+            var stdout = await stdoutTask;
             return stdout.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries)
                 .Select(line => line.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "")
                 .Where(name => !string.IsNullOrWhiteSpace(name) && !name.Equals("NAME", StringComparison.OrdinalIgnoreCase))

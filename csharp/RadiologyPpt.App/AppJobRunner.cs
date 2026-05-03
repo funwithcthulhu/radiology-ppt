@@ -37,22 +37,21 @@ public sealed class AppJobRunner
             _current = snapshot;
         }
 
-        onChanged(snapshot);
-
         try
         {
+            TryNotify(onChanged, snapshot);
             var result = await work(cancellation.Token);
-            onChanged(snapshot with { Status = AppJobStatus.Completed, CompletedAt = DateTimeOffset.Now });
+            TryNotify(onChanged, snapshot with { Status = AppJobStatus.Completed, CompletedAt = DateTimeOffset.Now });
             return result;
         }
         catch (OperationCanceledException)
         {
-            onChanged(snapshot with { Status = AppJobStatus.Cancelled, CompletedAt = DateTimeOffset.Now });
+            TryNotify(onChanged, snapshot with { Status = AppJobStatus.Cancelled, CompletedAt = DateTimeOffset.Now });
             throw;
         }
         catch
         {
-            onChanged(snapshot with { Status = AppJobStatus.Failed, CompletedAt = DateTimeOffset.Now });
+            TryNotify(onChanged, snapshot with { Status = AppJobStatus.Failed, CompletedAt = DateTimeOffset.Now });
             throw;
         }
         finally
@@ -75,6 +74,18 @@ public sealed class AppJobRunner
         lock (_lock)
         {
             _cancellation?.Cancel();
+        }
+    }
+
+    private static void TryNotify(Action<AppJobSnapshot> onChanged, AppJobSnapshot snapshot)
+    {
+        try
+        {
+            onChanged(snapshot);
+        }
+        catch
+        {
+            // Status notifications are best-effort; they should not strand the job runner in a busy state.
         }
     }
 }

@@ -48,7 +48,13 @@ function isFresh(createdAt, ttlMs) {
 }
 
 function normalizedCasePath(value) {
-  return collapseWhitespace(value).replace(/\?.*$/, "");
+  const clean = collapseWhitespace(value).replace(/\?.*$/, "");
+  try {
+    const url = new URL(clean);
+    return /(^|\.)radiopaedia\.org$/i.test(url.hostname) ? url.pathname : clean;
+  } catch {
+    return clean;
+  }
 }
 
 function normalizedLower(value) {
@@ -247,7 +253,7 @@ export async function writeRandomHistory(casePaths, { source = "prepare", limit 
   const cleanPaths = [];
   const seen = new Set();
   for (const casePath of casePaths || []) {
-    const clean = collapseWhitespace(casePath);
+    const clean = normalizedCasePath(casePath);
     if (clean && !seen.has(clean)) {
       seen.add(clean);
       cleanPaths.push(clean);
@@ -289,7 +295,7 @@ export async function writeRandomHistory(casePaths, { source = "prepare", limit 
 }
 
 export async function recordCaseDecision({ casePath, caseTitle = "", decision, reason = "" }) {
-  const cleanCasePath = collapseWhitespace(casePath);
+  const cleanCasePath = normalizedCasePath(casePath);
   const cleanDecision = collapseWhitespace(decision).toLowerCase();
   if (!cleanCasePath || !cleanDecision) {
     return;
@@ -310,7 +316,7 @@ export async function recordCaseDecision({ casePath, caseTitle = "", decision, r
 }
 
 export async function recordImageDecision({ casePath, frameId = "", url = "", label = "", decision, reason = "" }) {
-  const cleanCasePath = collapseWhitespace(casePath);
+  const cleanCasePath = normalizedCasePath(casePath);
   const cleanDecision = collapseWhitespace(decision).toLowerCase();
   if (!cleanCasePath || !cleanDecision) {
     return;
@@ -489,7 +495,7 @@ export async function readIndexedRandomCases({
 }
 
 export async function readRejectedFrameIds(casePath) {
-  const cleanCasePath = collapseWhitespace(casePath);
+  const cleanCasePath = normalizedCasePath(casePath);
   if (!cleanCasePath) {
     return [];
   }

@@ -349,7 +349,13 @@ async function prepareEntry(entry, args, cacheDir) {
 }
 
 function normalizedCasePath(value) {
-  return collapseWhitespace(value).replace(/\?.*$/, "");
+  const clean = collapseWhitespace(value).replace(/\?.*$/, "");
+  try {
+    const url = new URL(clean);
+    return /(^|\.)radiopaedia\.org$/i.test(url.hostname) ? url.pathname : clean;
+  } catch {
+    return clean;
+  }
 }
 
 function isRandomPreparedRequest(request) {

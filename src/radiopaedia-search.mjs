@@ -184,7 +184,13 @@ export function buildCaseSearchUrl({ query = "", systems = [], page = 1 } = {}) 
 }
 
 export function comparableCasePath(value) {
-  return collapseWhitespace(value).replace(/\?.*$/, "");
+  const clean = collapseWhitespace(value).replace(/\?.*$/, "");
+  try {
+    const url = new URL(clean);
+    return /(^|\.)radiopaedia\.org$/i.test(url.hostname) ? url.pathname : clean;
+  } catch {
+    return clean;
+  }
 }
 
 function extractSearchPageNumbers(html) {

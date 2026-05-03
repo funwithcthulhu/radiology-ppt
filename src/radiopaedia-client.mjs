@@ -20,6 +20,9 @@ const REQUEST_HEADERS = {
 };
 const TEXT_CACHE = new Map();
 const HTTP_CONCURRENCY = boundedInteger(process.env.RADIOLOGY_PPT_HTTP_CONCURRENCY, 4, 1, 12);
+const HTTP_CONNECT_TIMEOUT_SECONDS = boundedInteger(process.env.RADIOLOGY_PPT_HTTP_CONNECT_TIMEOUT_SECONDS, 10, 2, 60);
+const HTTP_TEXT_TIMEOUT_SECONDS = boundedInteger(process.env.RADIOLOGY_PPT_HTTP_TEXT_TIMEOUT_SECONDS, 45, 5, 300);
+const HTTP_IMAGE_TIMEOUT_SECONDS = boundedInteger(process.env.RADIOLOGY_PPT_HTTP_IMAGE_TIMEOUT_SECONDS, 75, 10, 600);
 let activeHttpRequests = 0;
 const httpQueue = [];
 
@@ -56,10 +59,15 @@ export function absoluteUrl(value) {
   return value.startsWith("http") ? value : `${BASE_URL}${value}`;
 }
 
-function buildCurlArgs(url, extraHeaders = {}, outputPath = null) {
+function buildCurlArgs(url, extraHeaders = {}, outputPath = null, { maxTimeSeconds = HTTP_TEXT_TIMEOUT_SECONDS } = {}) {
   const args = [
     "-sS",
     "-L",
+    "--fail",
+    "--connect-timeout",
+    String(HTTP_CONNECT_TIMEOUT_SECONDS),
+    "--max-time",
+    String(maxTimeSeconds),
     "-A",
     REQUEST_HEADERS["user-agent"],
     "-H",
@@ -127,6 +135,9 @@ export async function fetchText(url, extraHeaders = {}, attempt = 1) {
         await sleep(350 * attempt);
         return fetchText(url, extraHeaders, attempt + 1);
       }
+      if (looksLikeInterstitial(stdout)) {
+        throw new Error(`Radiopaedia returned an interstitial page for ${url}; try again later.`);
+      }
       return stdout;
     },
     { ttlMs: HTTP_CACHE_TTL_MS },
@@ -154,12 +165,24 @@ export async function fetchJson(url, extraHeaders = {}, attempt = 1) {
 
 export async function downloadFile(url, filePath) {
   if (await fileExists(filePath)) {
-    return filePath;
+    const stat = await fs.stat(filePath).catch(() => null);
+    if (stat?.size > 0) {
+      return filePath;
+    }
   }
 
   await fs.mkdir(path.dirname(filePath), { recursive: true });
-  await curlWithRetries(buildCurlArgs(url, {}, filePath), {
-    maxBuffer: 10 * 1024 * 1024,
-  });
+  try {
+    await curlWithRetries(buildCurlArgs(url, {}, filePath, { maxTimeSeconds: HTTP_IMAGE_TIMEOUT_SECONDS }), {
+      maxBuffer: 10 * 1024 * 1024,
+    });
+    const stat = await fs.stat(filePath);
+    if (stat.size <= 0) {
+      throw new Error(`Downloaded image was empty: ${url}`);
+    }
+  } catch (error) {
+    await fs.rm(filePath, { force: true }).catch(() => {});
+    throw error;
+  }
   return filePath;
 }

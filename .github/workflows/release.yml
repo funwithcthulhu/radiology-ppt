@@ -77,8 +77,13 @@ jobs:
             $notesPath = "docs/releases/v$version.md"
           }
 
-          gh release view $tag *> $null
-          $releaseExists = $LASTEXITCODE -eq 0
+          $releaseExists = $false
+          try {
+            gh release view $tag *> $null
+            $releaseExists = $LASTEXITCODE -eq 0
+          } catch {
+            $releaseExists = $false
+          }
 
           if (-not $releaseExists) {
             if (Test-Path $notesPath) {

@@ -106,7 +106,7 @@ public sealed class AppStorage
             """;
         command.Parameters.AddWithValue("$session_id", sessionId);
         command.Parameters.AddWithValue("$created_at", Timestamp());
-        command.Parameters.AddWithValue("$case_path", TextValue(caseData, "casePath"));
+        command.Parameters.AddWithValue("$case_path", NormalizeCasePath(TextValue(caseData, "casePath")));
         command.Parameters.AddWithValue("$case_title", TextValue(caseData, "caseTitle"));
         command.Parameters.AddWithValue("$status", status);
         command.Parameters.AddWithValue("$item_json", item.ToJsonString(new JsonSerializerOptions { WriteIndented = false }));
@@ -196,7 +196,7 @@ public sealed class AppStorage
             return;
         }
 
-        var casePath = TextValue(caseData, "casePath");
+        var casePath = NormalizeCasePath(TextValue(caseData, "casePath"));
         if (string.IsNullOrWhiteSpace(casePath))
         {
             return;
@@ -493,7 +493,7 @@ public sealed class AppStorage
 
     private static void UpsertCaseDecision(SqliteConnection connection, JsonObject? caseData, string decision, string reason)
     {
-        var casePath = TextValue(caseData, "casePath");
+        var casePath = NormalizeCasePath(TextValue(caseData, "casePath"));
         if (string.IsNullOrWhiteSpace(casePath))
         {
             return;
@@ -520,9 +520,10 @@ public sealed class AppStorage
 
     private static void UpsertImageDecision(SqliteConnection connection, string casePath, JsonObject image, string decision, string reason)
     {
+        casePath = NormalizeCasePath(casePath);
         var frameId = TextValue(image, "frameId");
         var url = TextValue(image, "url");
-        if (string.IsNullOrWhiteSpace(frameId) && string.IsNullOrWhiteSpace(url))
+        if (string.IsNullOrWhiteSpace(casePath) || (string.IsNullOrWhiteSpace(frameId) && string.IsNullOrWhiteSpace(url)))
         {
             return;
         }
@@ -602,7 +603,7 @@ public sealed class AppStorage
     {
         var fullDirectory = Path.GetFullPath(directory);
         var fullRoot = Path.GetFullPath(_appRoot);
-        if (!fullDirectory.StartsWith(fullRoot, StringComparison.OrdinalIgnoreCase))
+        if (!IsSelfOrChildPath(fullDirectory, fullRoot))
         {
             throw new InvalidOperationException($"Refusing to clean outside the app root: {fullDirectory}");
         }
@@ -672,6 +673,30 @@ public sealed class AppStorage
         {
             return "";
         }
+    }
+
+    private static string NormalizeCasePath(string value)
+    {
+        var text = value.Trim();
+        var queryIndex = text.IndexOf('?', StringComparison.Ordinal);
+        text = queryIndex >= 0 ? text[..queryIndex] : text;
+        if (Uri.TryCreate(text, UriKind.Absolute, out var uri) &&
+            uri.Host.EndsWith("radiopaedia.org", StringComparison.OrdinalIgnoreCase))
+        {
+            return uri.AbsolutePath;
+        }
+
+        return text;
+    }
+
+    private static bool IsSelfOrChildPath(string path, string parent)
+    {
+        var normalizedPath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
+        var normalizedParent = Path.TrimEndingDirectorySeparator(Path.GetFullPath(parent));
+        return normalizedPath.Equals(normalizedParent, StringComparison.OrdinalIgnoreCase) ||
+            normalizedPath.StartsWith(
+                normalizedParent + Path.DirectorySeparatorChar,
+                StringComparison.OrdinalIgnoreCase);
     }
 
     private static double NumericValue(JsonObject node, string name)

@@ -23,7 +23,7 @@ test("stores backend cache values and random history in SQLite", async () => {
   await writeStoreCache("test", { id: 1 }, { value: "cached" });
   assert.deepEqual(await readStoreCache("test", { id: 1 }, { ttlMs: 60_000 }), { value: "cached" });
 
-  await writeRandomHistory(["/cases/a", "/cases/b", "/cases/a"], { source: "unit-test", limit: 10 });
+  await writeRandomHistory(["https://radiopaedia.org/cases/a?lang=us", "/cases/b", "/cases/a"], { source: "unit-test", limit: 10 });
   assert.deepEqual(await readRandomHistory({ limit: 2 }), ["/cases/b", "/cases/a"]);
 });
 
@@ -32,7 +32,7 @@ test("records rejected image frames for later repicks", async () => {
   process.env.RADIOLOGY_PPT_DATABASE_PATH = path.join(tempDir, "state.sqlite");
 
   await recordImageDecision({
-    casePath: "/cases/example-1",
+    casePath: "https://radiopaedia.org/cases/example-1?lang=us",
     frameId: "frame-2",
     url: "https://example.test/frame-2.jpg",
     decision: "rejected",
