@@ -42,7 +42,7 @@ The system should support:
 - Added text/JSON source ingestion in `src/core_review/ingest.mjs`.
 - Added synthetic example question bank in `examples/core-review-question-bank.example.json`.
 - Added PDF ingestion in `src/core_review/pdf-ingest.mjs`.
-- Added CLI commands in `src/cli.mjs`:
+- Added internal/developer Node commands in `src/cli.mjs`:
   - `--core-review-schema`
   - `--core-review-ingest`
   - `--core-review-ingest-pdf`
@@ -75,7 +75,7 @@ Default private output path:
 library\board-review\
 ```
 
-Example:
+Developer example:
 
 ```powershell
 node.exe .\src\cli.mjs --core-review-ingest-pdf "C:\path\to\atlas.pdf" --out .\library\board-review\pdf-corpus.json --domain msk --format text
@@ -86,6 +86,9 @@ node.exe .\src\cli.mjs --core-review-ingest-pdf "C:\path\to\atlas.pdf" --out .\l
 - `node.exe --check src\cli.mjs`
 - `node.exe --check src\deck.mjs`
 - `node.exe --check src\radiopaedia.mjs`
+- `node.exe --check src\radiopaedia-search.mjs`
+- `node.exe --check src\radiopaedia-case-fetch.mjs`
+- `node.exe --check src\radiopaedia-case-text.mjs`
 - `node.exe --check src\focus-crop.mjs`
 - `node.exe --check src\utils.mjs`
 - `node.exe --check src\core_review\pdf-ingest.mjs`

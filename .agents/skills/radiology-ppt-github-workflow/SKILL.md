@@ -27,10 +27,10 @@ description: Use for the radiology-ppt repository when publishing, pushing, open
 1. Work in the repository root from `git rev-parse --show-toplevel`.
 2. Verify auth:
    `gh.exe auth status`
-3. Create a branch with the `codex/` prefix unless the user asks otherwise.
+3. Follow the user's requested target. If the user asks to push `main`, stay on `main`; otherwise create a branch with the `codex/` prefix.
 4. Stage only source/build files that belong in the change.
 5. Do not commit generated artifacts unless the user explicitly asks.
-6. Commit, push with tracking, and open a draft PR against `main`.
+6. Commit and push. Open a draft PR against `main` only for branch/PR workflows.
 
 Useful baseline:
 
@@ -42,11 +42,16 @@ npm.exe test
 node.exe --check src\cli.mjs
 node.exe --check src\deck.mjs
 node.exe --check src\radiopaedia.mjs
+node.exe --check src\radiopaedia-search.mjs
+node.exe --check src\radiopaedia-case-fetch.mjs
+node.exe --check src\radiopaedia-case-text.mjs
 node.exe --check src\focus-crop.mjs
 node.exe --check src\core_review\pdf-ingest.mjs
 node.exe --check src\utils.mjs
-git.exe push -u origin <branch>
-gh.exe pr create --repo funwithcthulhu/radiology-ppt --base main --head <branch> --draft
+git.exe push origin main
+# Or, for branch workflow:
+# git.exe push -u origin <branch>
+# gh.exe pr create --repo funwithcthulhu/radiology-ppt --base main --head <branch> --draft
 ```
 
 ## Artifact Hygiene
@@ -83,6 +88,8 @@ For current status, read `MEMORY.MD`, then `.agents/memory/radiology-ppt.md`.
 Current active themes include:
 
 - Desktop GUI-first workflow; command-line entry points are internal maintenance/backend plumbing.
+- C# WPF app with a persistent local Node JSONL backend service and health monitor.
 - Case-conference PowerPoint creation from Radiopaedia diagnosis/search/random/manual URL rows.
+- Local Library tab for reviewed case history.
 - Core Boards/Core Review scaffolding for local user-provided study PDFs and question banks.
-- Modular Node backend with focused tests for parser, cache, and image-candidate behavior.
+- Modular Node backend with focused tests for parser, cache, contracts, Radiopaedia search/fetch/text, and image-candidate behavior.

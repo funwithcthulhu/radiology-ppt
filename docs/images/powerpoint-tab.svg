@@ -1,32 +1,47 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540" role="img" aria-label="PowerPoint tab overview">
-  <rect width="960" height="540" fill="#eef5f9"/>
-  <rect x="0" y="0" width="180" height="540" fill="#0b1f35"/>
-  <rect x="22" y="180" width="136" height="36" fill="#f0f4f8"/>
-  <text x="90" y="203" text-anchor="middle" font-family="Segoe UI, Arial" font-size="14" fill="#0b1f35">Cases</text>
-  <rect x="22" y="230" width="136" height="36" fill="#d9e5ee"/>
-  <text x="90" y="253" text-anchor="middle" font-family="Segoe UI, Arial" font-size="14" font-weight="700" fill="#0b1f35">PowerPoint</text>
-  <text x="210" y="58" font-family="Segoe UI, Arial" font-size="28" font-weight="700" fill="#102132">PowerPoint Settings</text>
-  <rect x="210" y="88" width="455" height="380" rx="12" fill="#ffffff" stroke="#c9d7e2"/>
-  <text x="236" y="134" font-family="Segoe UI, Arial" font-size="14" font-weight="700" fill="#102132">Title</text>
-  <rect x="380" y="112" width="250" height="32" fill="#ffffff" stroke="#aebdca"/>
-  <text x="236" y="184" font-family="Segoe UI, Arial" font-size="14" font-weight="700" fill="#102132">Images per case</text>
-  <rect x="380" y="162" width="66" height="32" fill="#ffffff" stroke="#aebdca"/>
-  <text x="402" y="184" font-family="Segoe UI, Arial" font-size="14" fill="#102132">3</text>
-  <text x="236" y="234" font-family="Segoe UI, Arial" font-size="14" font-weight="700" fill="#102132">PowerPoint style</text>
-  <rect x="380" y="212" width="250" height="32" fill="#f7fafc" stroke="#aebdca"/>
-  <text x="392" y="234" font-family="Segoe UI, Arial" font-size="14" fill="#102132">Case Conference</text>
-  <text x="236" y="284" font-family="Segoe UI, Arial" font-size="14" font-weight="700" fill="#102132">Image crop</text>
-  <rect x="380" y="262" width="250" height="32" fill="#f7fafc" stroke="#aebdca"/>
-  <text x="392" y="284" font-family="Segoe UI, Arial" font-size="14" fill="#102132">Tighter</text>
-  <text x="236" y="336" font-family="Segoe UI, Arial" font-size="14" fill="#102132">☑ Show patient age/sex when available</text>
-  <text x="236" y="368" font-family="Segoe UI, Arial" font-size="14" fill="#102132">☐ Use Ollama image review</text>
-  <rect x="690" y="88" width="230" height="380" rx="12" fill="#ffffff" stroke="#c9d7e2"/>
-  <text x="716" y="130" font-family="Segoe UI, Arial" font-size="20" font-weight="700" fill="#102132">Ready To Create</text>
-  <text x="716" y="164" font-family="Segoe UI, Arial" font-size="14" fill="#516b80">Choose a preset, then generate.</text>
-  <rect x="716" y="190" width="178" height="34" fill="#f7fafc" stroke="#aebdca"/>
-  <text x="728" y="212" font-family="Segoe UI, Arial" font-size="14" fill="#102132">Image Quality Review</text>
-  <rect x="716" y="244" width="178" height="44" rx="3" fill="#0f766e"/>
-  <text x="805" y="272" text-anchor="middle" font-family="Segoe UI, Arial" font-size="15" font-weight="700" fill="#ffffff">Generate PowerPoint</text>
-  <rect x="716" y="304" width="178" height="36" fill="#ffffff" stroke="#c9d7e2"/>
-  <text x="805" y="327" text-anchor="middle" font-family="Segoe UI, Arial" font-size="14" fill="#102132">Cancel Current Task</text>
+  <rect width="960" height="540" fill="#f4f8fb"/>
+  <rect x="0" y="0" width="190" height="540" fill="#0b1f35"/>
+  <g font-family="Segoe UI, Arial" font-size="13" fill="#0b1f35">
+    <rect x="26" y="178" width="138" height="34" fill="#f0f4f8"/>
+    <text x="95" y="200" text-anchor="middle">Cases</text>
+    <rect x="26" y="222" width="138" height="34" fill="#f0f4f8"/>
+    <text x="95" y="244" text-anchor="middle">Library</text>
+    <rect x="26" y="266" width="138" height="34" fill="#f0f4f8"/>
+    <text x="95" y="288" text-anchor="middle">Core Boards</text>
+    <rect x="26" y="310" width="138" height="34" fill="#d9e5ee"/>
+    <text x="95" y="332" text-anchor="middle" font-weight="700">PowerPoint</text>
+    <rect x="26" y="354" width="138" height="34" fill="#f0f4f8"/>
+    <text x="95" y="376" text-anchor="middle">Activity</text>
+  </g>
+  <text x="220" y="58" font-family="Segoe UI, Arial" font-size="28" font-weight="700" fill="#102132">PowerPoint</text>
+  <text x="220" y="88" font-family="Segoe UI, Arial" font-size="16" fill="#516b80">Choose output settings, presets, and optional review tools.</text>
+  <rect x="220" y="118" width="455" height="350" rx="12" fill="#ffffff" stroke="#c9d7e2"/>
+  <g font-family="Segoe UI, Arial" font-size="14" fill="#102132">
+    <text x="246" y="154" font-weight="700">Title</text>
+    <rect x="390" y="132" width="250" height="32" fill="#ffffff" stroke="#aebdca"/>
+    <text x="246" y="204" font-weight="700">Images per case</text>
+    <rect x="390" y="182" width="66" height="32" fill="#ffffff" stroke="#aebdca"/>
+    <text x="412" y="204">3</text>
+    <text x="246" y="254" font-weight="700">Style</text>
+    <rect x="390" y="232" width="250" height="32" fill="#f7fafc" stroke="#aebdca"/>
+    <text x="402" y="254">Case Conference</text>
+    <text x="246" y="304" font-weight="700">Crop / markup</text>
+    <rect x="390" y="282" width="115" height="32" fill="#f7fafc" stroke="#aebdca"/>
+    <text x="402" y="304">Tighter</text>
+    <rect x="520" y="282" width="120" height="32" fill="#f7fafc" stroke="#aebdca"/>
+    <text x="532" y="304">Focus Ring</text>
+    <text x="246" y="356">☑ Show patient age/sex when available</text>
+    <text x="246" y="388">☑ Add teaching-points slides</text>
+    <text x="246" y="420">☐ Use Ollama image review</text>
+  </g>
+  <rect x="700" y="118" width="220" height="350" rx="12" fill="#ffffff" stroke="#c9d7e2"/>
+  <text x="724" y="158" font-family="Segoe UI, Arial" font-size="20" font-weight="700" fill="#102132">Create PowerPoint</text>
+  <rect x="724" y="190" width="172" height="34" fill="#f7fafc" stroke="#aebdca"/>
+  <text x="810" y="212" text-anchor="middle" font-family="Segoe UI, Arial" font-size="14" fill="#102132">Image Quality Review</text>
+  <rect x="724" y="244" width="172" height="46" rx="3" fill="#0f766e"/>
+  <text x="810" y="273" text-anchor="middle" font-family="Segoe UI, Arial" font-size="15" font-weight="700" fill="#ffffff">Generate PowerPoint</text>
+  <rect x="724" y="306" width="172" height="36" fill="#ffffff" stroke="#c9d7e2"/>
+  <text x="810" y="329" text-anchor="middle" font-family="Segoe UI, Arial" font-size="14" fill="#102132">Cancel Current Task</text>
+  <rect x="724" y="356" width="172" height="36" fill="#ffffff" stroke="#c9d7e2"/>
+  <text x="810" y="379" text-anchor="middle" font-family="Segoe UI, Arial" font-size="14" fill="#102132">Open Last PowerPoint</text>
 </svg>

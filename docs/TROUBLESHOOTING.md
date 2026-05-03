@@ -2,51 +2,99 @@
 
 ## The App Says Not Responding
 
-This should be uncommon now that long-running work is isolated behind background jobs. If it happens:
+This should be uncommon because prepare/render/import work runs through background jobs and the Node backend service.
+
+Try:
 
 1. Wait 10-20 seconds if Radiopaedia is actively loading.
-2. Use **Cancel Current Task** on the PowerPoint tab for prepare/render/import work.
-3. Use **Cancel Action** in the review window for reroll, repick, replace, or Ollama scoring.
-4. Check the **Activity** tab for the last logged step.
+2. Use `Cancel Current Task` on the PowerPoint tab for prepare/render/import work.
+3. Use `Cancel Action` in the review window for reroll, re-pick, replace, or Ollama scoring.
+4. Check the Activity tab for the last logged step.
 
-If it repeatedly freezes at review, disable Ollama review and use **Ollama Score Case** only on one case at a time.
+Behind the scenes, cancelling a stuck action may kill and restart the local Node backend service. That is expected.
 
-Behind the scenes, the GUI keeps a local Node backend service open. Cancelling a stuck review action may restart that service; this is expected and is safer than leaving a hung Radiopaedia request attached to the review window.
+If freezing repeatedly happens during review, disable Ollama review and use `Ollama Score Case` only on one case at a time.
+
+## Backend Service Restarted
+
+The GUI keeps one local Node backend service open for faster review actions. The health monitor pings the service only when it is idle. If the service dies, the app logs a restart and continues.
+
+This is normal if:
+
+- a previous action was cancelled
+- a Radiopaedia request hung and was killed
+- the Node process exited unexpectedly
+
+If restarts happen constantly:
+
+1. Open Activity.
+2. Look for repeated backend errors.
+3. Run `npm test` from the repository root.
+4. Rebuild the packaged app.
 
 ## Random Cases Repeat Too Often
 
-The app records random history and a prepared-case index in `state/radiology-ppt.sqlite`.
+The app records random history, skipped/rejected cases, and prepared-case quality in:
+
+```text
+state\radiology-ppt.sqlite
+```
 
 Helpful actions:
 
-- Skip weak cases during review so they are avoided later.
+- Skip weak cases during review so random mode avoids them later.
 - Reroll unwanted cases instead of approving them.
-- Use broader filters if a narrow category has only a small pool of cases.
-- Use the Library tab to see whether a narrow category is cycling through cases you have already reviewed.
-- Do not clean the state database unless you intentionally want to reset history.
+- Use broader filters if a narrow category has only a small pool.
+- Use the Library tab to see whether a category is cycling through familiar cases.
+- Do not delete the state database unless you intentionally want to reset history.
 
-The first run for a new filter can still be slow because the app has to discover cases live. Later runs should improve because random mode checks the local `case_index` first and can reuse prepared cases that already had enough relevant images.
+The first run for a new category may still need live Radiopaedia search. Later runs should improve because random mode checks `case_index` first.
+
+## Reroll Case Says No Alternate Was Found
+
+Reroll excludes the current case and searches again for the same request. It should not try to reuse the exact selected case.
+
+If no alternate is found:
+
+- the category may be too narrow
+- the requested modality/anatomy/subspecialty combination may have too few public cases
+- the current case may have come from an exact/manual URL with no useful alternate search text
+
+Try broadening filters, changing Area to `Any` or `Mixed`, or skipping the case.
 
 ## Random Preparation Seems Slow
 
-Radiopaedia random mode has two phases: finding candidate cases, then loading studies/images for each selected case. The Activity tab now logs stage completions with timings, which helps identify whether time is going into search, case loading, image downloads, or PowerPoint rendering.
+Random preparation has two phases:
+
+1. Find candidate cases.
+2. Load case pages, studies, candidate images, and selected images.
+
+The Activity tab logs timing for major stages.
 
 Helpful actions:
 
-- Start with fewer random cases while exploring a new category.
-- Use broader filters if a category is narrow.
-- Re-run the same category after one successful pass; cached search/image metadata and `case_index` should reduce repeated work.
-- Avoid Ollama review during initial preparation. Use **Ollama Score Case** only on selected review cases.
+- Start with fewer random cases for a new category.
+- Use broader filters.
+- Re-run after one successful pass so cached metadata and `case_index` can help.
+- Avoid Ollama during initial preparation.
+- Use `Run Maintenance` after many test runs.
+
+If network work feels too aggressive or Radiopaedia/curl errors become frequent, lower HTTP concurrency before launching the app:
+
+```powershell
+$env:RADIOLOGY_PPT_HTTP_CONCURRENCY = "2"
+```
 
 ## Ollama Takes Too Long
 
-Ollama is optional and intentionally deferred.
+Ollama is optional and intentionally deferred to review.
 
 Recommended workflow:
 
-1. Enable **Use Ollama image review** only if you want local model assistance.
-2. Generate normally.
-3. In review, click **Ollama Score Case** only for the current case.
+1. Enable `Use Ollama image review` only if you want local model help.
+2. Choose a local model in the PowerPoint tab.
+3. Generate normally.
+4. In review, click `Ollama Score Case` only for selected cases.
 
 Default limits:
 
@@ -54,44 +102,53 @@ Default limits:
 - `RADIOLOGY_PPT_OLLAMA_CASE_TIMEOUT_MS=20000`
 - `RADIOLOGY_PPT_OLLAMA_MAX_IMAGES_PER_CASE=1`
 
-You can lower these environment variables if your local model is slow.
+Lower those values if your local model is slow.
 
-If network work feels too aggressive or Radiopaedia/curl errors become frequent, lower backend HTTP concurrency before launching the app:
+## Re-pick Images Gives The Same Images
 
-```powershell
-$env:RADIOLOGY_PPT_HTTP_CONCURRENCY = "2"
-```
-
-## Re-pick Images Gives the Same Images
-
-Try this sequence:
+Use this sequence:
 
 1. Uncheck the bad image.
-2. Click **Replace Unchecked**.
+2. Click `Replace Unchecked`.
 3. If no replacement exists, the app leaves that slot empty instead of reusing the rejected image.
-4. Use the **Candidates** tab to manually select a better frame if one exists.
+4. Use the `Candidates` tab to manually select a better same-case frame if one exists.
 
-If a case has only a few useful frames, use **Remove Unchecked** and export fewer images.
+If the case has only a few useful frames, use `Remove Unchecked` and export fewer images.
 
-## The Case Intro Gives Away the Diagnosis
+## The Case Intro Gives Away The Diagnosis
 
-The app tries to keep intro slides minimal. With **Show patient age/sex when available** enabled, it prefers age/sex style patient context. If Radiopaedia does not expose clean patient information, the slide may only say `Case N`.
+The app tries to keep intro slides minimal. With `Show patient age/sex when available` enabled, it prefers age/sex context and avoids diagnosis-revealing findings.
 
-Avoid enabling teaching-point slides if you want pure unknown-case conference mode.
+If Radiopaedia does not expose clean patient information, the slide may only say `Case N`.
+
+If you want pure unknown-case conference mode, leave teaching-point slides off.
+
+## PowerPoint Completed But I Did Not See A Popup
+
+That is expected. The success popup was removed because it interrupted the workflow.
+
+Use:
+
+- left status area
+- Activity log
+- `Open Last PowerPoint`
+- `Open Outputs Folder`
 
 ## The Window Opens Off Screen
 
-The app clamps launch placement to the visible Windows work area. If Windows display scaling changes while the app is open:
+The app clamps launch placement to the visible Windows work area.
+
+If Windows display scaling changes while the app is open:
 
 1. Close the app.
 2. Reopen it from the desktop shortcut.
-3. If it still opens incorrectly, rebuild the shortcut with:
+3. If it still opens incorrectly, rebuild the shortcut:
 
 ```powershell
 .\create-desktop-shortcut.ps1
 ```
 
-## The Desktop Shortcut Opens an Old App
+## The Desktop Shortcut Opens An Old App
 
 Refresh the packaged app and shortcut:
 
@@ -100,19 +157,24 @@ Refresh the packaged app and shortcut:
 .\create-desktop-shortcut.ps1
 ```
 
-The expected shortcut is:
+Expected shortcut:
 
-`C:\Users\Admin\OneDrive\Desktop\Radiopaedia Case PowerPoint Builder.lnk`
+```text
+C:\Users\Admin\OneDrive\Desktop\Radiopaedia Case PowerPoint Builder.lnk
+```
 
 ## Generator Files Are Missing
 
-This usually means the executable was copied without the project resources, or it is running from an unexpected folder. The app needs to find:
+This means the executable cannot find the repository resources.
 
-`src\backend-service.mjs`
+The app must be able to locate:
 
-`src\cli.mjs`
+```text
+src\backend-service.mjs
+src\cli.mjs
+```
 
-Use the normal build script instead of moving the executable by hand:
+Use the normal build script and do not copy only the `.exe` elsewhere:
 
 ```powershell
 .\build-csharp-app.ps1
@@ -120,26 +182,50 @@ Use the normal build script instead of moving the executable by hand:
 
 ## PowerPoint Generation Fails
 
-Check the Activity tab first. Common causes:
+Check Activity first.
+
+Common causes:
 
 - no matching Radiopaedia case
 - temporary Radiopaedia/network issue
 - output path is locked by an open PowerPoint file
-- cache files were partially written during cancellation
+- cache/scratch files were partially written during cancellation
+- the backend service was killed mid-action
 
 Try:
 
 1. Close the output PowerPoint if it is open.
 2. Change the output filename.
-3. Use **Clean Scratch** or **Run Maintenance** on the Activity tab.
+3. Run `Clean Scratch` or `Run Maintenance`.
 4. Re-run with broader filters.
+
+## Core Boards Import Fails
+
+Common causes:
+
+- PDF is locked or inaccessible
+- PDF is very large
+- output folder is unavailable
+- imported material is image-heavy and extraction takes time
+
+Try:
+
+1. Import fewer PDFs at once.
+2. Use a broad domain such as `General / Mixed`.
+3. Check Activity for the failing file.
+4. Make sure `library\board-review\` is writable.
 
 ## Reset Local State
 
 Use this only if you intentionally want to lose app history and review decisions.
 
 1. Close the app.
-2. Move or delete `state\radiology-ppt.sqlite`.
+2. Move or delete:
+
+```text
+state\radiology-ppt.sqlite
+```
+
 3. Reopen the app.
 
-Do not delete `outputs/` unless you no longer need generated PowerPoints.
+Do not delete `outputs\` unless you no longer need generated PowerPoints.

@@ -1,36 +1,51 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540" role="img" aria-label="Cases tab overview">
-  <rect width="960" height="540" fill="#eef5f9"/>
-  <rect x="0" y="0" width="180" height="540" fill="#0b1f35"/>
-  <rect x="24" y="32" width="58" height="48" rx="10" fill="#173a63"/>
-  <text x="53" y="63" text-anchor="middle" font-family="Segoe UI, Arial" font-size="18" font-weight="700" fill="#dbeafe">RP</text>
-  <text x="24" y="112" font-family="Segoe UI, Arial" font-size="16" font-weight="700" fill="#ffffff">Radiopaedia Case</text>
-  <text x="24" y="134" font-family="Segoe UI, Arial" font-size="16" font-weight="700" fill="#ffffff">PowerPoint Builder</text>
-  <rect x="22" y="180" width="136" height="36" fill="#d9e5ee"/>
-  <text x="90" y="203" text-anchor="middle" font-family="Segoe UI, Arial" font-size="14" font-weight="700" fill="#0b1f35">Cases</text>
-  <rect x="22" y="230" width="136" height="36" fill="#f0f4f8"/>
-  <text x="90" y="253" text-anchor="middle" font-family="Segoe UI, Arial" font-size="14" fill="#0b1f35">PowerPoint</text>
-  <text x="210" y="58" font-family="Segoe UI, Arial" font-size="28" font-weight="700" fill="#102132">Cases</text>
-  <text x="210" y="88" font-family="Segoe UI, Arial" font-size="16" fill="#516b80">Add diagnoses, random pulls, or exact Radiopaedia URLs.</text>
+  <rect width="960" height="540" fill="#f4f8fb"/>
+  <rect x="0" y="0" width="190" height="540" fill="#0b1f35"/>
+  <rect x="28" y="34" width="58" height="48" rx="10" fill="#173a63"/>
+  <text x="57" y="65" text-anchor="middle" font-family="Segoe UI, Arial" font-size="18" font-weight="700" fill="#dbeafe">RP</text>
+  <text x="28" y="114" font-family="Segoe UI, Arial" font-size="15" font-weight="700" fill="#ffffff">Radiopaedia Case</text>
+  <text x="28" y="136" font-family="Segoe UI, Arial" font-size="15" font-weight="700" fill="#ffffff">PowerPoint Builder</text>
+  <g font-family="Segoe UI, Arial" font-size="13" fill="#0b1f35">
+    <rect x="26" y="178" width="138" height="34" fill="#d9e5ee"/>
+    <text x="95" y="200" text-anchor="middle" font-weight="700">Cases</text>
+    <rect x="26" y="222" width="138" height="34" fill="#f0f4f8"/>
+    <text x="95" y="244" text-anchor="middle">Library</text>
+    <rect x="26" y="266" width="138" height="34" fill="#f0f4f8"/>
+    <text x="95" y="288" text-anchor="middle">Core Boards</text>
+    <rect x="26" y="310" width="138" height="34" fill="#f0f4f8"/>
+    <text x="95" y="332" text-anchor="middle">PowerPoint</text>
+    <rect x="26" y="354" width="138" height="34" fill="#f0f4f8"/>
+    <text x="95" y="376" text-anchor="middle">Activity</text>
+  </g>
+  <text x="220" y="58" font-family="Segoe UI, Arial" font-size="28" font-weight="700" fill="#102132">Cases</text>
+  <text x="220" y="88" font-family="Segoe UI, Arial" font-size="16" fill="#516b80">Add diagnoses, random pulls, or exact Radiopaedia URLs. Use dropdowns instead of shorthand.</text>
   <rect x="730" y="36" width="70" height="38" fill="#ffffff" stroke="#c9d7e2"/>
-  <text x="765" y="60" text-anchor="middle" font-family="Segoe UI, Arial" font-size="14" font-weight="700" fill="#102132">Add Row</text>
-  <rect x="812" y="36" width="98" height="38" fill="#ffffff" stroke="#c9d7e2"/>
-  <text x="861" y="60" text-anchor="middle" font-family="Segoe UI, Arial" font-size="14" font-weight="700" fill="#102132">Load File</text>
-  <rect x="210" y="118" width="710" height="360" rx="12" fill="#ffffff" stroke="#c9d7e2"/>
-  <rect x="230" y="148" width="670" height="34" fill="#f7fafc" stroke="#d7e3ec"/>
-  <text x="244" y="171" font-family="Segoe UI, Arial" font-size="14" font-weight="700" fill="#102132">Type</text>
-  <text x="375" y="171" font-family="Segoe UI, Arial" font-size="14" font-weight="700" fill="#102132">Diagnosis / Random Text / URL</text>
-  <text x="616" y="171" font-family="Segoe UI, Arial" font-size="14" font-weight="700" fill="#102132">Modality</text>
-  <text x="722" y="171" font-family="Segoe UI, Arial" font-size="14" font-weight="700" fill="#102132">Area</text>
-  <rect x="230" y="182" width="670" height="42" fill="#ffffff" stroke="#d7e3ec"/>
-  <text x="244" y="208" font-family="Segoe UI, Arial" font-size="14" fill="#102132">Specific Diagnosis</text>
-  <text x="375" y="208" font-family="Segoe UI, Arial" font-size="14" fill="#102132">multiple sclerosis</text>
-  <text x="616" y="208" font-family="Segoe UI, Arial" font-size="14" fill="#102132">MRI</text>
-  <text x="722" y="208" font-family="Segoe UI, Arial" font-size="14" fill="#102132">Neuro</text>
-  <rect x="230" y="224" width="670" height="42" fill="#ffffff" stroke="#d7e3ec"/>
-  <text x="244" y="250" font-family="Segoe UI, Arial" font-size="14" fill="#102132">Random Case</text>
-  <text x="375" y="250" font-family="Segoe UI, Arial" font-size="14" fill="#516b80">optional text</text>
-  <text x="616" y="250" font-family="Segoe UI, Arial" font-size="14" fill="#102132">CT</text>
-  <text x="722" y="250" font-family="Segoe UI, Arial" font-size="14" fill="#102132">MSK</text>
-  <path d="M230 322 H900" stroke="#0f766e" stroke-width="3"/>
-  <text x="230" y="352" font-family="Segoe UI, Arial" font-size="15" fill="#0f766e">Use dropdowns instead of typing shorthand.</text>
+  <text x="765" y="60" text-anchor="middle" font-family="Segoe UI, Arial" font-size="13" font-weight="700" fill="#102132">Add Row</text>
+  <rect x="812" y="36" width="86" height="38" fill="#ffffff" stroke="#c9d7e2"/>
+  <text x="855" y="60" text-anchor="middle" font-family="Segoe UI, Arial" font-size="13" font-weight="700" fill="#102132">Remove</text>
+  <rect x="910" y="36" width="44" height="38" fill="#ffffff" stroke="#c9d7e2"/>
+  <text x="932" y="60" text-anchor="middle" font-family="Segoe UI, Arial" font-size="13" font-weight="700" fill="#102132">Load</text>
+  <rect x="220" y="118" width="710" height="360" rx="12" fill="#ffffff" stroke="#c9d7e2"/>
+  <rect x="240" y="148" width="670" height="34" fill="#f7fafc" stroke="#d7e3ec"/>
+  <g font-family="Segoe UI, Arial" font-size="13" fill="#102132">
+    <text x="252" y="171" font-weight="700">Type</text>
+    <text x="392" y="171" font-weight="700">Diagnosis / Random Text / URL</text>
+    <text x="596" y="171" font-weight="700">Count</text>
+    <text x="660" y="171" font-weight="700">Modality</text>
+    <text x="760" y="171" font-weight="700">Area</text>
+    <rect x="240" y="182" width="670" height="42" fill="#ffffff" stroke="#d7e3ec"/>
+    <text x="252" y="208">Specific Diagnosis</text>
+    <text x="392" y="208">multiple sclerosis</text>
+    <text x="604" y="208">1</text>
+    <text x="660" y="208">MRI</text>
+    <text x="760" y="208">Neuro</text>
+    <rect x="240" y="224" width="670" height="42" fill="#ffffff" stroke="#d7e3ec"/>
+    <text x="252" y="250">Random Case</text>
+    <text x="392" y="250">optional broad theme</text>
+    <text x="604" y="250">5</text>
+    <text x="660" y="250">Any</text>
+    <text x="760" y="250">Mixed</text>
+  </g>
+  <path d="M240 326 H910" stroke="#0f766e" stroke-width="3"/>
+  <text x="240" y="356" font-family="Segoe UI, Arial" font-size="15" fill="#0f766e">Use one row per request; filters are dropdowns.</text>
 </svg>

@@ -14,7 +14,7 @@ Core Boards/Core Review changes.
 - Check `git status --short --branch` for the current branch before making changes.
 - Main desktop app entrypoint: `csharp/RadiologyPpt.App`
 - Packaged desktop app: `dist/Radiopaedia Case PowerPoint Builder/Radiopaedia Case PowerPoint Builder.exe`
-- Main Node CLI entrypoint: `src/cli.mjs`
+- Internal/developer Node entrypoint: `src/cli.mjs`
 - Existing project GitHub workflow skill: `.agents/skills/radiology-ppt-github-workflow/SKILL.md`
 - Core Review handoff note: `CORE_REVIEW_HANDOFF.md`
 
@@ -45,7 +45,7 @@ radiology residents and should cover the broad diagnostic radiology curriculum.
 ## C# Desktop Migration
 
 - Primary GUI is now a native Windows C# WPF app under `csharp/RadiologyPpt.App`.
-- Keep using the existing Node backend (`src/cli.mjs` and modules under `src/`) for Radiopaedia search, image selection, caching, Core Boards ingestion, and PowerPoint rendering.
+- Keep using the existing Node backend (`src/backend-service.mjs`, `src/backend-api.mjs`, and modules under `src/`) for Radiopaedia search, image selection, caching, Core Boards ingestion, and PowerPoint rendering.
 - Local durable metadata is stored in SQLite at `state/radiology-ppt.sqlite`; `state/` is ignored by Git.
 - JSON schema contracts for C# to Node prepare/render payloads live under `src/contracts`.
 - `AppJobRunner.cs` centralizes cancellable long-running GUI jobs.
@@ -93,7 +93,7 @@ The Core Boards module should support:
 - Added exports in `src/core_review/index.mjs`.
 - Added PDF ingestion helper: `src/core_review/pdf-ingest.mjs`.
 - Added example question bank: `examples/core-review-question-bank.example.json`.
-- Added CLI commands:
+- Added internal/developer Node commands:
   - `--core-review-schema`
   - `--core-review-ingest`
   - `--core-review-ingest-pdf`
@@ -103,16 +103,24 @@ The Core Boards module should support:
 - Added compact-first Ollama vision model auto-detection in `src/ollama-review.mjs`:
   prefer `moondream`, then `minicpm`, then Qwen-VL/LLaVA/BakLLaVA/generic vision models.
   If asked whether this is currently the best model, verify with current docs/model availability.
+- Split Radiopaedia backend work across focused modules:
+  - `src/radiopaedia.mjs`
+  - `src/radiopaedia-search.mjs`
+  - `src/radiopaedia-case-fetch.mjs`
+  - `src/radiopaedia-case-text.mjs`
+- Added backend health monitoring/restart support in `BackendHealthMonitor.cs`.
+- Removed the PowerPoint success popup; completion now appears in status and Activity.
 
 ## Current UI State
 
 - Do not assume an app process is already running.
 - Relaunch from source with `dotnet run --project .\csharp\RadiologyPpt.App\RadiologyPpt.App.csproj`, or use the packaged desktop shortcut after rebuilding.
-- C# GUI tabs are `Cases`, `Core Boards`, `PowerPoint`, and `Activity`.
+- C# GUI tabs are `Cases`, `Library`, `Core Boards`, `PowerPoint`, and `Activity`.
 - Case review supports keep/skip/reroll/re-pick images, replace unchecked images, remove unchecked images, exact candidate-frame selection from the `Candidates` tab, and cancel long review actions.
 - Ollama review can be enabled from the PowerPoint tab and the user can choose/refresh the local model list.
 - Ollama scoring is capped by default for responsiveness: one strongest image per case, 12 seconds per image, 20 seconds per case. Env overrides: `RADIOLOGY_PPT_OLLAMA_IMAGE_TIMEOUT_MS`, `RADIOLOGY_PPT_OLLAMA_CASE_TIMEOUT_MS`, `RADIOLOGY_PPT_OLLAMA_MAX_IMAGES_PER_CASE`.
 - Random case history is written during prepare so cancelled/reviewed random runs do not immediately recycle the same cases.
+- Reroll excludes the current case and normalized variants such as `/cases/foo?lang=us`.
 - Activity tab includes diagnostics, state folder access, scratch cleanup, and old-cache cleanup.
 - Screenshots and local temp paths from prior sessions are not durable project state.
 
@@ -124,6 +132,9 @@ From the repo root on 2026-05-01:
 node.exe --check src\cli.mjs
 node.exe --check src\deck.mjs
 node.exe --check src\radiopaedia.mjs
+node.exe --check src\radiopaedia-search.mjs
+node.exe --check src\radiopaedia-case-fetch.mjs
+node.exe --check src\radiopaedia-case-text.mjs
 node.exe --check src\focus-crop.mjs
 node.exe --check src\core_review\pdf-ingest.mjs
 node.exe --check src\core_review\index.mjs
@@ -153,6 +164,8 @@ From the repo root on 2026-05-02 after the architecture pass:
 - Added cancellable background job runner.
 - Added exact candidate-frame review gallery.
 - Added Activity diagnostics and cleanup tools.
+- Added backend health checks, module-split Radiopaedia code, SQLite migrations, and contract tests.
+- Refreshed README, user guide, architecture, troubleshooting, and contributing docs for the C# GUI plus Node backend architecture.
 
 ## Next Product Steps
 
@@ -166,7 +179,7 @@ From the repo root on 2026-05-02 after the architecture pass:
 
 ## GitHub Notes
 
-- Before pushing, verify `gh.exe auth status`.
-- Use branch prefix `codex/` unless the user asks otherwise.
+- Before pushing, verify `git status --short --branch`.
+- Follow the user's requested target. For this project the user often asks for direct pushes to `main`; use `codex/` branches only when asked or when a PR workflow is safer.
 - Do not stage generated/private artifacts.
-- Prefer a draft PR unless the user explicitly asks for direct push or a ready PR.
+- Prefer a draft PR only when the user asks for PR workflow or does not want direct push.

@@ -1,144 +1,180 @@
 # Architecture
 
-The app is a native Windows GUI with a Node backend. Python is no longer part of the runtime.
+The app is a native Windows desktop GUI backed by a local Node service. Python is no longer part of the runtime.
 
 ```mermaid
 flowchart LR
   User["User"]
-  WPF["C# WPF app"]
+  WPF["C# WPF GUI"]
+  VM["View models / commands"]
   Jobs["AppJobRunner"]
   Storage["SQLite state database"]
-  Backend["BackendClient"]
-  Service["src/backend-service.mjs"]
-  API["src/backend-api.mjs"]
-  Provider["Radiopaedia provider seam"]
-  RP["Radiopaedia service modules"]
-  Deck["PowerPoint renderer"]
-  Ollama["Optional Ollama vision scoring"]
+  Contracts["C# payload contracts"]
+  Client["BackendClient"]
+  Health["BackendHealthMonitor"]
+  Service["Node JSONL service"]
+  API["backend-api.mjs"]
+  Search["Radiopaedia search"]
+  Fetch["Case/image assembly"]
+  Text["Patient/teaching text"]
+  PPT["PowerPoint renderer"]
+  Ollama["Optional Ollama scoring"]
   Files["cache / scratch / outputs"]
 
   User --> WPF
+  WPF --> VM
   WPF --> Jobs
   WPF --> Storage
-  Jobs --> Backend
-  Backend --> Service
+  VM --> Contracts
+  Jobs --> Client
+  Health --> Client
+  Client --> Service
   Service --> API
-  API --> Provider
-  Provider --> RP
-  API --> Deck
+  API --> Search
+  API --> Fetch
+  Fetch --> Text
+  API --> PPT
   API --> Ollama
-  RP --> Storage
-  RP --> Files
-  Deck --> Files
+  Search --> Storage
+  Fetch --> Storage
+  Fetch --> Files
+  PPT --> Files
 ```
 
 ## Runtime Boundaries
 
-### C# WPF
+### C# WPF App
 
 `csharp/RadiologyPpt.App` owns the desktop experience:
 
-- request grid and dropdowns
+- tab navigation
+- case request grid
+- Library tab
+- Core Boards PDF import UI
 - PowerPoint settings and presets
-- review window actions
+- review-window actions
 - cancellation controls
 - local app settings and review/session metadata
 - activity diagnostics
 
-Long-running work is wrapped by `AppJobRunner`, which keeps the main window responsive and exposes cancellation.
+The app is moving toward MVVM:
 
-The C# app is moving toward MVVM rather than putting every decision in `MainWindow.xaml.cs`:
+- `MainWindowViewModel.cs`: main-window request state, setting snapshots, summaries, and prepare payload creation.
+- `CaseLibraryViewModel.cs`: local library state and filtering.
+- `BackendContracts.cs`: centralized C# to Node JSON payload builders and response readers.
+- `AppJobRunner.cs`: cancellable background jobs for prepare/render/import.
+- `BackendHealthMonitor.cs`: idle-time backend pings and restart messages when the local Node service dies.
 
-- `MainWindowViewModel.cs` owns main-window request state, PowerPoint setting snapshots, request summaries, and prepare payload creation.
-- `CaseLibraryViewModel.cs` owns the local case-library list state.
-- `BackendContracts.cs` centralizes JSON payload construction and response reading at the C# to Node boundary.
-- `BackendHealthMonitor.cs` periodically pings the local Node service when it is idle and restarts it with a visible status message if the service dies.
+`MainWindow.xaml.cs` still owns WPF event wiring, but business logic should continue moving into view models and services.
 
 ### BackendClient
 
 `BackendClient.cs` is the C# boundary to Node. It:
 
-- starts one persistent JSONL Node backend service while the app is open
-- sends prepare, score, render, Core Review, and probe jobs over stdin/stdout
+- starts one persistent `src/backend-service.mjs` process while the app is open
+- sends prepare, score, render, Core Boards import, and health commands over newline-delimited JSON
 - passes `RADIOLOGY_PPT_APP_ROOT`, `RADIOLOGY_PPT_RESOURCE_ROOT`, and `RADIOLOGY_PPT_DATABASE_PATH`
-- parses structured backend events and sends them to the UI/activity log
-- logs long-running reminders when backend jobs keep working without returning yet
-- restarts or kills the Node service process on cancellation or protocol failure
-- exposes lightweight health pings for the local watchdog
+- parses structured backend progress events into Activity log messages
+- logs long-running reminders for backend work
+- cancels active work by killing/restarting the service when needed
+- exposes `PingAsync` for the local watchdog
 
-The older one-shot process path remains only as a compatibility/developer fallback. Normal GUI work should use the service because review actions are much faster without repeated Node startup.
+The older one-shot CLI path is internal/developer fallback plumbing. Normal GUI workflows should use the persistent service.
 
 ### Node Service
 
-`src/backend-service.mjs` is intentionally small. It reads newline-delimited JSON commands, calls the workflow API, emits progress/timing events, and returns one result or error per job. The `ping` command also reports basic health metadata such as PID, uptime, handled request count, and last request time.
+`src/backend-service.mjs` is a small JSONL protocol wrapper. It reads one command per line, dispatches to `src/backend-api.mjs`, emits structured events, and returns one result or error per request.
 
-### Node CLI
+The `ping` command reports basic health metadata:
 
-`src/cli.mjs` is intentionally thin. It parses internal command arguments and delegates to `src/backend-api.mjs`. Treat it as backend plumbing for tests, diagnostics, and developer scripts rather than a user-facing product.
+- service name
+- process id
+- start time
+- uptime
+- handled request count
+- last request time
 
 ### Node Backend API
 
-`src/backend-api.mjs` is the testable workflow layer. It exports:
+`src/backend-api.mjs` is the workflow layer. It owns:
 
 - request file loading and normalization
 - case preparation
-- match probing
+- duplicate random-case replacement
 - optional Ollama scoring
 - PowerPoint rendering
-- Core Review ingestion and quiz helpers
+- random-history persistence after render
+- Core Boards source/PDF ingestion helpers
+- Core Review quiz helper functions
 
-### Service Modules
+### Radiopaedia Modules
 
-Important Node modules:
+Radiopaedia behavior is intentionally split:
 
-- `src/radiopaedia-client.mjs`: HTTP, downloads, and fetch cache
-- `src/providers/radiopaedia-provider.mjs`: provider seam for Radiopaedia-specific IO
-- `src/radiopaedia.mjs`: compact Radiopaedia facade that orchestrates fallback candidate attempts
-- `src/radiopaedia-search.mjs`: search URL construction, search-result parsing, random selection, indexed-random reuse, and random-history expansion
-- `src/radiopaedia-case-fetch.mjs`: case page loading, study/image loading, image candidate preparation, attribution metadata, and final case assembly
-- `src/radiopaedia-case-text.mjs`: patient demographic extraction, intro prompts, diagnosis redaction, and teaching-point text
-- `src/image-candidates.mjs`: image-candidate scoring and selection
-- `src/focus-crop.mjs`: image focus cropping and focus-ring overlays
-- `src/ollama-review.mjs`: optional local vision-model scoring
-- `src/deck.mjs`: PPTX generation
-- `src/app-store.mjs`: SQLite-backed backend cache, prepared-case index, random history, and review decisions
-- `src/cache-store.mjs`: compatibility layer for JSON cache fallback/backfill
+- `src/radiopaedia.mjs`: small facade for preparing one case with fallback candidate attempts.
+- `src/radiopaedia-search.mjs`: search URL construction, search-result parsing, random selection, local case-index reuse, exclusion handling, and random-history expansion.
+- `src/radiopaedia-case-fetch.mjs`: case page validation, study loading, image candidate loading, image downloads, focus crops, attribution, quality scoring, and final case assembly.
+- `src/radiopaedia-case-text.mjs`: patient data extraction, intro text, redacted case prompts, and teaching-point text.
+- `src/providers/radiopaedia-provider.mjs`: Radiopaedia-specific IO seam.
+- `src/radiopaedia-client.mjs`: HTTP, downloads, retry/concurrency behavior, and persistent fetch cache.
+
+### Image And PowerPoint Modules
+
+- `src/image-candidates.mjs`: frame candidate extraction, relevance scoring, selected-image quality, and replacement rules.
+- `src/focus-crop.mjs`: focus crop and optional focus-ring image variants.
+- `src/ollama-review.mjs`: optional local vision-model scoring with time/image caps.
+- `src/deck.mjs`: PPTX rendering.
+
+### Core Boards Modules
+
+- `src/core_review/schema.mjs`: ABR-style domains and question-type schema.
+- `src/core_review/ingest.mjs`: text/JSON source ingestion.
+- `src/core_review/pdf-ingest.mjs`: local PDF copy, page rendering, embedded-image extraction, text chunking, and provenance.
+- `src/core_review/quiz.mjs`: question-bank validation, session assembly, scoring, and localization scoring helpers.
+- `src/core_review/index.mjs`: exports.
+
+Core Boards has PDF import scaffolding in the GUI. The full quiz runner and human-review queue are future work.
 
 ## Data Flow
 
 ```mermaid
 sequenceDiagram
-  participant UI as C# UI
-  participant Service as Node Backend Service
-  participant API as Node Backend API
-  participant RP as Radiopaedia
+  participant UI as C# GUI
+  participant Service as Node Service
+  participant API as Backend API
+  participant Search as Radiopaedia Search
+  participant Fetch as Case/Image Fetch
   participant DB as SQLite
   participant PPT as PowerPoint Renderer
 
-  UI->>Service: prepare requests
-  Service->>API: dispatch prepare
-  API->>DB: read case index, recent/random/rejected history
-  API->>RP: search/load cases and images when local cache is thin
-  API->>DB: cache metadata, prepared-case quality, and random history
-  API-->>Service: prepared cases
+  UI->>Service: prepare request rows
+  Service->>API: prepare
+  API->>Search: expand random/specific/manual requests
+  Search->>DB: read random history, skipped/rejected cases, case index
+  Search-->>API: normalized case requests
+  API->>Fetch: load case pages, studies, images
+  Fetch->>DB: cache metadata and image candidate data
+  Fetch-->>API: prepared cases
+  API->>DB: record prepared-case index
   Service-->>UI: prepared cases
   UI->>UI: human review
-  UI->>DB: record approved/skipped/image decisions
-  UI->>Service: optional Ollama score current case
-  Service-->>UI: scored image set
+  UI->>DB: record case/image decisions
   UI->>Service: render approved cases
-  Service->>API: dispatch render
-  API->>PPT: build .pptx and manifest
+  Service->>API: render
+  API->>PPT: build .pptx
+  API->>DB: remember random history
   Service-->>UI: output path
 ```
 
 ## Storage
 
-The app uses one local SQLite database:
+The main local SQLite database is:
 
-`state/radiology-ppt.sqlite`
+```text
+state\radiology-ppt.sqlite
+```
 
-Tables include:
+Important tables:
 
 - `app_settings`
 - `review_sessions`
@@ -148,62 +184,101 @@ Tables include:
 - `core_sources`
 - `app_events`
 - `schema_migrations`
+- `app_metadata`
 - `backend_cache`
 - `case_index`
 - `random_history`
 - `case_decisions`
 - `image_decisions`
 
-Generated/private folders are ignored by Git:
+Ignored local/private folders:
 
-- `cache/`
-- `scratch/`
-- `outputs/`
-- `state/`
-- `library/board-review/`
-- `dist/`
-- `build/`
-
-## Cancellation
-
-Main build/import cancellation:
-
-- UI calls `AppJobRunner.Cancel()`
-- UI calls `BackendClient.CancelCurrentProcess()`
-- the active backend request is cancelled and the persistent Node service is restarted if needed
-
-Review-window cancellation:
-
-- review action owns its own `CancellationTokenSource`
-- `Cancel Action` cancels the token and restarts the active backend service if needed
-- controls are disabled during the action except the cancel button
-
-## Performance Strategy
-
-- Prepare multiple cases concurrently, with request order preserved.
-- Keep one Node backend service alive to avoid cold-starting Node for every reroll, repick, score, or render job.
-- Emit structured backend stage events with durations so slow steps can be diagnosed from the Activity log.
-- Limit concurrent HTTP downloads and retry transient curl/Radiopaedia failures.
-- Prefer the local prepared-case index for random requests before live Radiopaedia search.
-- Prefetch random fallback case pages in the service so rerolls have warm cache.
-- Avoid repeating recent random cases by reading SQLite random history.
-- Avoid skipped/rejected cases in future random pulls.
-- Avoid rejected image frames when repicking images from the same case.
-- Cache fetched metadata and image candidate banks.
-- Store prepared-case quality and filter metadata in `case_index` so repeated random runs in the same category should get faster and less repetitive.
-- Store per-image audit metadata so weak selections can be debugged later.
-- Keep Ollama out of initial preparation; run it only on a selected case during review.
+- `cache\`
+- `scratch\`
+- `outputs\`
+- `state\`
+- `review-sessions\`
+- `library\board-review\`
+- `dist\`
+- `build\`
+- `node_modules\`
+- C# `bin\` and `obj\`
 
 ## Database Migrations
 
-Both C# and Node record additive schema migrations in `schema_migrations`. C# owns the desktop UI tables and Node owns backend/cache/index tables, but both record their applied schema version in the same database so local upgrades are diagnosable.
+Both C# and Node record forward-only schema work in `schema_migrations`.
 
-Prefer forward-only, additive migrations so existing local databases continue opening after app updates. When a table is shared across C# diagnostics and Node writes, keep the table shape aligned in both schema bootstraps so the Activity tab reflects the real backend state.
+- C# owns desktop app tables and diagnostics bootstrap in `AppStorage.cs`.
+- Node owns backend cache/history/index tables in `src/app-store.mjs`.
+- Shared tables such as `case_index` must keep compatible schemas on both sides.
+- Node records `node_schema_version` in `app_metadata`.
+- C# diagnostics include migration counts and backend/cache/index table counts.
 
-The Activity tab exposes maintenance actions for diagnostics, scratch/cache cleanup, and SQLite optimization.
+Prefer additive migrations so existing local databases continue opening after app updates.
 
 ## Contracts
 
-JSON contracts live in `src/contracts`. Tests under `tests/contract-schemas.test.mjs` validate representative C# payloads and Node outputs.
+JSON schema contracts live under:
 
-When changing the C# to Node boundary, update the JSON schema, the C# helpers in `BackendContracts.cs`, and the Node contract tests in the same commit.
+```text
+src\contracts
+```
+
+Contract-related code:
+
+- `csharp/RadiologyPpt.App/BackendContracts.cs`: C# payload builders/readers.
+- `tests/contract-schemas.test.mjs`: representative schema validation.
+- `src/backend-service.mjs`: runtime command envelope.
+- `src/backend-api.mjs`: payload normalization and workflow execution.
+
+When changing C# to Node fields, update schemas, C# payload helpers, backend normalization, and tests together.
+
+## Cancellation And Health
+
+Main prepare/render/import cancellation:
+
+- UI calls `AppJobRunner.Cancel()`.
+- UI calls `BackendClient.CancelCurrentProcess()`.
+- The active backend service is killed and restarted on the next request.
+
+Review-window cancellation:
+
+- review actions own a local cancellation token
+- `Cancel Action` cancels the token and kills/restarts the backend service
+- review buttons are disabled during the action except cancellation
+
+Backend health:
+
+- `BackendHealthMonitor` pings only when no backend requests are active.
+- if a health ping fails while idle, the app logs the problem and restarts the service
+- if real work starts while a ping is failing, restart is deferred rather than interrupting user work
+
+## Performance Strategy
+
+- Keep one Node service alive while the GUI is open.
+- Prepare multiple cases concurrently while preserving request order.
+- Use SQLite `case_index` before live random search when possible.
+- Avoid recently used, skipped, rejected, and currently excluded cases.
+- Treat `/cases/foo` and `/cases/foo?lang=us` as the same case for exclusions.
+- Cache image candidate banks and fetched metadata.
+- Avoid rejected frames when re-picking images from the same case.
+- Prefetch random fallback case pages in service mode.
+- Keep Ollama out of initial preparation; score selected cases during review only.
+- Limit HTTP concurrency and retry transient Radiopaedia/curl failures.
+- Emit structured progress/timing events into Activity.
+
+## Packaging
+
+Build:
+
+```powershell
+.\build-csharp-app.ps1
+```
+
+Shortcut:
+
+```powershell
+.\create-desktop-shortcut.ps1
+```
+
+The packaged executable lives under `dist\`, but it expects to remain inside this repository so it can find the Node backend under `src\`.

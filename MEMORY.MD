@@ -9,15 +9,18 @@ This is the lightweight repo-local memory index. Read this first when returning 
 - Agent instructions: `AGENTS.md`
 - GitHub workflow skill: `.agents/skills/radiology-ppt-github-workflow/SKILL.md`
 - Core Boards handoff: `CORE_REVIEW_HANDOFF.md`
+- User docs: `README.md` and `docs/USER_GUIDE.md`
+- Engineering docs: `docs/ARCHITECTURE.md`, `docs/CONTRIBUTING.md`, and `docs/TROUBLESHOOTING.md`
 
 ## Current North Star
 
 - Keep the repo/project name as `radiology-ppt`.
 - Primary desktop app is the C# WPF project at `csharp/RadiologyPpt.App`.
-- The Node backend under `src/` remains the Radiopaedia/Core Boards/PowerPoint engine.
+- The persistent Node backend under `src/` remains the Radiopaedia/Core Boards/PowerPoint engine.
 - Local durable metadata lives in ignored SQLite state at `state/radiology-ppt.sqlite`.
 - JSON schemas for C# to Node payloads live under `src/contracts`.
 - Use clear GUI labels such as `Cases`, `PowerPoint`, and `Core Boards`.
+- Keep the GUI as the supported product; Node command-line entry points are internal/developer plumbing.
 - Use `Core Boards` for ABR Core Exam prep infrastructure.
 - Treat Core Boards as a serious radiology board-review workflow with PDF/source ingestion,
   image-aware questions, gold-marker localization, human review, and source-grounded teaching
