@@ -75,8 +75,11 @@ The repo `.gitignore` already covers the main generated directories.
 ## Packaging Notes
 
 - Current primary desktop package is C# WPF plus a Node backend. Build it with `build-csharp-app.ps1`.
+- Public Windows installers are built with `build-windows-installer.ps1` and published on GitHub Releases.
 - The packaged app lives under:
   `dist\Radiopaedia Case PowerPoint Builder\Radiopaedia Case PowerPoint Builder.exe`
+- The installer output lives under:
+  `dist\installer\Radiopaedia-Case-PowerPoint-Builder-Setup-v<version>.exe`
 - Before rebuilding, close any running `Radiopaedia Case PowerPoint Builder` process.
 - After rebuilding, reopen the packaged exe and confirm Windows reports it as responding.
 

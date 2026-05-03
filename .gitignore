@@ -2,8 +2,6 @@ cache/
 build/
 dist/
 dist-focus-helper/
-__pycache__/
-*.pyc
 gui_state.json
 node_modules/
 outputs/

@@ -281,4 +281,12 @@ Shortcut:
 .\create-desktop-shortcut.ps1
 ```
 
-The packaged executable lives under `dist\`, but it expects to remain inside this repository so it can find the Node backend under `src\`.
+Installer:
+
+```powershell
+.\build-windows-installer.ps1 -Version 0.1.0
+```
+
+The installer package is built from a self-contained Windows publish plus `src\`, `node_modules\`, `runtime\node.exe`, license/readme files, and the app icon. The installed app finds backend resources beside the executable, but writes state/cache/output data under `%LOCALAPPDATA%\RadiopaediaCasePowerPointBuilder`.
+
+The developer packaged executable created by `build-csharp-app.ps1` lives under `dist\`, but it expects to remain inside this repository so it can find the Node backend under `src\`.

@@ -163,6 +163,20 @@ Expected shortcut:
 C:\Users\Admin\OneDrive\Desktop\Radiopaedia Case PowerPoint Builder.lnk
 ```
 
+If you installed from GitHub Releases, rerun the latest installer instead. The installer writes Start menu shortcuts and can optionally create a desktop shortcut.
+
+## Windows Blocks The Installer
+
+The release installer is not code-signed yet, so Windows SmartScreen may warn on first launch.
+
+Use the installer only from the official GitHub Releases page:
+
+```text
+https://github.com/funwithcthulhu/radiology-ppt/releases
+```
+
+Code signing can be added later if distribution grows.
+
 ## Generator Files Are Missing
 
 This means the executable cannot find the repository resources.
@@ -220,10 +234,18 @@ Try:
 Use this only if you intentionally want to lose app history and review decisions.
 
 1. Close the app.
-2. Move or delete:
+2. Move or delete the active state folder shown in Activity.
+
+For source-checkout runs, the default database is:
 
 ```text
 state\radiology-ppt.sqlite
+```
+
+For installed runs, the default app data folder is:
+
+```text
+%LOCALAPPDATA%\RadiopaediaCasePowerPointBuilder
 ```
 
 3. Reopen the app.

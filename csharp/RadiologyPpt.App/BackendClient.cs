@@ -20,8 +20,8 @@ public sealed class BackendClient
     public BackendClient()
     {
         ProjectRoot = ResolveProjectRoot();
-        AppRoot = ProjectRoot;
         ResourceRoot = ProjectRoot;
+        AppRoot = ResolveAppRoot(ResourceRoot);
         CliScript = Path.Combine(ResourceRoot, "src", "cli.mjs");
         ServiceScript = Path.Combine(ResourceRoot, "src", "backend-service.mjs");
         NodePath = ResolveNodePath();
@@ -673,6 +673,20 @@ public sealed class BackendClient
         }
 
         return "node";
+    }
+
+    private static string ResolveAppRoot(string resourceRoot)
+    {
+        if (Directory.Exists(Path.Combine(resourceRoot, ".git")))
+        {
+            return resourceRoot;
+        }
+
+        var appDataRoot = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "RadiopaediaCasePowerPointBuilder");
+        Directory.CreateDirectory(appDataRoot);
+        return appDataRoot;
     }
 
     private sealed record BackendResult(int ExitCode, string Stdout, string Stderr);

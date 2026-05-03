@@ -11,6 +11,7 @@ This is the lightweight repo-local memory index. Read this first when returning 
 - Core Boards handoff: `CORE_REVIEW_HANDOFF.md`
 - User docs: `README.md` and `docs/USER_GUIDE.md`
 - Engineering docs: `docs/ARCHITECTURE.md`, `docs/CONTRIBUTING.md`, and `docs/TROUBLESHOOTING.md`
+- Release docs: `docs/RELEASING.md` and `docs/releases/`
 
 ## Current North Star
 
@@ -21,6 +22,7 @@ This is the lightweight repo-local memory index. Read this first when returning 
 - JSON schemas for C# to Node payloads live under `src/contracts`.
 - Use clear GUI labels such as `Cases`, `PowerPoint`, and `Core Boards`.
 - Keep the GUI as the supported product; Node command-line entry points are internal/developer plumbing.
+- Windows installers are built with `build-windows-installer.ps1` and published through GitHub Releases.
 - Use `Core Boards` for ABR Core Exam prep infrastructure.
 - Treat Core Boards as a serious radiology board-review workflow with PDF/source ingestion,
   image-aware questions, gold-marker localization, human review, and source-grounded teaching

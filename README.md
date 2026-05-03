@@ -35,8 +35,16 @@ The case intro slide avoids giving away the diagnosis when possible. If clean pa
 - [Architecture](docs/ARCHITECTURE.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
 - [Contributing](docs/CONTRIBUTING.md)
+- [Releasing](docs/RELEASING.md)
 
 ## Main Use
+
+Recommended install:
+
+1. Open the [GitHub Releases page](https://github.com/funwithcthulhu/radiology-ppt/releases).
+2. Download the latest `Radiopaedia-Case-PowerPoint-Builder-Setup-v*.exe`.
+3. Run the installer.
+4. Launch `Radiopaedia Case PowerPoint Builder` from Start or the optional desktop shortcut.
 
 Desktop shortcut:
 
@@ -121,6 +129,8 @@ The app keeps local-only generated/private data in:
 - `review-sessions\`
 - `library\board-review\`
 
+When running from the source checkout, these paths live under the repository root. When installed from the Windows installer, app state lives under `%LOCALAPPDATA%\RadiopaediaCasePowerPointBuilder`. The Activity tab shows the exact active paths.
+
 These paths are ignored by Git. The SQLite database stores durable app metadata, settings, review history, generated PowerPoint metadata, backend cache rows, random history, case decisions, image decisions, and schema migrations.
 
 Use the `Activity` tab to refresh diagnostics, clean scratch files, clean old cache files, open the state folder, or run maintenance/SQLite optimization.
@@ -164,6 +174,12 @@ Build and refresh the desktop app:
 ```powershell
 .\build-csharp-app.ps1
 .\create-desktop-shortcut.ps1
+```
+
+Build the Windows installer:
+
+```powershell
+.\build-windows-installer.ps1 -Version 0.1.0
 ```
 
 GitHub Actions runs Node tests and the WPF Release build on Windows.

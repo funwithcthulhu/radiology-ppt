@@ -44,6 +44,12 @@ Package the desktop app:
 .\build-csharp-app.ps1
 ```
 
+Build the Windows installer:
+
+```powershell
+.\build-windows-installer.ps1 -Version 0.1.0
+```
+
 Refresh the desktop shortcut:
 
 ```powershell
@@ -146,6 +152,34 @@ Before saying the desktop shortcut is updated:
 ```
 
 GitHub Actions runs Node tests and the WPF Release build on Windows.
+
+## Release Workflow
+
+1. Update version numbers in `package.json` and `csharp\RadiologyPpt.App\RadiologyPpt.App.csproj`.
+2. Run `npm ci`.
+3. Run `npm test`.
+4. Run `dotnet build .\csharp\RadiologyPpt.App\RadiologyPpt.App.csproj --configuration Release`.
+5. Run `.\build-windows-installer.ps1 -Version X.Y.Z`.
+6. Commit version/docs/installer-script changes.
+7. Tag the commit as `vX.Y.Z`.
+8. Push `main` and the tag.
+9. Create a GitHub Release and upload `dist\installer\Radiopaedia-Case-PowerPoint-Builder-Setup-vX.Y.Z.exe`.
+
+The installer build requires Inno Setup. Install it locally with:
+
+```powershell
+winget install --id JRSoftware.InnoSetup -e --scope user
+```
+
+## Repository Rename Notes
+
+If the GitHub repository is renamed, existing clones usually keep pulling because GitHub redirects the old URL. Contributors should still update their remote to the new canonical URL to avoid redirect warnings:
+
+```powershell
+git remote set-url origin https://github.com/funwithcthulhu/<new-repo-name>.git
+```
+
+Forks and open pull requests usually survive a rename, but docs, release links, badges, local scripts, and issue links should be updated to the new name.
 
 ## Git Workflow
 

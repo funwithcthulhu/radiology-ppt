@@ -51,6 +51,7 @@ radiology residents and should cover the broad diagnostic radiology curriculum.
 - `AppJobRunner.cs` centralizes cancellable long-running GUI jobs.
 - `AppStorage.cs` stores settings, review sessions, image candidates, generated PowerPoint metadata, Core Boards source imports, and diagnostics.
 - Build and publish the desktop app with `build-csharp-app.ps1`.
+- Build the Windows installer with `build-windows-installer.ps1`.
 - Refresh the desktop shortcut with `create-desktop-shortcut.ps1`.
 - The packaged app path remains `dist/Radiopaedia Case PowerPoint Builder/Radiopaedia Case PowerPoint Builder.exe`.
 - The WPF main/review windows should clamp to the visible Windows work area so title bars do not open above the screen on scaled displays.
@@ -110,6 +111,7 @@ The Core Boards module should support:
   - `src/radiopaedia-case-text.mjs`
 - Added backend health monitoring/restart support in `BackendHealthMonitor.cs`.
 - Removed the PowerPoint success popup; completion now appears in status and Activity.
+- Added Inno Setup based Windows installer packaging and release docs.
 
 ## Current UI State
 
@@ -183,3 +185,4 @@ From the repo root on 2026-05-02 after the architecture pass:
 - Follow the user's requested target. For this project the user often asks for direct pushes to `main`; use `codex/` branches only when asked or when a PR workflow is safer.
 - Do not stage generated/private artifacts.
 - Prefer a draft PR only when the user asks for PR workflow or does not want direct push.
+- For public releases, build `dist\installer\Radiopaedia-Case-PowerPoint-Builder-Setup-vX.Y.Z.exe`, tag `vX.Y.Z`, and create a GitHub Release with that installer asset.

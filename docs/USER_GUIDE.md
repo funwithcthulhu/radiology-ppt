@@ -14,6 +14,17 @@ This app builds case-based radiology PowerPoints from Radiopaedia cases. The int
 
 When export finishes, there is no popup. The left status area changes, the Activity log records completion, and `Open Last PowerPoint` can open the generated file.
 
+## Install Or Update
+
+For normal use, install from GitHub Releases:
+
+1. Open the [GitHub Releases page](https://github.com/funwithcthulhu/radiology-ppt/releases).
+2. Download the latest `Radiopaedia-Case-PowerPoint-Builder-Setup-v*.exe`.
+3. Run the installer.
+4. Keep the optional desktop shortcut checked if you want one.
+
+The installer is per-user and does not require administrator elevation. It bundles the desktop app, local backend resources, Node runtime, and app dependencies.
+
 ## Cases Tab
 
 ![Cases tab overview](images/cases-tab.svg)
@@ -213,6 +224,8 @@ Local generated/private paths:
 - `outputs\`
 - `review-sessions\`
 - `library\board-review\`
+
+Installed app data lives under `%LOCALAPPDATA%\RadiopaediaCasePowerPointBuilder`. Source-checkout app data lives under the repository root. The Activity tab shows the current database and folder paths.
 
 These are ignored by Git. They may contain local paths, source metadata, review decisions, generated PowerPoints, imported PDF-derived data, or extracted images.
 
