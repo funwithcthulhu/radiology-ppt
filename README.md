@@ -2,7 +2,7 @@
 
 Native Windows desktop app for building case-based radiology PowerPoints from Radiopaedia.
 
-The supported product is the GUI. You add case requests, review the cases/images, and the app creates a PowerPoint after you approve the reviewed cases. The runtime is C# WPF plus a local Node backend. Python is not part of the app.
+The supported product is the GUI. You add case requests, review the cases/images, and the app creates a PowerPoint after you approve the reviewed cases. The runtime is C# WPF plus a local Node backend.
 
 ## What It Builds
 

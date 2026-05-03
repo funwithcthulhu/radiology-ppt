@@ -1,6 +1,6 @@
 # Architecture
 
-The app is a native Windows desktop GUI backed by a local Node service. Python is no longer part of the runtime.
+The app is a native Windows desktop GUI backed by a local Node service.
 
 ```mermaid
 flowchart LR

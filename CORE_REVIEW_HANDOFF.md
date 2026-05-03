@@ -49,7 +49,6 @@ The system should support:
   - `--core-review-quiz`
 - Added `library/board-review/` to `.gitignore` so private PDFs, extracted page images, and generated corpora stay local.
 - Added `build-csharp-app.ps1` for the current C# desktop package.
-- Removed the legacy Python/Tkinter package path; the supported app is C# WPF plus Node backend.
 
 ## PDF Ingestion Behavior
 

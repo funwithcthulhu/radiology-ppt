@@ -75,7 +75,6 @@ The repo `.gitignore` already covers the main generated directories.
 ## Packaging Notes
 
 - Current primary desktop package is C# WPF plus a Node backend. Build it with `build-csharp-app.ps1`.
-- There is no supported Python/Tkinter packaging path.
 - The packaged app lives under:
   `dist\Radiopaedia Case PowerPoint Builder\Radiopaedia Case PowerPoint Builder.exe`
 - Before rebuilding, close any running `Radiopaedia Case PowerPoint Builder` process.

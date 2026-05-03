@@ -54,7 +54,7 @@ radiology residents and should cover the broad diagnostic radiology curriculum.
 - Refresh the desktop shortcut with `create-desktop-shortcut.ps1`.
 - The packaged app path remains `dist/Radiopaedia Case PowerPoint Builder/Radiopaedia Case PowerPoint Builder.exe`.
 - The WPF main/review windows should clamp to the visible Windows work area so title bars do not open above the screen on scaled displays.
-- The remaining app architecture is C# WPF plus Node backend; the old Python GUI and helper scripts have been removed.
+- The app architecture is C# WPF plus Node backend.
 
 ## Core Boards Requirements
 
@@ -98,7 +98,7 @@ The Core Boards module should support:
   - `--core-review-ingest`
   - `--core-review-ingest-pdf`
   - `--core-review-quiz`
-- Removed the legacy Python package path; packaged builds use `build-csharp-app.ps1`.
+- Packaged builds use `build-csharp-app.ps1`.
 - Updated deck generation so `Core Review` mode can produce a Core Review teaching slide.
 - Added compact-first Ollama vision model auto-detection in `src/ollama-review.mjs`:
   prefer `moondream`, then `minicpm`, then Qwen-VL/LLaVA/BakLLaVA/generic vision models.

@@ -24,8 +24,6 @@ Prerequisites:
 - PowerShell
 - Node dependencies installed with `npm install` or `npm ci`
 
-No Python runtime is required.
-
 ## Main Commands
 
 Run tests:
