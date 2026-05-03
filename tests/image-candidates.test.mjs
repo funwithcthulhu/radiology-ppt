@@ -68,6 +68,7 @@ test("can explicitly select requested image frames before filling remaining slot
   assert.equal(selected[0].frameId, "2");
   assert.equal(selected.length, 2);
   assert.equal(selected[0].audit.selectedReason, "explicitly requested plus ranked fill");
+  assert.match(selected[0].selectionExplanation, /explicitly requested/);
   assert.ok(selected.some((candidate) => candidate.frameId === "1" || candidate.frameId === "3"));
 });
 
@@ -77,6 +78,7 @@ test("normalizes candidate banks and drops local paths", () => {
   assert.equal(bank[0].frameId, "a");
   assert.equal(bank[0].localPath, undefined);
   assert.deepEqual(bank[0].audit, {});
+  assert.match(bank[0].selectionExplanation, /Candidate/);
 });
 
 test("flags weak image sets for teaching use", () => {

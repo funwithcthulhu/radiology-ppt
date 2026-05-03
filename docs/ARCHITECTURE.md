@@ -12,6 +12,7 @@ flowchart LR
   Contracts["C# payload contracts"]
   Client["BackendClient"]
   Health["BackendHealthMonitor"]
+  JobRows["backend_jobs"]
   Service["Node JSONL service"]
   API["backend-api.mjs"]
   Search["Radiopaedia search"]
@@ -37,6 +38,7 @@ flowchart LR
   API --> Ollama
   Search --> Storage
   Fetch --> Storage
+  Service --> JobRows
   Fetch --> Files
   PPT --> Files
 ```
@@ -93,6 +95,8 @@ The `ping` command reports basic health metadata:
 - uptime
 - handled request count
 - last request time
+
+Non-ping commands write durable job rows to SQLite through `src/app-store.mjs`. The Activity tab uses those rows to show recent backend command status and duration.
 
 ### Node Backend API
 
@@ -187,6 +191,7 @@ Important tables:
 - `app_metadata`
 - `backend_cache`
 - `case_index`
+- `backend_jobs`
 - `random_history`
 - `case_decisions`
 - `image_decisions`
@@ -213,6 +218,7 @@ Both C# and Node record forward-only schema work in `schema_migrations`.
 - Shared tables such as `case_index` must keep compatible schemas on both sides.
 - Node records `node_schema_version` in `app_metadata`.
 - C# diagnostics include migration counts and backend/cache/index table counts.
+- Backend job diagnostics are additive and safe to drop/rebuild; they are for observability, not core user data.
 
 Prefer additive migrations so existing local databases continue opening after app updates.
 
@@ -232,6 +238,8 @@ Contract-related code:
 - `src/backend-api.mjs`: payload normalization and workflow execution.
 
 When changing C# to Node fields, update schemas, C# payload helpers, backend normalization, and tests together.
+
+Image candidates include `audit` and `selectionExplanation` fields. The audit object is machine-readable scoring/provenance; the explanation string is user-facing rationale for review and manifests.
 
 ## Cancellation And Health
 
@@ -258,14 +266,17 @@ Backend health:
 - Keep one Node service alive while the GUI is open.
 - Prepare multiple cases concurrently while preserving request order.
 - Use SQLite `case_index` before live random search when possible.
+- Prefer less-used and older-used indexed cases to reduce repeats.
 - Avoid recently used, skipped, rejected, and currently excluded cases.
 - Treat `/cases/foo` and `/cases/foo?lang=us` as the same case for exclusions.
 - Cache image candidate banks and fetched metadata.
 - Avoid rejected frames when re-picking images from the same case.
-- Prefetch random fallback case pages in service mode.
+- Keep random fallback prefetch opt-in with `RADIOLOGY_PPT_PREFETCH_FALLBACKS=1`.
 - Keep Ollama out of initial preparation; score selected cases during review only.
 - Limit HTTP concurrency and retry transient Radiopaedia/curl failures.
 - Emit structured progress/timing events into Activity.
+
+See [Decision Logic](DECISION_LOGIC.md) for the product-level explanation of random selection, image ranking, and storage tradeoffs.
 
 ## Packaging
 

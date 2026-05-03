@@ -6,6 +6,7 @@
 
 - [ ] `npm test`
 - [ ] `dotnet build .\csharp\RadiologyPpt.App\RadiologyPpt.App.csproj --configuration Release`
+- [ ] Storage migrations/contracts/docs updated if behavior changed
 - [ ] Installer built or not needed
 
 ## Notes

@@ -25,18 +25,22 @@ The case intro slide avoids giving away the diagnosis when possible. If clean pa
 - Add specific diagnoses, random case requests, or exact Radiopaedia case URLs.
 - Use dropdown filters for modality, anatomy, subspecialty/area, age group, topic focus, and difficulty.
 - Pull random cases while avoiding recently used, skipped, and rejected cases.
+- Prefer less-used indexed cases for faster, less repetitive random runs.
 - Review every prepared case before export.
 - Keep, favorite, skip, reroll, re-pick images, replace unchecked images, remove unchecked images, or choose exact candidate frames.
+- See plain-English image-selection rationale in review and in the generated manifest.
 - Store reviewed cases in a local searchable Library tab.
 - Use PowerPoint presets for fast preview, image-quality review, Ollama-assisted review, Core Review teaching, or dark conference mode.
 - Optionally use a local Ollama vision model during review, not during initial preparation.
 - Cache Radiopaedia metadata, image candidate banks, prepared-case quality metadata, random history, and review decisions in local SQLite.
+- Track backend jobs, status, and durations in local SQLite for easier troubleshooting.
 - Keep a persistent local Node backend service open while the app is running for faster review actions.
 - Monitor backend health and restart the local Node service when it dies outside active work.
 
 ## Documentation
 
 - [User Guide](docs/USER_GUIDE.md)
+- [Decision Logic](docs/DECISION_LOGIC.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
 - [Contributing](docs/CONTRIBUTING.md)
@@ -119,6 +123,7 @@ The review window is intentionally human-in-the-loop.
 - `Replace Unchecked`: uncheck weak images and replace only those slots.
 - `Remove Unchecked`: uncheck weak images and export fewer images for that case.
 - `Candidates`: manually choose exact alternate frames from the same Radiopaedia case.
+- `Details`: source, warnings, prompt text, and image-selection rationale.
 - `Ollama Score Case`: score selected images only when Ollama review is enabled.
 - `Cancel Action`: cancel a stuck reroll, re-pick, replace, or Ollama action.
 
@@ -137,7 +142,7 @@ The app keeps local-only generated/private data in:
 
 When running from the source checkout, these paths live under the repository root. When installed from the Windows installer, app state lives under `%LOCALAPPDATA%\RadiopaediaCasePowerPointBuilder`. The Activity tab shows the exact active paths.
 
-These paths are ignored by Git. The SQLite database stores durable app metadata, settings, review history, generated PowerPoint metadata, backend cache rows, random history, case decisions, image decisions, and schema migrations.
+These paths are ignored by Git. The SQLite database stores durable app metadata, settings, review history, generated PowerPoint metadata, backend cache rows, random history, case decisions, image decisions, backend job diagnostics, prepared-case indexes, and schema migrations.
 
 Use the `Activity` tab to refresh diagnostics, clean scratch files, clean old cache files, open the state folder, or run maintenance/SQLite optimization.
 
@@ -156,6 +161,7 @@ Use the `Activity` tab to refresh diagnostics, clean scratch files, clean old ca
 - `src\app-store.mjs`: backend SQLite cache/history/index/review-decision storage.
 - `src\deck.mjs`: PowerPoint rendering.
 - `src\contracts`: JSON schema contracts for C# to Node payloads.
+- `docs\DECISION_LOGIC.md`: human-readable explanation of case, image, random, and storage decisions.
 
 See [Architecture](docs/ARCHITECTURE.md) for details.
 

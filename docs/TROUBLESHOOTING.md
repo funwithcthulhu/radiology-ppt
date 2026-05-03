@@ -78,11 +78,18 @@ Helpful actions:
 - Re-run after one successful pass so cached metadata and `case_index` can help.
 - Avoid Ollama during initial preparation.
 - Use `Run Maintenance` after many test runs.
+- Check `Activity` for recent backend job duration. If `prepare` is long, the delay is usually live Radiopaedia case/study loading rather than PowerPoint rendering.
 
 If network work feels too aggressive or Radiopaedia/curl errors become frequent, lower HTTP concurrency before launching the app:
 
 ```powershell
 $env:RADIOLOGY_PPT_HTTP_CONCURRENCY = "2"
+```
+
+Background fallback prefetch is off by default. To opt into warming alternate random case pages after preparation:
+
+```powershell
+$env:RADIOLOGY_PPT_PREFETCH_FALLBACKS = "1"
 ```
 
 ## Ollama Takes Too Long
@@ -114,6 +121,8 @@ Use this sequence:
 4. Use the `Candidates` tab to manually select a better same-case frame if one exists.
 
 If the case has only a few useful frames, use `Remove Unchecked` and export fewer images.
+
+Use the image rationale in the review window to see why a frame was selected. If the rationale is weak, check the `Candidates` tab for annotated or key-image candidates.
 
 ## The Case Intro Gives Away The Diagnosis
 

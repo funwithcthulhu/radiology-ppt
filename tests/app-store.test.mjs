@@ -9,6 +9,8 @@ import {
   readAvoidedCasePaths,
   readRejectedFrameIds,
   readStoreCache,
+  recordBackendJobFinish,
+  recordBackendJobStart,
   recordCaseDecision,
   recordCaseIndex,
   recordImageDecision,
@@ -128,4 +130,33 @@ test("indexes prepared cases for cached random reuse and filtering", async () =>
   assert.equal(excluded.length, 1);
   assert.equal(excluded[0].casePath, "/cases/appendicitis-ct-1");
   assert.equal(excluded[0].selectedImageCount, 1);
+});
+
+test("records backend job lifecycle rows for diagnostics", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "radiology-store-jobs-"));
+  process.env.RADIOLOGY_PPT_DATABASE_PATH = path.join(tempDir, "state.sqlite");
+
+  await recordBackendJobStart({
+    jobId: "job-1",
+    command: "prepare",
+    detail: { requestRows: 2 },
+  });
+  await recordBackendJobFinish({
+    jobId: "job-1",
+    status: "completed",
+    summary: "Prepared 2 cases",
+    detail: { itemCount: 2 },
+  });
+
+  const { DatabaseSync } = await import("node:sqlite");
+  const db = new DatabaseSync(process.env.RADIOLOGY_PPT_DATABASE_PATH);
+  try {
+    const row = db.prepare("SELECT command, status, summary, duration_ms FROM backend_jobs WHERE job_id = ?").get("job-1");
+    assert.equal(row.command, "prepare");
+    assert.equal(row.status, "completed");
+    assert.equal(row.summary, "Prepared 2 cases");
+    assert.equal(Number.isInteger(row.duration_ms), true);
+  } finally {
+    db.close();
+  }
 });

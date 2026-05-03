@@ -68,6 +68,7 @@ Use these boundaries when deciding where a change belongs:
 
 - C# UI, review flow, settings, local app metadata: `csharp/RadiologyPpt.App`
 - main-window state/payload construction: `csharp/RadiologyPpt.App/MainWindowViewModel.cs`
+- review-window presentation models: `csharp/RadiologyPpt.App/CaseReviewModels.cs`
 - local case library state: `csharp/RadiologyPpt.App/CaseLibraryViewModel.cs`
 - local SQLite app storage: `csharp/RadiologyPpt.App/AppStorage.cs`
 - cancellable GUI jobs: `csharp/RadiologyPpt.App/AppJobRunner.cs`
@@ -89,6 +90,7 @@ Use these boundaries when deciding where a change belongs:
 - PowerPoint rendering: `src/deck.mjs`
 - backend SQLite/cache/history/index: `src/app-store.mjs`
 - contract schemas: `src/contracts`
+- case/random/image rationale docs: `docs/DECISION_LOGIC.md`
 - Core Boards backend: `src/core_review`
 
 ## Change Guidelines
@@ -98,6 +100,9 @@ Use these boundaries when deciding where a change belongs:
 - Keep `src/backend-service.mjs` thin. It should own JSONL protocol mechanics, not Radiopaedia or PowerPoint business logic.
 - Keep moving C# logic from click handlers into view models, services, and contracts.
 - Keep slow/optional work out of initial preparation. Use review actions for expensive steps such as Ollama scoring.
+- Keep backend observability durable: long-running service commands should create/update `backend_jobs` rows.
+- Keep image-selection rationale user-facing. If the scoring logic changes, update `selectionExplanation`, tests, and docs.
+- Keep random behavior explainable: history, skipped/rejected cases, and indexed reuse should remain visible in Activity/Decision Logic.
 - When adding C# to Node fields, update `src/contracts`, `BackendContracts.cs`, backend normalization, and tests.
 - Prefer additive SQLite migrations and record them in `schema_migrations`.
 - Preserve Radiopaedia attribution in generated slides.
@@ -130,6 +135,14 @@ Before pushing:
 ```powershell
 npm test
 dotnet build .\csharp\RadiologyPpt.App\RadiologyPpt.App.csproj --configuration Release
+```
+
+When touching storage, random selection, image ranking, or backend job tracking, also sanity-check:
+
+```powershell
+node --check .\src\app-store.mjs
+node --check .\src\backend-service.mjs
+node --check .\src\image-candidates.mjs
 ```
 
 When touching syntax-sensitive backend modules, useful spot checks:

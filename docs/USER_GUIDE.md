@@ -51,6 +51,8 @@ Notes:
 - Prefer dropdowns over typed shorthand.
 - For random requests, leave the text field blank or type a broad theme if you want one.
 - `Mixed` in the Area dropdown asks random mode to diversify across systems.
+- Random mode checks your local prepared-case index first, then live Radiopaedia search if needed.
+- Random mode avoids recent, skipped, rejected, and currently excluded cases where possible.
 - Narrow filters may have a small case pool; if reroll cannot find an alternate, broaden filters or skip the case.
 
 ## Library Tab
@@ -139,7 +141,7 @@ Top area:
 Tabs:
 
 - `Images`: selected images with keep checkboxes.
-- `Details`: source, modality, quality warnings, and prompt text.
+- `Details`: source, modality, quality warnings, prompt text, and why the selected images were chosen.
 - `Candidates`: alternate same-case frames you can manually select.
 
 Actions:
@@ -154,6 +156,12 @@ Actions:
 - `Ollama Score Case`: score the current kept images if Ollama review is enabled.
 - `Cancel Action`: stop a stuck reroll, re-pick, replace, or Ollama action.
 - `Cancel Review`: exit review without exporting.
+
+Image rationale:
+
+- Each selected image has a short explanation such as annotation, key-image, current-slice, or relevance-score reasoning.
+- The same rationale is written to the output manifest beside the PowerPoint.
+- Use this to sanity-check whether the app picked images for the right reason before exporting.
 
 Keyboard shortcuts:
 
@@ -175,6 +183,7 @@ It shows:
 - cache/scratch/output sizes
 - row counts for important SQLite tables
 - recent app events
+- recent backend jobs with status and duration
 - backend progress/timing logs
 
 Maintenance actions:
@@ -193,6 +202,8 @@ Fast random PowerPoint:
 2. Set count and optional area/modality filters.
 3. PowerPoint: apply `Fast Preview`.
 4. Generate, review, skip/reroll weak cases, export.
+
+If this is the first run for a narrow category, expect initial preparation to be slower while the local case index warms up. Later runs should avoid repeats better and often prepare faster.
 
 Higher-quality image PowerPoint:
 
@@ -230,3 +241,5 @@ Installed app data lives under `%LOCALAPPDATA%\RadiopaediaCasePowerPointBuilder`
 These are ignored by Git. They may contain local paths, source metadata, review decisions, generated PowerPoints, imported PDF-derived data, or extracted images.
 
 Radiopaedia images are attributed in generated slides. Keep attribution intact and follow source material terms.
+
+See [Decision Logic](DECISION_LOGIC.md) for how random selection, image ranking, backend jobs, and storage fit together.
