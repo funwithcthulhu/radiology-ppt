@@ -679,7 +679,8 @@ public partial class CaseReviewWindow : Window
             return;
         }
 
-        var offset = viewer.VerticalOffset + (e.Delta < 0 ? 44 : -44);
+        var pixels = Math.Clamp(Math.Abs(e.Delta) / 120.0 * 18.0, 4.0, 18.0);
+        var offset = viewer.VerticalOffset + (e.Delta < 0 ? pixels : -pixels);
         viewer.ScrollToVerticalOffset(Math.Max(0, offset));
         e.Handled = true;
     }
