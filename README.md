@@ -5,9 +5,9 @@
 [![License: MIT](https://img.shields.io/github/license/funwithcthulhu/radiology-ppt)](LICENSE)
 [![Windows App](https://img.shields.io/badge/app-C%23%20WPF%20%2B%20Node-0f766e)](docs/ARCHITECTURE.md)
 
-Native Windows desktop app for building case-based radiology PowerPoints from Radiopaedia.
+Windows desktop app for building case-based radiology PowerPoints from Radiopaedia.
 
-The supported product is the GUI. You add case requests, review the cases/images, and the app creates a PowerPoint after you approve the reviewed cases. The runtime is C# WPF plus a local Node backend.
+Add case requests, review the prepared cases and images, then export the approved cases to PowerPoint. The app uses a C# WPF interface with a local Node backend.
 
 ## What It Builds
 
@@ -56,16 +56,10 @@ Recommended install:
 3. Run the installer.
 4. Launch `Radiopaedia Case PowerPoint Builder` from Start or the optional desktop shortcut.
 
-Desktop shortcut:
+For source-checkout development, build the packaged app under `dist\`:
 
 ```text
-C:\Users\Admin\OneDrive\Desktop\Radiopaedia Case PowerPoint Builder.lnk
-```
-
-Packaged app:
-
-```text
-C:\projects\radiopaedia_case_powerpoint_builder\dist\Radiopaedia Case PowerPoint Builder\Radiopaedia Case PowerPoint Builder.exe
+dist\Radiopaedia Case PowerPoint Builder\Radiopaedia Case PowerPoint Builder.exe
 ```
 
 If the packaged app is missing, build it from the repository root:
@@ -81,7 +75,7 @@ Run from source while developing:
 dotnet run --project .\csharp\RadiologyPpt.App\RadiologyPpt.App.csproj
 ```
 
-Important: the packaged executable is expected to stay inside this repository. It finds the Node backend by walking up to the project root and locating `src\backend-service.mjs` and `src\cli.mjs`. Do not copy only the `.exe` somewhere else.
+Important: source-checkout builds expect the packaged executable to remain inside this repository. The app locates backend resources by walking up to the project root and finding `src\backend-service.mjs`. Do not copy only the `.exe` somewhere else.
 
 ## GUI Workflow
 
@@ -105,7 +99,7 @@ There is no success popup after export. Use the left status area, Activity tab, 
 
 - `Cases`: request grid for diagnoses, random pulls, or Radiopaedia URLs.
 - `Library`: local history of reviewed cases with decision, image count, score, and case path.
-- `Core Boards`: local/private PDF import scaffolding for future ABR Core-style study workflows.
+- `Core Boards`: local PDF import for a private ABR Core-style study workspace.
 - `PowerPoint`: title, output path, images per case, style, theme, crop/markup, Ollama model, presets, generation, and output shortcuts.
 - `Activity`: diagnostics, backend logs, SQLite/cache counts, state folder access, cleanup, and maintenance.
 
@@ -196,9 +190,9 @@ Build the Windows installer:
 
 GitHub Actions runs Node tests and the WPF Release build on Windows.
 
-## Core Boards Status
+## Core Boards
 
-Core Boards is currently scaffolding, not a finished quiz UI. The app can import local PDFs into a private local knowledge base under `library\board-review\`. The backend also has internal/developer commands for schema inspection, source ingestion, PDF ingestion, and quiz-session assembly.
+Core Boards can import local PDFs into a private study library under `library\board-review\`. The imported corpus is local-only and is not committed.
 
 The repository does not bundle copyrighted board-review books or question banks. Import local materials only when you have the right to use them. Generated/private Core Boards corpora remain ignored by Git.
 

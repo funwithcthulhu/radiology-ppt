@@ -1,6 +1,6 @@
 # Decision Logic
 
-This document explains how the app chooses cases, images, and local storage behavior. It is meant to make the workflow auditable rather than mysterious.
+This document describes how the app chooses cases, selects images, and stores local state.
 
 ## Case Request Flow
 
@@ -14,7 +14,7 @@ The backend sends progress and timing events for each major stage. These appear 
 
 ## Random Case Selection
 
-Random mode is intentionally not purely random. It tries to avoid wasting your time with repeats.
+Random mode uses history and filters to reduce repeated cases.
 
 Selection order:
 
@@ -24,7 +24,7 @@ Selection order:
 4. If the local index does not have enough matches, run live Radiopaedia search.
 5. Add selected cases to random history so later runs avoid them.
 
-This means the first run for a new category can be slower. Later runs should be faster and less repetitive because the local index has useful prepared-case metadata.
+The first run for a new category can be slower. Later runs can be faster and less repetitive because the local index has prepared-case metadata.
 
 Narrow filters can still exhaust the public case pool. If reroll cannot find a new case, broaden modality/anatomy/area filters or skip the case.
 
@@ -68,7 +68,7 @@ Tracked commands include:
 - Ollama image scoring
 - Core Boards imports
 
-The Activity tab shows recent backend jobs with status and duration. This helps separate “Radiopaedia is slow” from “the app is stuck.”
+The Activity tab shows recent backend jobs with status and duration. This separates Radiopaedia/network delays from application failures.
 
 ## Storage Strategy
 

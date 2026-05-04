@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "pdf-parse": "^2.4.5",
+    "pptxgenjs": "^4.0.1",
     "sharp": "^0.34.5"
   }
 }

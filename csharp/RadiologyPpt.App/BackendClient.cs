@@ -8,7 +8,6 @@ namespace RadiologyPpt.App;
 
 public sealed class BackendClient
 {
-    private Process? _currentProcess;
     private Process? _serviceProcess;
     private readonly SemaphoreSlim _serviceStartLock = new(1, 1);
     private readonly SemaphoreSlim _serviceWriteLock = new(1, 1);
@@ -22,7 +21,6 @@ public sealed class BackendClient
         ProjectRoot = ResolveProjectRoot();
         ResourceRoot = ProjectRoot;
         AppRoot = ResolveAppRoot(ResourceRoot);
-        CliScript = Path.Combine(ResourceRoot, "src", "cli.mjs");
         ServiceScript = Path.Combine(ResourceRoot, "src", "backend-service.mjs");
         NodePath = ResolveNodePath();
     }
@@ -30,7 +28,6 @@ public sealed class BackendClient
     public string ProjectRoot { get; }
     public string AppRoot { get; }
     public string ResourceRoot { get; }
-    public string CliScript { get; }
     public string ServiceScript { get; }
     public string NodePath { get; }
 
@@ -104,17 +101,6 @@ public sealed class BackendClient
     {
         try
         {
-            if (_currentProcess is { HasExited: false })
-            {
-                _currentProcess.Kill(entireProcessTree: true);
-            }
-        }
-        catch
-        {
-            // Best effort cancellation; the UI will report the backend result.
-        }
-        try
-        {
             if (_serviceProcess is { HasExited: false })
             {
                 _serviceProcess.Kill(entireProcessTree: true);
@@ -158,124 +144,6 @@ public sealed class BackendClient
         catch
         {
             return [];
-        }
-    }
-
-    private async Task<BackendResult> RunCliAsync(IEnumerable<string> args, Action<string> log, CancellationToken cancellationToken, bool logStdout = true)
-    {
-        if (!File.Exists(CliScript))
-        {
-            throw new FileNotFoundException("The backend CLI was not found.", CliScript);
-        }
-
-        var startInfo = new ProcessStartInfo(NodePath)
-        {
-            WorkingDirectory = ProjectRoot,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            StandardOutputEncoding = Encoding.UTF8,
-            StandardErrorEncoding = Encoding.UTF8
-        };
-        startInfo.ArgumentList.Add(CliScript);
-        foreach (var arg in args)
-        {
-            startInfo.ArgumentList.Add(arg);
-        }
-
-        startInfo.Environment["RADIOLOGY_PPT_APP_ROOT"] = AppRoot;
-        startInfo.Environment["RADIOLOGY_PPT_RESOURCE_ROOT"] = ResourceRoot;
-        startInfo.Environment["RADIOLOGY_PPT_DATABASE_PATH"] = Path.Combine(StateDir, "radiology-ppt.sqlite");
-        startInfo.Environment["NODE_NO_WARNINGS"] = "1";
-
-        using var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
-        _currentProcess = process;
-        var stdout = new StringBuilder();
-        var stderr = new StringBuilder();
-
-        process.OutputDataReceived += (_, eventArgs) =>
-        {
-            if (eventArgs.Data is null)
-            {
-                return;
-            }
-            stdout.AppendLine(eventArgs.Data);
-            if (logStdout)
-            {
-                log(eventArgs.Data);
-            }
-        };
-        process.ErrorDataReceived += (_, eventArgs) =>
-        {
-            if (eventArgs.Data is null)
-            {
-                return;
-            }
-            if (TryParseBackendEvent(eventArgs.Data, out var progressMessage))
-            {
-                log(progressMessage);
-                return;
-            }
-            stderr.AppendLine(eventArgs.Data);
-            log(eventArgs.Data);
-        };
-
-        process.Start();
-        process.BeginOutputReadLine();
-        process.BeginErrorReadLine();
-
-        try
-        {
-            await process.WaitForExitAsync(cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-            CancelCurrentProcess();
-            throw;
-        }
-        finally
-        {
-            if (ReferenceEquals(_currentProcess, process))
-            {
-                _currentProcess = null;
-            }
-        }
-
-        return new BackendResult(process.ExitCode, stdout.ToString(), stderr.ToString());
-    }
-
-    private static void ThrowIfFailed(BackendResult result, string message)
-    {
-        if (result.ExitCode == 0)
-        {
-            return;
-        }
-
-        var detail = string.IsNullOrWhiteSpace(result.Stderr) ? result.Stdout : result.Stderr;
-        throw new InvalidOperationException($"{message}{Environment.NewLine}{Environment.NewLine}{detail.Trim()}");
-    }
-
-    private static async Task<string> WriteTempJsonAsync(JsonNode node, string label, CancellationToken cancellationToken)
-    {
-        var tempPath = Path.Combine(Path.GetTempPath(), $"radiology-ppt-{label}-{Guid.NewGuid():N}.json");
-        await File.WriteAllTextAsync(
-            tempPath,
-            node.ToJsonString(new JsonSerializerOptions { WriteIndented = true }),
-            Encoding.UTF8,
-            cancellationToken);
-        return tempPath;
-    }
-
-    private static void TryDelete(string path)
-    {
-        try
-        {
-            File.Delete(path);
-        }
-        catch
-        {
-            // Temporary cleanup should not hide the real workflow result.
         }
     }
 
@@ -642,14 +510,14 @@ public sealed class BackendClient
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null)
         {
-            if (File.Exists(Path.Combine(directory.FullName, "src", "cli.mjs")))
+            if (File.Exists(Path.Combine(directory.FullName, "src", "backend-service.mjs")))
             {
                 return directory.FullName;
             }
             directory = directory.Parent;
         }
 
-        throw new DirectoryNotFoundException("Could not find the radiology-ppt project root containing src\\cli.mjs.");
+        throw new DirectoryNotFoundException("Could not find the radiology-ppt project root containing src\\backend-service.mjs.");
     }
 
     private static string ResolveNodePath()
@@ -659,20 +527,6 @@ public sealed class BackendClient
         if (File.Exists(packaged))
         {
             return packaged;
-        }
-
-        var bundled = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-            ".cache",
-            "codex-runtimes",
-            "codex-primary-runtime",
-            "dependencies",
-            "node",
-            "bin",
-            "node.exe");
-        if (File.Exists(bundled))
-        {
-            return bundled;
         }
 
         return "node";
@@ -691,8 +545,6 @@ public sealed class BackendClient
         Directory.CreateDirectory(appDataRoot);
         return appDataRoot;
     }
-
-    private sealed record BackendResult(int ExitCode, string Stdout, string Stderr);
 
     private sealed class PendingServiceRequest(Action<string> log)
     {

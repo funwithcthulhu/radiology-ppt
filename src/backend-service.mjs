@@ -5,7 +5,6 @@ import {
   ingestCoreReviewPdfFiles,
   ingestCoreReviewTextFiles,
   prepareCases,
-  probeCasesFromFile,
   renderCoreReviewQuizSessionText,
   renderPowerPoint,
   scoreImages,
@@ -78,9 +77,6 @@ async function runCommand(command, payload = {}) {
   }
   if (command === "render") {
     return renderPowerPoint({ items: payload.items || [] }, args);
-  }
-  if (command === "probe") {
-    return probeCasesFromFile(payload.inputPath);
   }
   if (command === "coreReviewSchema") {
     return getCoreReviewSchema();

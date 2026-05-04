@@ -15,7 +15,6 @@ import { scorePreparedItemsWithOllama } from "./ollama-review.mjs";
 import {
   expandCaseRequests,
   fetchRadiopaediaCase,
-  inspectRadiopaediaCaseCandidates,
   saveRandomHistory,
 } from "./radiopaedia.mjs";
 import { parseCaseRequest } from "./request-parser.mjs";
@@ -29,38 +28,6 @@ const APP_ROOT = process.env.RADIOLOGY_PPT_APP_ROOT || RESOURCE_ROOT;
 async function buildDeck(options) {
   const deck = await import("./deck.mjs");
   return deck.buildDeck(options);
-}
-
-export async function loadCaseRequestEntries(inputPath) {
-  const raw = await fs.readFile(inputPath, "utf8");
-  const trimmed = raw.trim();
-
-  if (!trimmed) {
-    return [];
-  }
-
-  if (/^[\[{\"]/.test(trimmed)) {
-    try {
-      const parsed = JSON.parse(trimmed);
-      if (Array.isArray(parsed)) {
-        return parsed;
-      }
-      if (typeof parsed === "string" || (parsed && typeof parsed === "object")) {
-        return [parsed];
-      }
-      throw new Error("JSON input must be an array, object, or string.");
-    } catch (error) {
-      if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
-        throw error;
-      }
-    }
-  }
-
-  return trimmed
-    .split(/\r?\n/)
-    .map((line) => line.replace(/#.*$/, ""))
-    .map((line) => collapseWhitespace(line))
-    .filter(Boolean);
 }
 
 export function normalizeCaseRequestEntries(entries) {
@@ -158,35 +125,6 @@ export async function prepareCases(entries, args) {
   return prepared;
 }
 
-export async function prepareCasesFromFile(inputPath, args) {
-  return prepareCases(await loadCaseRequestEntries(path.resolve(inputPath)), args);
-}
-
-export async function probeCasesFromFile(inputPath) {
-  emitProgress("Checking Radiopaedia matches");
-  const entries = await expandCaseRequests(
-    normalizeCaseRequestEntries(await loadCaseRequestEntries(path.resolve(inputPath))),
-    {
-      readRandomHistory: true,
-      writeRandomHistory: false,
-    },
-  );
-  if (!entries.length) {
-    throw new Error("No diagnoses provided for probe.");
-  }
-
-  const results = [];
-  for (const entry of entries) {
-    results.push(await inspectRadiopaediaCaseCandidates(entry, { limit: 5 }));
-  }
-  return { entries: results };
-}
-
-export async function scoreImagesFromFile(inputPath, args) {
-  const raw = JSON.parse(await fs.readFile(path.resolve(inputPath), "utf8"));
-  return scoreImages(raw, args);
-}
-
 export async function scoreImages(payload, args) {
   emitProgress("Starting optional Ollama image scoring");
   const items = normalizePreparedItems(payload);
@@ -199,11 +137,6 @@ export async function scoreImages(payload, args) {
       ollamaModel: args.ollamaModel || "",
     }),
   };
-}
-
-export async function renderPowerPointFromFile(inputPath, args) {
-  const raw = JSON.parse(await fs.readFile(path.resolve(inputPath), "utf8"));
-  return renderPowerPoint(raw, args);
 }
 
 export async function renderPowerPoint(payload, args) {

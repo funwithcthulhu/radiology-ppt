@@ -1,6 +1,6 @@
 # Contributing
 
-The project is developed on `main` unless the user explicitly asks for a feature branch.
+The project generally uses `main` for small changes and short-lived feature branches for larger work.
 
 Repository:
 
@@ -77,7 +77,6 @@ Use these boundaries when deciding where a change belongs:
 - backend health monitor: `csharp/RadiologyPpt.App/BackendHealthMonitor.cs`
 - persistent backend process: `src/backend-service.mjs`
 - Node workflow API: `src/backend-api.mjs`
-- internal/developer CLI plumbing: `src/cli.mjs`
 - Radiopaedia search/random/exclusions: `src/radiopaedia-search.mjs`
 - Radiopaedia case/image assembly: `src/radiopaedia-case-fetch.mjs`
 - patient/prompt/teaching text: `src/radiopaedia-case-text.mjs`
@@ -95,8 +94,7 @@ Use these boundaries when deciding where a change belongs:
 
 ## Change Guidelines
 
-- Keep the GUI as the product. CLI commands are internal/developer backend plumbing.
-- Keep `src/cli.mjs` thin. Put reusable backend behavior in `src/backend-api.mjs` or focused modules.
+- Keep the GUI as the product. Put reusable backend behavior in `src/backend-api.mjs` or focused modules.
 - Keep `src/backend-service.mjs` thin. It should own JSONL protocol mechanics, not Radiopaedia or PowerPoint business logic.
 - Keep moving C# logic from click handlers into view models, services, and contracts.
 - Keep slow/optional work out of initial preparation. Use review actions for expensive steps such as Ollama scoring.
@@ -157,7 +155,7 @@ node --check .\src\radiopaedia-case-text.mjs
 node --check .\src\deck.mjs
 ```
 
-Before saying the desktop shortcut is updated:
+After changing packaged-app behavior, refresh the packaged app and desktop shortcut:
 
 ```powershell
 .\build-csharp-app.ps1
@@ -206,7 +204,7 @@ git commit -m "Short imperative summary"
 git push origin main
 ```
 
-Keep commits focused. This app is changing quickly, so small checkpoints are easier to recover from.
+Keep commits focused. Small commits are easier to review, revert, and bisect.
 
 GitHub issue and pull request templates live under `.github\`. Use them to keep bug reports, feature requests, and validation notes consistent.
 

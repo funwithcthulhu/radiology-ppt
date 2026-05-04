@@ -166,12 +166,6 @@ Refresh the packaged app and shortcut:
 .\create-desktop-shortcut.ps1
 ```
 
-Expected shortcut:
-
-```text
-C:\Users\Admin\OneDrive\Desktop\Radiopaedia Case PowerPoint Builder.lnk
-```
-
 If you installed from GitHub Releases, rerun the latest installer instead. The installer writes Start menu shortcuts and can optionally create a desktop shortcut.
 
 ## Windows Blocks The Installer
@@ -194,7 +188,6 @@ The app must be able to locate:
 
 ```text
 src\backend-service.mjs
-src\cli.mjs
 ```
 
 Use the normal build script and do not copy only the `.exe` elsewhere:

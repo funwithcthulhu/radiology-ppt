@@ -126,7 +126,7 @@ const request = {
 
 const image = {
   url: "https://images.radiopaedia.org/images/1/example.jpg",
-  localPath: "C:/projects/radiopaedia_case_powerpoint_builder/cache/images/example.jpg",
+  localPath: "cache/images/example.jpg",
   label: "MRI brain",
   frameId: "123",
   modality: "MRI",

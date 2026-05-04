@@ -20,7 +20,7 @@
       "explanation": "This is a schema example; real explanations should cite a source chunk or reviewed reference.",
       "references": [
         {
-          "label": "Example reference placeholder",
+          "label": "ABR Core exam domains",
           "url": "https://www.theabr.org/wp-content/uploads/2025/07/Qualifying-Core-Exam-All-Domains-v3.pdf"
         }
       ]
@@ -40,7 +40,7 @@
       },
       "references": [
         {
-          "label": "Example reference placeholder",
+          "label": "ABR Physics study guide",
           "url": "https://www.theabr.org/wp-content/uploads/2025/07/Qualifying-Core-Exam-Physics-Study-Guide-11.27.2023.pdf"
         }
       ]
@@ -65,7 +65,7 @@
       },
       "references": [
         {
-          "label": "Example reference placeholder",
+          "label": "ABR item-writing guide",
           "url": "https://www.theabr.org/item-writers-guide-cbe"
         }
       ]

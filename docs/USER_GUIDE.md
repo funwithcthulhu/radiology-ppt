@@ -70,7 +70,7 @@ The Library is built from your local SQLite state. It is not synced to Radiopaed
 
 ## Core Boards Tab
 
-Core Boards is scaffolding for ABR Core-style study workflows.
+Core Boards imports local study PDFs into a private ABR Core-style study workspace.
 
 Current GUI support:
 
@@ -87,7 +87,7 @@ library\board-review\
 
 This folder is ignored by Git. Do not import copyrighted or private material unless you have the right to use it locally.
 
-The full quiz runner, human review queue, image-localization UI, and source-grounded question workflow are future work.
+The desktop app uses this area for local PDF import and study-library management.
 
 ## PowerPoint Tab
 

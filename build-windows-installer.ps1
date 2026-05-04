@@ -119,10 +119,7 @@ if (Test-Path $iconSource) {
 $runtimeDir = Join-Path $packageDir "runtime"
 New-Item -ItemType Directory -Path $runtimeDir -Force | Out-Null
 $nodeCommand = Get-Command node.exe -ErrorAction SilentlyContinue
-$nodeCandidatePaths = @(
-  (Join-Path $projectRoot "runtime\node.exe"),
-  (Join-Path $env:USERPROFILE ".cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe")
-)
+$nodeCandidatePaths = @((Join-Path $projectRoot "runtime\node.exe"))
 
 $nodeCandidates = @()
 foreach ($candidate in $nodeCandidatePaths) {

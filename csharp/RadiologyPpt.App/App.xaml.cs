@@ -5,9 +5,6 @@ using System.Windows;
 
 namespace RadiologyPpt.App;
 
-/// <summary>
-/// Interaction logic for App.xaml
-/// </summary>
 public partial class App : Application
 {
     private const string AppUserModelId = "funwithcthulhu.RadiopaediaCasePowerPointBuilder";

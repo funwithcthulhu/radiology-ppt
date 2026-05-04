@@ -81,8 +81,6 @@ The app is moving toward MVVM:
 - cancels active work by killing/restarting the service when needed
 - exposes `PingAsync` for the local watchdog
 
-The older one-shot CLI path is internal/developer fallback plumbing. Normal GUI workflows should use the persistent service.
-
 ### Node Service
 
 `src/backend-service.mjs` is a small JSONL protocol wrapper. It reads one command per line, dispatches to `src/backend-api.mjs`, emits structured events, and returns one result or error per request.
@@ -102,7 +100,7 @@ Non-ping commands write durable job rows to SQLite through `src/app-store.mjs`. 
 
 `src/backend-api.mjs` is the workflow layer. It owns:
 
-- request file loading and normalization
+- request normalization
 - case preparation
 - duplicate random-case replacement
 - optional Ollama scoring
@@ -137,7 +135,7 @@ Radiopaedia behavior is intentionally split:
 - `src/core_review/quiz.mjs`: question-bank validation, session assembly, scoring, and localization scoring helpers.
 - `src/core_review/index.mjs`: exports.
 
-Core Boards has PDF import scaffolding in the GUI. The full quiz runner and human-review queue are future work.
+The GUI supports Core Boards PDF import and local study-library management. Backend Core Boards modules also validate question banks and assemble quiz sessions for study workflows.
 
 ## Data Flow
 

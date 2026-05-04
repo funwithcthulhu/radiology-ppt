@@ -1,45 +1,14 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
+import pptxgen from "pptxgenjs";
 
-async function loadArtifactTool() {
-  try {
-    return await import("@oai/artifact-tool");
-  } catch (primaryError) {
-    const bundledRoot = process.env.USERPROFILE
-      ? path.join(
-          process.env.USERPROFILE,
-          ".cache",
-          "codex-runtimes",
-          "codex-primary-runtime",
-          "dependencies",
-          "node",
-          "node_modules",
-          "@oai",
-          "artifact-tool",
-        )
-      : "";
-    const candidates = [process.env.RADIOLOGY_PPT_ARTIFACT_TOOL_PATH, bundledRoot].filter(Boolean);
-
-    for (const candidate of candidates) {
-      const entryPath = candidate.endsWith(".mjs")
-        ? candidate
-        : path.join(candidate, "dist", "artifact_tool.mjs");
-      try {
-        return await import(pathToFileURL(entryPath).href);
-      } catch {
-        // try the next known location
-      }
-    }
-
-    throw primaryError;
-  }
-}
-
-const { Presentation, PresentationFile } = await loadArtifactTool();
-
+const SHAPE_TYPES = new pptxgen().ShapeType;
 const W = 1280;
 const H = 720;
+const SLIDE_W = 13.333333;
+const SLIDE_H = 7.5;
+const SX = SLIDE_W / W;
+const SY = SLIDE_H / H;
 const TRANSPARENT = "#00000000";
 const DECK_MODES = {
   caseConference: "case-conference",
@@ -157,21 +126,43 @@ function resolveDeckMode(deckMode = DECK_MODES.caseConference) {
   return DECK_MODES.caseConference;
 }
 
-function line(fill = TRANSPARENT, width = 0) {
-  return { style: "solid", fill, width };
+function cleanColor(color) {
+  return String(color || "#FFFFFF").replace(/^#/, "").slice(0, 6).padEnd(6, "0");
 }
 
-async function readImageBlob(imagePath) {
-  const bytes = await fs.readFile(imagePath);
-  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+function isTransparent(color) {
+  const text = String(color || "").toLowerCase();
+  const hex = text.replace(/^#/, "");
+  return !text || text === TRANSPARENT.toLowerCase() || (hex.length === 8 && hex.endsWith("00"));
+}
+
+function fillOption(color) {
+  return isTransparent(color)
+    ? { color: "FFFFFF", transparency: 100 }
+    : { color: cleanColor(color) };
+}
+
+function lineOption(color, width = 0) {
+  return width > 0 && !isTransparent(color)
+    ? { color: cleanColor(color), width }
+    : { color: "FFFFFF", transparency: 100, width: 0 };
+}
+
+function pos(position) {
+  return {
+    x: (position.left || 0) * SX,
+    y: (position.top || 0) * SY,
+    w: (position.width || 0) * SX,
+    h: (position.height || 0) * SY,
+  };
 }
 
 function addShape(slide, geometry, position, fill = TRANSPARENT, stroke = TRANSPARENT, strokeWidth = 0) {
-  return slide.shapes.add({
-    geometry,
-    position,
-    fill,
-    line: line(stroke, strokeWidth),
+  const shapeType = SHAPE_TYPES[geometry] || geometry;
+  slide.addShape(shapeType, {
+    ...pos(position),
+    fill: fillOption(fill),
+    line: lineOption(stroke, strokeWidth),
   });
 }
 
@@ -193,29 +184,29 @@ function addText(
     autoFit = "shrinkText",
   } = {},
 ) {
-  const shape = addShape(slide, "rect", position, fill, stroke, strokeWidth);
-  shape.text = String(text ?? "");
-  shape.text.fontSize = fontSize;
-  shape.text.color = color || theme.colors.ink;
-  shape.text.bold = bold;
-  shape.text.typeface = face || theme.fonts.body;
-  shape.text.alignment = align;
-  shape.text.verticalAlignment = verticalAlignment;
-  shape.text.insets = { left: 0, right: 0, top: 0, bottom: 0 };
-  if (autoFit) {
-    shape.text.autoFit = autoFit;
-  }
-  return shape;
+  slide.addText(String(text ?? ""), {
+    ...pos(position),
+    fontSize,
+    color: cleanColor(color || theme.colors.ink),
+    bold,
+    fontFace: face || theme.fonts.body,
+    align,
+    valign: verticalAlignment === "center" ? "middle" : verticalAlignment,
+    margin: 0,
+    fit: autoFit ? "shrink" : "none",
+    fill: fillOption(fill),
+    line: lineOption(stroke, strokeWidth),
+  });
 }
 
 async function addImage(slide, imagePath, position, alt) {
-  const image = slide.images.add({
-    blob: await readImageBlob(imagePath),
-    fit: "contain",
-    alt,
+  const frame = pos(position);
+  slide.addImage({
+    path: imagePath,
+    ...frame,
+    sizing: { type: "contain", ...frame },
+    altText: alt,
   });
-  image.position = position;
-  return image;
 }
 
 function addTopBar(slide, title, theme, { dark = true } = {}) {
@@ -349,7 +340,7 @@ function safeCaseIntro(caseData) {
 }
 
 function addSpeakerNotes(slide, caseData, caseNumber) {
-  slide.speakerNotes.setText(
+  slide.addNotes(
     [
       `Case ${caseNumber}`,
       `Requested: ${caseData.rawInput}`,
@@ -392,7 +383,7 @@ function imageLayouts(count) {
 }
 
 function addCaseSlide(slide, caseData, caseNumber, deckTitle, theme) {
-  slide.background.fill = theme.colors.caseBg;
+  slide.background = { color: cleanColor(theme.colors.caseBg) };
   addTopBar(slide, deckTitle, theme, { dark: theme === THEMES["conference-dark"] });
   const caseIntro = safeCaseIntro(caseData);
 
@@ -431,7 +422,7 @@ function addCaseSlide(slide, caseData, caseNumber, deckTitle, theme) {
 }
 
 async function addImagesSlide(slide, caseData, caseNumber, deckTitle, theme) {
-  slide.background.fill = theme.colors.imageBg;
+  slide.background = { color: cleanColor(theme.colors.imageBg) };
   addTopBar(slide, deckTitle, theme, { dark: true });
   const caseIntro = safeCaseIntro(caseData);
 
@@ -484,7 +475,7 @@ async function addImagesSlide(slide, caseData, caseNumber, deckTitle, theme) {
 }
 
 function addDiagnosisSlide(slide, caseData, caseNumber, deckTitle, theme) {
-  slide.background.fill = theme.colors.diagnosisBg;
+  slide.background = { color: cleanColor(theme.colors.diagnosisBg) };
   addTopBar(slide, deckTitle, theme, { dark: theme === THEMES["conference-dark"] });
 
   addText(
@@ -551,7 +542,7 @@ function addDiagnosisSlide(slide, caseData, caseNumber, deckTitle, theme) {
 }
 
 function addTeachingPointsSlide(slide, caseData, caseNumber, deckTitle, theme, { title = "Teaching Points" } = {}) {
-  slide.background.fill = theme.colors.teachingBg;
+  slide.background = { color: cleanColor(theme.colors.teachingBg) };
   addTopBar(slide, deckTitle, theme, { dark: theme === THEMES["conference-dark"] });
 
   addText(
@@ -615,21 +606,6 @@ function addTeachingPointsSlide(slide, caseData, caseNumber, deckTitle, theme, {
   addSpeakerNotes(slide, caseData, caseNumber);
 }
 
-async function saveBlob(blob, filePath) {
-  const bytes = Buffer.from(await blob.arrayBuffer());
-  await fs.writeFile(filePath, bytes);
-}
-
-async function renderPreviews(presentation, previewDir) {
-  await fs.mkdir(previewDir, { recursive: true });
-  for (let index = 0; index < presentation.slides.items.length; index += 1) {
-    const slide = presentation.slides.items[index];
-    const previewBlob = await presentation.export({ slide, format: "png", scale: 1 });
-    const previewPath = path.join(previewDir, `slide-${String(index + 1).padStart(2, "0")}.png`);
-    await saveBlob(previewBlob, previewPath);
-  }
-}
-
 export async function buildDeck({
   cases,
   deckTitle,
@@ -642,37 +618,43 @@ export async function buildDeck({
   await fs.mkdir(path.dirname(outputPath), { recursive: true });
   await fs.mkdir(scratchDir, { recursive: true });
 
-  const presentation = Presentation.create({
-    slideSize: { width: W, height: H },
-  });
+  const presentation = new pptxgen();
+  presentation.defineLayout({ name: "RADIOLOGY_WIDE", width: SLIDE_W, height: SLIDE_H });
+  presentation.layout = "RADIOLOGY_WIDE";
+  presentation.author = "Radiopaedia Case PowerPoint Builder";
+  presentation.company = "Radiopaedia Case PowerPoint Builder";
+  presentation.subject = "Radiology case teaching presentation";
+  presentation.title = deckTitle || "Radiology Cases";
+
   const activeTheme = resolveTheme(theme);
   const activeDeckMode = resolveDeckMode(deckMode);
   const shouldIncludeTeachingPoints = includeTeachingPoints || activeDeckMode === DECK_MODES.coreReview;
   const teachingSlideTitle = activeDeckMode === DECK_MODES.coreReview ? "Core Review" : "Teaching Points";
+  let slideCount = 0;
+
+  const addSlide = () => {
+    slideCount += 1;
+    return presentation.addSlide();
+  };
 
   for (let index = 0; index < cases.length; index += 1) {
     const caseNumber = index + 1;
     const caseData = cases[index];
 
-    addCaseSlide(presentation.slides.add(), caseData, caseNumber, deckTitle, activeTheme);
-    await addImagesSlide(presentation.slides.add(), caseData, caseNumber, deckTitle, activeTheme);
-    addDiagnosisSlide(presentation.slides.add(), caseData, caseNumber, deckTitle, activeTheme);
+    addCaseSlide(addSlide(), caseData, caseNumber, deckTitle, activeTheme);
+    await addImagesSlide(addSlide(), caseData, caseNumber, deckTitle, activeTheme);
+    addDiagnosisSlide(addSlide(), caseData, caseNumber, deckTitle, activeTheme);
     if (shouldIncludeTeachingPoints && Array.isArray(caseData.teachingPoints) && caseData.teachingPoints.length) {
-      addTeachingPointsSlide(presentation.slides.add(), caseData, caseNumber, deckTitle, activeTheme, {
+      addTeachingPointsSlide(addSlide(), caseData, caseNumber, deckTitle, activeTheme, {
         title: teachingSlideTitle,
       });
     }
   }
 
-  if (process.env.RAD_CASE_PREVIEW === "1") {
-    await renderPreviews(presentation, path.join(scratchDir, "preview"));
-  }
-
-  const pptxBlob = await PresentationFile.exportPptx(presentation);
-  await pptxBlob.save(outputPath);
+  await presentation.writeFile({ fileName: outputPath });
 
   return {
     outputPath,
-    slideCount: presentation.slides.count,
+    slideCount,
   };
 }

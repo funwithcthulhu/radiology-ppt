@@ -1,6 +1,5 @@
 # Keep GitHub language statistics focused on source code.
 docs/** linguist-documentation
-.agents/** linguist-documentation
 examples/** linguist-documentation
 package-lock.json linguist-generated
 *.ico linguist-generated

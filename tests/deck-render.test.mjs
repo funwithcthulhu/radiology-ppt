@@ -5,17 +5,8 @@ import os from "node:os";
 import path from "node:path";
 import zlib from "node:zlib";
 
-test("renders teaching point bullets as complete PowerPoint text", async (t) => {
-  let buildDeck;
-  try {
-    ({ buildDeck } = await import("../src/deck.mjs"));
-  } catch (error) {
-    if (String(error?.message || "").includes("@oai/artifact-tool")) {
-      t.skip("PowerPoint artifact tool is not available in this runtime.");
-      return;
-    }
-    throw error;
-  }
+test("renders teaching point bullets as complete PowerPoint text", async () => {
+  const { buildDeck } = await import("../src/deck.mjs");
 
   const sharp = (await import("sharp")).default;
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "radiology-deck-render-"));

@@ -149,7 +149,7 @@
                         </Grid.RowDefinitions>
                         <StackPanel Grid.Row="0">
                             <TextBlock Text="Core Boards" Style="{StaticResource PageTitle}" />
-                            <TextBlock Text="Import your own PDFs into a private local knowledge base. This is scaffolding for future board-style quiz workflows."
+                            <TextBlock Text="Import your own PDFs into a private local study library for Core Boards preparation."
                                        Style="{StaticResource PageSubtitle}" Margin="0,4,0,12" />
                         </StackPanel>
 

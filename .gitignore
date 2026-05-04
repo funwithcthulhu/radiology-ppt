@@ -9,6 +9,10 @@ scratch/
 state/
 review-sessions/
 library/board-review/
+.agents/
+AGENTS.md
+CORE_REVIEW_HANDOFF.md
+MEMORY.MD
 csharp/**/bin/
 csharp/**/obj/
 .vs/
