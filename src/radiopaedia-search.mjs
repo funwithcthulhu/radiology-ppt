@@ -385,6 +385,15 @@ async function pickMixedCandidates(candidates, desiredCount, htmlCache) {
   return picks.slice(0, desiredCount);
 }
 
+function addRandomCandidate(candidateMap, candidate) {
+  const casePath = comparableCasePath(candidate.casePath);
+  if (!casePath || candidateMap.has(casePath)) {
+    return false;
+  }
+  candidateMap.set(casePath, candidate);
+  return true;
+}
+
 async function pickRandomCaseCandidates(
   request,
   { excludePaths = new Set(), allowReuseIfNeeded = true, allowLiveSearch = true } = {},
@@ -397,18 +406,9 @@ async function pickRandomCaseCandidates(
   const startedAt = Date.now();
   let reviewedCandidates = 0;
 
-  for (const candidate of await collectIndexedRandomCasePool(request, excludePaths)) {
-    if (!candidateMap.has(candidate.casePath)) {
-      candidateMap.set(candidate.casePath, candidate);
-    }
-    if (candidateMap.size >= targetPoolSize) {
-      break;
-    }
-  }
-
   const liveQueries = allowLiveSearch ? buildRandomSearchQueries(request).slice(0, RANDOM_SEARCH_QUERY_LIMIT) : [];
   for (const query of liveQueries) {
-    if (candidateMap.size >= request.randomSpec.count) {
+    if (candidateMap.size >= targetPoolSize) {
       break;
     }
     if (Date.now() - startedAt > RANDOM_SEARCH_TIME_LIMIT_MS) {
@@ -426,7 +426,7 @@ async function pickRandomCaseCandidates(
       if (!(await candidateMatchesSystems(candidate, systems, htmlCache, systemMode))) {
         continue;
       }
-      candidateMap.set(candidate.casePath, candidate);
+      addRandomCandidate(candidateMap, candidate);
       if (candidateMap.size >= targetPoolSize) {
         break;
       }
@@ -434,6 +434,15 @@ async function pickRandomCaseCandidates(
 
     if (candidateMap.size >= targetPoolSize) {
       break;
+    }
+  }
+
+  if (candidateMap.size < request.randomSpec.count) {
+    for (const candidate of await collectIndexedRandomCasePool(request, excludePaths)) {
+      addRandomCandidate(candidateMap, candidate);
+      if (candidateMap.size >= request.randomSpec.count) {
+        break;
+      }
     }
   }
 
@@ -448,7 +457,7 @@ async function pickRandomCaseCandidates(
       ? await pickMixedCandidates(shuffledCandidates, request.randomSpec.count, htmlCache)
       : shuffledCandidates.slice(0, request.randomSpec.count);
   if (picks.length < request.randomSpec.count && excludePaths.size > 0 && allowReuseIfNeeded) {
-    emitWarning("Fresh random case pool exhausted; filling only the remaining slots with older cases", {
+    emitWarning("Unused random cases were exhausted in the current search window; filling remaining slots with older cases", {
       request: request.rawInput,
       requestedCount: request.randomSpec.count,
       freshPicksFound: picks.length,
@@ -481,7 +490,7 @@ async function pickRandomCaseCandidates(
       });
     }
   } else if (picks.length < request.randomSpec.count && excludePaths.size > 0 && !allowReuseIfNeeded) {
-    emitWarning("Fresh random case pool returned fewer cases than requested", {
+    emitWarning("Unused random search returned fewer cases than requested", {
       request: request.rawInput,
       requestedCount: request.randomSpec.count,
       freshPicksFound: picks.length,
@@ -514,7 +523,7 @@ export async function expandCaseRequests(
     readRandomHistory = false,
     writeRandomHistory = false,
     historyPath = RANDOM_HISTORY_PATH,
-    allowRandomHistoryFallback = true,
+    allowRandomHistoryFallback = false,
     allowLiveSearch = true,
   } = {},
 ) {

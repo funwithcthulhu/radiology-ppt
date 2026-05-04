@@ -30,7 +30,7 @@
     <text x="402" y="304">Auto-save to outputs</text>
     <text x="246" y="350">☑ Show patient age/sex when available</text>
     <text x="246" y="380">☑ Add teaching-points slides</text>
-    <text x="246" y="410">☐ Only use new random cases</text>
+    <text x="246" y="410">☑ Only use new random cases</text>
     <text x="246" y="440">☐ Use Ollama image review</text>
   </g>
   <rect x="700" y="118" width="220" height="350" rx="12" fill="#ffffff" stroke="#c9d7e2"/>

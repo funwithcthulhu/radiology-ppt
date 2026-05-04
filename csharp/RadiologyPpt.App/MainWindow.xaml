@@ -236,7 +236,8 @@
                                           Grid.Row="9"
                                           Grid.Column="1"
                                           Content="Only use new random cases"
-                                          ToolTip="When checked, random requests skip cases already used in previous random decks instead of backfilling with older cases."
+                                          IsChecked="True"
+                                          ToolTip="On by default. Random requests search Radiopaedia first and skip cases already used in previous random decks instead of backfilling with older cases."
                                           Margin="0,0,0,8" />
                                 <StackPanel Grid.Row="10" Grid.Column="1">
                                     <CheckBox x:Name="OllamaCheck" Content="Use Ollama image review" Margin="0,0,0,8" />

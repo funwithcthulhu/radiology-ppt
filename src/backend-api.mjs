@@ -92,7 +92,7 @@ export async function prepareCaseItems(rawEntries, args, { readRandomHistory = t
     expandCaseRequests(entries, {
       readRandomHistory,
       writeRandomHistory,
-      allowRandomHistoryFallback: !Boolean(args.onlyNewRandomCases),
+      allowRandomHistoryFallback: args.onlyNewRandomCases === false,
     }),
   );
   emitProgress("Preparing case previews", { requestCount: entries.length });

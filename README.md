@@ -30,7 +30,7 @@ The case intro slide avoids giving away the diagnosis when possible. If clean pa
 - Local Library tab for reviewed cases and favorites.
 - PowerPoint presets for fast preview, Ollama-assisted review, Core Review teaching, and dark conference mode.
 - Optional Ollama vision scoring during review.
-- Optional strict random mode that uses only cases not seen in previous random decks.
+- Random mode searches live Radiopaedia first and avoids cases used in previous random decks by default.
 - Local SQLite cache for Radiopaedia metadata, image candidates, random history, review decisions, and backend diagnostics.
 - Persistent local Node backend service with idle health checks.
 

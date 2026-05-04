@@ -44,12 +44,12 @@ Actions:
 
 - Skip weak cases during review so random mode avoids them later.
 - Reroll unwanted cases instead of approving them.
-- Enable `Only use new random cases` on the PowerPoint tab if you prefer fewer cases over reused random cases.
+- Keep `Only use new random cases` enabled on the PowerPoint tab if you prefer fewer cases over reused random cases.
 - Use broader filters if a narrow category has only a small pool.
 - Use the Library tab to see whether a category is cycling through familiar cases.
 - Do not delete the state database unless you intentionally want to reset history.
 
-The first run for a new category may still need live Radiopaedia search. Later runs should improve because random mode checks `case_index` first.
+Random mode starts with live Radiopaedia search. Later runs may still improve because the app can use `case_index` as a fallback after live search cannot fill the request.
 
 ## Reroll Case Says No Alternate Was Found
 

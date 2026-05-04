@@ -51,8 +51,9 @@ Notes:
 - Prefer dropdowns over typed shorthand.
 - For random requests, leave the text field blank or type a broad theme if you want one.
 - `Mixed` in the Area dropdown asks random mode to diversify across systems.
-- Random mode checks your local prepared-case index first, then live Radiopaedia search if needed.
-- Random mode avoids recent, skipped, rejected, and currently excluded cases where possible.
+- Random mode starts with live Radiopaedia search.
+- Random mode avoids recent, skipped, rejected, and currently excluded cases by default.
+- The local prepared-case index is used only as a fallback when live search cannot fill the request.
 - Narrow filters may have a small case pool; if reroll cannot find an alternate, broaden filters or skip the case.
 
 ## Library Tab
@@ -103,7 +104,7 @@ Options:
 - `Open PowerPoint when finished`: opens the output file after export.
 - `Show patient age/sex when available`: adds minimal patient info on the case slide when clean data exists.
 - `Add teaching-points slides when available`: adds teaching points after diagnosis.
-- `Only use new random cases`: prevents random mode from backfilling with cases already used in prior random decks. If filters are narrow, review may contain fewer cases than requested.
+- `Only use new random cases`: enabled by default. Prevents random mode from backfilling with cases already used in prior random decks. If filters are narrow, review may contain fewer cases than requested.
 - `Use Ollama image review`: enables the review-window `Ollama Score Case` action.
 - `Refresh Models`: loads local Ollama model names into the model dropdown.
 
@@ -200,7 +201,7 @@ Fast random PowerPoint:
 3. PowerPoint: apply `Fast Preview`.
 4. Generate, review, skip/reroll weak cases, export.
 
-The first run for a narrow category may be slower while the local case index fills. Later runs can prepare faster and repeat less often.
+The first run for a narrow category may be slower because random mode searches Radiopaedia first. Later runs may still be faster because the local index can fill gaps after live search.
 
 Higher-quality image PowerPoint:
 

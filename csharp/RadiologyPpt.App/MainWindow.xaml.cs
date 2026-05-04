@@ -115,7 +115,7 @@ public partial class MainWindow : Window
             SetCheckBox(ClinicalHistoryCheck, values, "use_clinical_history");
             SetCheckBox(OllamaCheck, values, "use_ollama_review");
             SetCheckBox(TeachingPointsCheck, values, "include_teaching_points");
-            SetCheckBox(OnlyNewRandomCheck, values, "only_new_random_cases");
+            SetCheckBox(OnlyNewRandomCheck, values, "only_new_random_cases", defaultValue: true);
             SelectByCliValue(ThemeCombo, AppOptions.Themes, AppOptions.ThemeCliValue, values, "theme");
             SelectByCliValue(PowerPointStyleCombo, AppOptions.PowerPointStyles, AppOptions.PowerPointStyleCliValue, values, "powerpoint_style");
             if (values.TryGetValue("ollama_model", out var ollamaModel) && !string.IsNullOrWhiteSpace(ollamaModel))
@@ -599,11 +599,19 @@ public partial class MainWindow : Window
         MainTabs.SelectedIndex = (int)tab;
     }
 
-    private static void SetCheckBox(System.Windows.Controls.CheckBox checkBox, IReadOnlyDictionary<string, string> values, string key)
+    private static void SetCheckBox(
+        System.Windows.Controls.CheckBox checkBox,
+        IReadOnlyDictionary<string, string> values,
+        string key,
+        bool? defaultValue = null)
     {
         if (values.TryGetValue(key, out var value))
         {
             checkBox.IsChecked = value == "1" || value.Equals("true", StringComparison.OrdinalIgnoreCase);
+        }
+        else if (defaultValue.HasValue)
+        {
+            checkBox.IsChecked = defaultValue.Value;
         }
     }
 

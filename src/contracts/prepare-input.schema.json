@@ -18,7 +18,7 @@
             "useClinicalHistory": { "type": "boolean" },
             "useOllamaAssist": { "type": "boolean" },
             "ollamaModel": { "type": "string" },
-            "onlyNewRandomCases": { "type": "boolean" }
+            "onlyNewRandomCases": { "type": "boolean", "default": true }
           }
         }
       }
