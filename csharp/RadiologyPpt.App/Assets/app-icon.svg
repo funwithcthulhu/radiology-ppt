@@ -1,25 +1,70 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-label="MRI brain icon">
   <defs>
-    <linearGradient id="bg" x1="32" y1="20" x2="224" y2="236" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#102A44"/>
-      <stop offset="1" stop-color="#071624"/>
+    <radialGradient id="scanGlow" cx="50%" cy="44%" r="70%">
+      <stop offset="0" stop-color="#2B83B8"/>
+      <stop offset="0.62" stop-color="#123654"/>
+      <stop offset="1" stop-color="#071724"/>
+    </radialGradient>
+    <linearGradient id="brainFill" x1="76" y1="52" x2="184" y2="204" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F7FBFF"/>
+      <stop offset="0.55" stop-color="#A9D8EA"/>
+      <stop offset="1" stop-color="#5AA9C8"/>
     </linearGradient>
-    <linearGradient id="xray" x1="72" y1="48" x2="184" y2="210" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#E9FBFF"/>
-      <stop offset="1" stop-color="#6DE3FF"/>
+    <linearGradient id="ventricle" x1="107" y1="94" x2="149" y2="154" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1D4968"/>
+      <stop offset="1" stop-color="#071724"/>
     </linearGradient>
   </defs>
-  <rect x="18" y="18" width="220" height="220" rx="46" fill="url(#bg)"/>
-  <rect x="42" y="38" width="172" height="180" rx="18" fill="#0B1F35" stroke="#4FC3F7" stroke-width="8"/>
-  <path d="M127 65c-12 18-18 38-20 59-2 27 4 53 14 73h14c10-20 16-46 14-73-2-21-8-41-20-59h-2z"
-        fill="#DFFBFF" opacity=".9"/>
-  <path d="M113 93c-21-24-52-23-58 12-7 38 14 76 50 89 9-27 8-66 8-101z"
-        fill="url(#xray)" opacity=".88"/>
-  <path d="M143 93c21-24 52-23 58 12 7 38-14 76-50 89-9-27-8-66-8-101z"
-        fill="url(#xray)" opacity=".88"/>
-  <path d="M87 88c13 10 27 15 41 15s28-5 41-15M79 119c17 9 33 14 49 14s32-5 49-14M82 151c15 8 30 12 46 12s31-4 46-12"
-        fill="none" stroke="#102A44" stroke-width="7" opacity=".45" stroke-linecap="round"/>
-  <circle cx="128" cy="87" r="6" fill="#0B1F35" opacity=".6"/>
-  <circle cx="128" cy="119" r="6" fill="#0B1F35" opacity=".6"/>
-  <circle cx="128" cy="151" r="6" fill="#0B1F35" opacity=".6"/>
+
+  <rect x="16" y="16" width="224" height="224" rx="48" fill="#071724"/>
+  <rect x="26" y="26" width="204" height="204" rx="38" fill="url(#scanGlow)" stroke="#53C7E8" stroke-width="4"/>
+  <circle cx="128" cy="128" r="92" fill="#081522" opacity=".88"/>
+  <circle cx="128" cy="128" r="82" fill="none" stroke="#87D9F0" stroke-width="5" opacity=".75"/>
+  <circle cx="128" cy="128" r="68" fill="#071724" stroke="#193A55" stroke-width="3"/>
+
+  <path d="M128 54
+           C101 54 78 67 66 90
+           C52 117 57 156 80 181
+           C98 201 119 207 128 197
+           C137 207 158 201 176 181
+           C199 156 204 117 190 90
+           C178 67 155 54 128 54Z"
+        fill="url(#brainFill)" stroke="#E9FBFF" stroke-width="5"/>
+  <path d="M128 61
+           C119 80 115 101 116 123
+           C117 149 121 172 128 193
+           C135 172 139 149 140 123
+           C141 101 137 80 128 61Z"
+        fill="#D6EFF8" opacity=".72"/>
+
+  <path d="M111 98
+           C101 103 96 113 99 124
+           C102 136 114 137 122 130
+           C115 119 115 109 111 98Z
+           M145 98
+           C155 103 160 113 157 124
+           C154 136 142 137 134 130
+           C141 119 141 109 145 98Z"
+        fill="url(#ventricle)" opacity=".92"/>
+  <path d="M124 124 C122 139 122 154 128 170 C134 154 134 139 132 124Z"
+        fill="#0B2134" opacity=".9"/>
+
+  <g fill="none" stroke="#1B506F" stroke-width="5.5" stroke-linecap="round" opacity=".78">
+    <path d="M88 88 C103 80 113 81 124 92"/>
+    <path d="M168 88 C153 80 143 81 132 92"/>
+    <path d="M78 119 C93 111 108 112 119 121"/>
+    <path d="M178 119 C163 111 148 112 137 121"/>
+    <path d="M82 151 C98 145 111 147 122 158"/>
+    <path d="M174 151 C158 145 145 147 134 158"/>
+    <path d="M96 179 C107 171 118 173 126 185"/>
+    <path d="M160 179 C149 171 138 173 130 185"/>
+  </g>
+  <g fill="none" stroke="#E5F7FF" stroke-width="2.2" stroke-linecap="round" opacity=".5">
+    <path d="M82 101 C99 92 112 94 123 105"/>
+    <path d="M174 101 C157 92 144 94 133 105"/>
+    <path d="M91 136 C104 131 113 134 122 143"/>
+    <path d="M165 136 C152 131 143 134 134 143"/>
+  </g>
+  <path d="M52 128 H72 M184 128 H204 M128 52 V72 M128 184 V204"
+        stroke="#4ED3F0" stroke-width="4" stroke-linecap="round" opacity=".9"/>
 </svg>
