@@ -47,7 +47,7 @@ flowchart LR
 
 ### C# WPF App
 
-`csharp/RadiologyPpt.App` owns the desktop experience:
+`csharp/RadiologyPpt.App` contains the desktop app:
 
 - tab navigation
 - case request grid
@@ -98,7 +98,7 @@ Non-ping commands write durable job rows to SQLite through `src/app-store.mjs`. 
 
 ### Node Backend API
 
-`src/backend-api.mjs` is the workflow layer. It owns:
+`src/backend-api.mjs` coordinates backend operations. It owns:
 
 - request normalization
 - case preparation
@@ -273,7 +273,7 @@ Backend health:
 - Limit HTTP concurrency and retry transient Radiopaedia/curl failures.
 - Emit structured progress/timing events into Activity.
 
-See [Decision Logic](DECISION_LOGIC.md) for the product-level explanation of random selection, image ranking, and storage tradeoffs.
+See [Decision Logic](DECISION_LOGIC.md) for the random-selection, image-ranking, and storage rules.
 
 ## Packaging
 

@@ -28,9 +28,9 @@ The case intro slide avoids giving away the diagnosis when possible. If clean pa
 - Review before export, with controls to keep, favorite, skip, reroll, re-pick, replace, remove, or manually choose images.
 - Image-selection rationale in the review window and generated manifest.
 - Local Library tab for reviewed cases and favorites.
-- PowerPoint presets for fast preview, Ollama-assisted review, Core Review teaching, and dark conference mode.
+- PowerPoint presets including `Fast Preview`, `Ollama Assisted`, `Core Review Teaching`, and `Dark Conference`.
 - Optional Ollama vision scoring during review.
-- Random mode searches live Radiopaedia first and avoids cases used in previous random decks by default.
+- Random mode searches live Radiopaedia first and avoids cases selected in previous random runs by default.
 - Local SQLite cache for Radiopaedia metadata, image candidates, random history, review decisions, and backend diagnostics.
 - Persistent local Node backend service with idle health checks.
 
@@ -46,7 +46,7 @@ The case intro slide avoids giving away the diagnosis when possible. If clean pa
 
 ## Install
 
-Recommended install:
+Install from GitHub Releases:
 
 1. Open the [GitHub Releases page](https://github.com/funwithcthulhu/radiology-ppt/releases).
 2. Download the latest `Radiopaedia-Case-PowerPoint-Builder-Setup-v*.exe`.
@@ -89,7 +89,7 @@ There is no success popup after export. Use the left status area, Activity tab, 
 
 - `Cases`: request grid for diagnoses, random pulls, or Radiopaedia URLs.
 - `Library`: local history of reviewed cases with decision, image count, score, and case path.
-- `Core Boards`: local PDF import for a private ABR Core-style study workspace.
+- `Core Boards`: local PDF import for a local ABR Core-style study area.
 - `PowerPoint`: title, output path, images per case, style, theme, Ollama model, presets, generation, and output shortcuts.
 - `Activity`: diagnostics, backend logs, SQLite/cache counts, state folder access, cleanup, and maintenance.
 
@@ -135,7 +135,7 @@ Use the `Activity` tab to refresh diagnostics, clean scratch files, clean old ca
 - `src\app-store.mjs`: backend SQLite cache/history/index/review-decision storage.
 - `src\deck.mjs`: PowerPoint rendering.
 - `src\contracts`: JSON schema contracts for C# to Node payloads.
-- `docs\DECISION_LOGIC.md`: human-readable explanation of case, image, random, and storage decisions.
+- `docs\DECISION_LOGIC.md`: explanation of case, image, random, and storage decisions.
 
 See [Architecture](docs/ARCHITECTURE.md) for details.
 
@@ -172,9 +172,9 @@ GitHub Actions runs Node tests and the WPF Release build on Windows.
 
 ## Core Boards
 
-Core Boards can import local PDFs into a private study library under `library\board-review\`. The imported corpus stays local and is not committed.
+Core Boards can import local PDFs into a local study library under `library\board-review\`. The imported corpus stays local and is not committed.
 
-The repository does not bundle copyrighted board-review books or question banks. Import local materials only when you have the right to use them. Generated/private Core Boards corpora remain ignored by Git.
+The repository does not bundle copyrighted board-review books or question banks. Import local materials only when you have the right to use them. Generated Core Boards corpora remain ignored by Git.
 
 ## License
 

@@ -65,19 +65,19 @@ You can:
 - search reviewed cases by title/path
 - filter by approved, favorite, skipped, rejected, or all
 - open the selected Radiopaedia case in your browser
-- use favorites to find high-yield cases later
+- use favorites to revisit cases later
 
 The Library is built from your local SQLite state. It is not synced to Radiopaedia or GitHub.
 
 ## Core Boards Tab
 
-Core Boards imports local study PDFs into a private ABR Core-style study workspace.
+Core Boards imports local study PDFs into a local ABR Core-style study area.
 
 Core Boards supports:
 
 - choose a default topic/domain
 - import local PDFs
-- open the private knowledge-base folder
+- open the local study folder
 - view import status
 
 Imported PDFs and extracted assets stay under:
@@ -104,14 +104,14 @@ Options:
 - `Open PowerPoint when finished`: opens the output file after export.
 - `Show patient age/sex when available`: adds minimal patient info on the case slide when clean data exists.
 - `Add teaching-points slides when available`: adds teaching points after diagnosis.
-- `Only use new random cases`: enabled by default. Prevents random mode from backfilling with cases already used in prior random decks.
+- `Only use new random cases`: enabled by default. Prevents random mode from backfilling with cases already selected in earlier random runs.
 - `Use Ollama image review`: enables the review-window `Ollama Score Case` action.
 - `Refresh Models`: loads local Ollama model names into the model dropdown.
 
 Presets:
 
-- `Fast Preview`: fastest standard review.
-- `Ollama Assisted`: enables optional case-by-case Ollama scoring during review.
+- `Fast Preview`: quicker review settings.
+- `Ollama Assisted`: enables the Ollama scoring option during review.
 - `Core Review Teaching`: Core Review style with teaching points when available.
 - `Dark Conference`: darker presentation style.
 
@@ -192,7 +192,7 @@ Maintenance actions:
 - `Clean Old Cache`: remove cache files older than 30 days.
 - `Open State Folder`: open the folder containing `radiology-ppt.sqlite`.
 
-## Recommended Workflows
+## Example Workflows
 
 Fast random PowerPoint:
 
@@ -209,12 +209,12 @@ Higher-quality image PowerPoint:
 2. PowerPoint: choose the style, theme, and image count you want.
 3. In review, use `Candidates` or `Replace Unchecked` for weak frames.
 
-Ollama-assisted review:
+Review with Ollama:
 
 1. PowerPoint: apply `Ollama Assisted` or enable `Use Ollama image review`.
 2. Choose/refresh a local model.
 3. Generate normally.
-4. In review, click `Ollama Score Case` only for cases where model help is worth the wait.
+4. In review, click `Ollama Score Case` only for cases where the extra scoring time is useful.
 
 Core Review style PowerPoint:
 
@@ -225,7 +225,7 @@ Core Review style PowerPoint:
 
 ## Local Data And Privacy
 
-Local generated/private paths:
+Local data paths:
 
 - `state\radiology-ppt.sqlite`
 - `cache\`

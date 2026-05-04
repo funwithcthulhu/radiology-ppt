@@ -199,7 +199,6 @@ export async function renderPowerPoint(payload, args) {
     }),
   );
 
-  await rememberRandomHistoryFromPreparedItems(items);
   emitProgress("PowerPoint render complete", { outputPath: result.outputPath });
 
   return {
