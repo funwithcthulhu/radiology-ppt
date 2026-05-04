@@ -34,3 +34,48 @@ test("backend API normalizes request rows and render payloads", () => {
   assert.equal(prepared.length, 1);
   assert.equal(prepared[0].caseData.caseTitle, "Appendicitis");
 });
+
+test("backend API drops empty rows but keeps repeated random rows", () => {
+  const requests = normalizeCaseRequestEntries([
+    "",
+    "   ",
+    null,
+    "random",
+    "random",
+    "appendicitis, ct abdomen",
+    "appendicitis, ct abdomen",
+  ]);
+
+  assert.equal(requests.length, 3);
+  assert.equal(requests.filter((request) => request.randomSpec).length, 2);
+  assert.equal(requests.filter((request) => request.diagnosis === "appendicitis").length, 1);
+});
+
+test("prepared item normalization rejects malformed render payloads", () => {
+  assert.throws(
+    () => normalizePreparedItems({}),
+    /Prepared input must contain an array/,
+  );
+
+  const prepared = normalizePreparedItems([
+    {
+      request: {
+        requestMode: "manual",
+        rawInput: "Manual URL",
+        selectedCasePath: "https://radiopaedia.org/cases/example-case-1?lang=us",
+      },
+      caseData: {
+        caseTitle: "Example case",
+        images: [],
+      },
+    },
+    {
+      request: { rawInput: "" },
+      caseData: { caseTitle: "" },
+    },
+  ]);
+
+  assert.equal(prepared.length, 1);
+  assert.equal(prepared[0].request.rawInput, "Manual URL");
+  assert.equal(prepared[0].request.diagnosis, "example case");
+});

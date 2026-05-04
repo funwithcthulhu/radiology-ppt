@@ -51,6 +51,31 @@ test("extracts Radiopaedia search pages regardless of query parameter order", ()
   assert.deepEqual(extractSearchPageNumbers(html), [2, 3, 4]);
 });
 
+test("deduplicates search results by case path even when URLs differ", () => {
+  const html = `
+    <a class="search-result-case" href="/cases/example-case-1?lang=us">
+      <h4>Example case</h4>
+      <span>Case</span> First copy
+    </a>
+    <a class="search-result-case" href="https://radiopaedia.org/cases/example-case-1">
+      <h4>Example case duplicate</h4>
+      <span>Case</span> Second copy
+    </a>
+    <a class="search-result-case" href="/cases/another-case">
+      <h4>Another case</h4>
+      <span>Case</span> Separate case
+    </a>
+  `;
+
+  const results = parseCaseSearchResults(html);
+
+  assert.equal(results.length, 2);
+  assert.deepEqual(results.map((result) => result.casePath), [
+    "/cases/example-case-1?lang=us",
+    "/cases/another-case",
+  ]);
+});
+
 test("matches excluded manual case paths even when query strings differ", async () => {
   const result = await inspectRadiopaediaCaseCandidates({
     requestMode: "manual",

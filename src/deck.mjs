@@ -414,6 +414,9 @@ function addSpeakerNotes(slide, caseData, caseNumber) {
 }
 
 function imageLayouts(count) {
+  if (count <= 0) {
+    return [];
+  }
   if (count <= 1) {
     return [{ left: 50, top: 70, width: 1180, height: 610 }];
   }
@@ -513,9 +516,29 @@ async function addImagesSlide(slide, caseData, caseNumber, deckTitle, theme) {
   }
 
   const layouts = imageLayouts(caseData.images.length);
+  if (!layouts.length) {
+    addText(
+      slide,
+      "No selected images for this case.",
+      { left: 50, top: 316, width: 1180, height: 60 },
+      theme,
+      {
+        fontSize: 28,
+        color: theme.colors.footerDark,
+        face: theme.fonts.body,
+        align: "center",
+        verticalAlignment: "center",
+        autoFit: null,
+      },
+    );
+  }
+
   for (let index = 0; index < layouts.length; index += 1) {
     const frame = layouts[index];
     const image = caseData.images[index];
+    if (!image?.localPath) {
+      continue;
+    }
 
     addShape(slide, "rect", frame, "#000000", TRANSPARENT, 0);
     await addImage(

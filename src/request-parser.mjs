@@ -576,7 +576,7 @@ function parseRandomDirective(rawText) {
   }
 
   let working = normalized;
-  const countMatch = working.match(/\b(\d{1,2})\b/);
+  const countMatch = working.match(/\b(\d+)\b/);
   const count = countMatch ? Number.parseInt(countMatch[1], 10) : 1;
   if (countMatch) {
     working = working.replace(countMatch[0], " ");
@@ -592,11 +592,12 @@ function parseRandomDirective(rawText) {
   const isDirectiveOnly = !queryText && (hasRandomKeyword || systems.length > 0 || Boolean(countMatch));
 
   if (hasRandomKeyword || isDirectiveOnly) {
+    const studyHintText = preferredModalitiesFromHint(rawText).length ? queryText : "";
     return {
       count: Math.max(1, Math.min(RANDOM_REQUEST_LIMIT, count)),
       systems: dedupe(systems),
       queryText,
-      studyHintText: "",
+      studyHintText,
     };
   }
 
@@ -618,7 +619,15 @@ function parseRandomDirective(rawText) {
 }
 
 export function titleFromCasePath(casePath) {
-  const slug = String(casePath ?? "")
+  const raw = collapseWhitespace(casePath);
+  let pathname = raw;
+  try {
+    pathname = new URL(raw).pathname;
+  } catch {
+    pathname = raw.replace(/\?.*$/, "");
+  }
+
+  const slug = pathname
     .replace(/^\/cases\//, "")
     .replace(/\?.*$/, "")
     .replace(/-\d+$/, "");

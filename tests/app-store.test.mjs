@@ -160,3 +160,29 @@ test("records backend job lifecycle rows for diagnostics", async () => {
     db.close();
   }
 });
+
+test("random history increments use counts for repeated cases", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "radiology-store-history-count-"));
+  process.env.RADIOLOGY_PPT_DATABASE_PATH = path.join(tempDir, "state.sqlite");
+
+  await writeRandomHistory(["/cases/reused-case", "/cases/fresh-case"], { source: "unit-test", limit: 10 });
+  await writeRandomHistory(["https://radiopaedia.org/cases/reused-case?lang=us"], {
+    source: "unit-test",
+    limit: 10,
+  });
+
+  const { DatabaseSync } = await import("node:sqlite");
+  const db = new DatabaseSync(process.env.RADIOLOGY_PPT_DATABASE_PATH);
+  try {
+    const rows = db
+      .prepare("SELECT case_path, use_count FROM random_history ORDER BY case_path ASC")
+      .all()
+      .map((row) => ({ case_path: row.case_path, use_count: row.use_count }));
+    assert.deepEqual(rows, [
+      { case_path: "/cases/fresh-case", use_count: 1 },
+      { case_path: "/cases/reused-case", use_count: 2 },
+    ]);
+  } finally {
+    db.close();
+  }
+});

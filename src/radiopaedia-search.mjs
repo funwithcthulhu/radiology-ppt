@@ -163,7 +163,14 @@ export function parseCaseSearchResults(html) {
     });
   }
 
-  return dedupe(results.map((candidate) => JSON.stringify(candidate))).map((value) => JSON.parse(value));
+  const unique = new Map();
+  for (const candidate of results) {
+    const key = comparableCasePath(candidate.casePath);
+    if (key && !unique.has(key)) {
+      unique.set(key, candidate);
+    }
+  }
+  return [...unique.values()];
 }
 
 function parseSearchResultCandidates(html, request, limit = 5) {

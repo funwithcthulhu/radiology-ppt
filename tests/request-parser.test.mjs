@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseCaseRequest } from "../src/request-parser.mjs";
+import { parseCaseRequest, titleFromCasePath } from "../src/request-parser.mjs";
 
 test("parses a specific diagnosis with a modality/anatomy hint", () => {
   const request = parseCaseRequest("multiple sclerosis, mri brain");
@@ -25,4 +25,52 @@ test("normalizes manual case paths without losing the source title", () => {
   assert.equal(request.randomSpec, null);
   assert.equal(request.selectedCasePath, "/cases/hypothalamic-hamartoma-15");
   assert.equal(request.diagnosis, "Hypothalamic hamartoma");
+});
+
+test("derives readable titles from full Radiopaedia URLs", () => {
+  assert.equal(
+    titleFromCasePath("https://radiopaedia.org/cases/hypothalamic-hamartoma-15?lang=us"),
+    "hypothalamic hamartoma",
+  );
+
+  const request = parseCaseRequest({
+    requestMode: "manual",
+    selectedCasePath: "https://radiopaedia.org/cases/colonic-diverticulosis-1?lang=us",
+  });
+
+  assert.equal(request.diagnosis, "colonic diverticulosis");
+  assert.equal(request.rawInput, "colonic diverticulosis");
+});
+
+test("handles terse and misspelled random category requests", () => {
+  const msk = parseCaseRequest("muskuloskeletal diagnosis");
+  assert.equal(msk.randomSpec.count, 1);
+  assert.deepEqual(msk.randomSpec.systems, ["Musculoskeletal"]);
+
+  const countOnly = parseCaseRequest("3");
+  assert.equal(countOnly.randomSpec.count, 3);
+
+  const mixed = parseCaseRequest("random pediatric neuro MRI brain 100");
+  assert.equal(mixed.randomSpec.count, 20);
+  assert.deepEqual(mixed.randomSpec.systems.sort(), ["Central Nervous System", "Paediatrics"].sort());
+  assert.equal(mixed.studyHint, "mri brain");
+  assert.deepEqual(mixed.preferredModalities, ["MRI"]);
+});
+
+test("normalizes structured request dropdown edge values", () => {
+  const random = parseCaseRequest({
+    requestMode: "random",
+    randomCount: 0,
+    modality: "Any",
+    anatomy: "Brain",
+    ageGroup: "Peds",
+    topicFocus: "Trauma",
+    randomSystemMode: "any",
+  });
+
+  assert.equal(random.randomSpec.count, 1);
+  assert.equal(random.studyHint, "Brain");
+  assert.deepEqual(random.randomSpec.systems.sort(), ["Paediatrics", "Trauma"].sort());
+  assert.equal(random.randomSpec.queryText, "pediatric trauma");
+  assert.equal(random.randomSpec.systemMode, "any");
 });

@@ -18,8 +18,8 @@ export function buildImageCandidates(study) {
       continue;
     }
 
-    const currentIndex = Math.max(0, frames.findIndex((frame) => frame.current));
-    const keyImageIndex = frames.findIndex((frame) => frame.id === study.case_key_image_id);
+    const currentIndex = Math.max(0, frames.findIndex((frame) => frame?.current));
+    const keyImageIndex = frames.findIndex((frame) => frame?.id === study.case_key_image_id);
     const annotationIndices = extractSeriesAnnotationIndices(series, usableLength);
     const candidateIndices = buildRelevantFrameIndices({
       usableLength,

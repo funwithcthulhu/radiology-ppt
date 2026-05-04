@@ -86,3 +86,72 @@ test("flags weak image sets for teaching use", () => {
   assert.equal(quality.shouldReroll, true);
   assert.match(quality.summary, /Only 0/);
 });
+
+test("ignores malformed frame metadata without throwing", () => {
+  const candidates = buildImageCandidates({
+    id: 202,
+    modality: "CT",
+    case_key_image_id: 99,
+    series: [
+      {
+        series_id: 1,
+        specifics: "Portal venous",
+        perspective: "Axial",
+        encodings: {
+          thumbnailed_files: [{ original: "one.jpg" }, null, { original: "" }, { original: "extra.jpg" }],
+        },
+        frames: [
+          { id: 10, current: true, width: 512, height: 512 },
+          null,
+          { id: 12, current: false, width: 512, height: 512 },
+        ],
+        annotations: [
+          {
+            arrow_positions: [
+              { slice_idx: 0, x: 0.5, y: 0.5 },
+              { slice_idx: 10, x: 0.5, y: 0.5 },
+            ],
+            label_positions: [{ slice_idx: -1, x: 0.2, y: 0.2 }],
+          },
+        ],
+      },
+    ],
+  });
+
+  assert.equal(candidates.length, 1);
+  assert.equal(candidates[0].frameId, 10);
+  assert.equal(candidates[0].isAnnotated, true);
+});
+
+test("does not re-add excluded frames while filling explicit selections", () => {
+  const candidates = [
+    { frameId: "keep", seriesId: "a", viewSignature: "a", relevantScore: 500, url: "https://example.com/a.jpg" },
+    { frameId: "reject", seriesId: "b", viewSignature: "b", relevantScore: 700, url: "https://example.com/b.jpg" },
+    { frameId: "fallback", seriesId: "c", viewSignature: "c", relevantScore: 300, url: "https://example.com/c.jpg" },
+  ];
+
+  const selected = selectRelevantImages(candidates, 2, {
+    includeFrameIds: ["keep", "reject"],
+    excludeFrameIds: ["reject"],
+  });
+
+  assert.deepEqual(selected.map((candidate) => candidate.frameId), ["keep", "fallback"]);
+});
+
+test("difficulty changes weak-image warnings predictably", () => {
+  const images = [
+    {
+      frameId: "adequate",
+      relevantScore: 130,
+      isAnnotated: false,
+      isKeyImage: false,
+    },
+  ];
+
+  const easy = evaluateSelectedImages(images, 2, "easy");
+  const hard = evaluateSelectedImages(images, 2, "hard");
+
+  assert.equal(easy.shouldReroll, true);
+  assert.match(easy.summary, /Easy mode/);
+  assert.equal(hard.warnings.some((warning) => /Easy mode/.test(warning)), false);
+});

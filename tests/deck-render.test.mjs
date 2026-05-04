@@ -112,6 +112,86 @@ test("preserves image aspect ratio on image slides", async () => {
   assert.ok(ratio > 3.8 && ratio < 4.2, `expected a 4:1 image ratio, got ${ratio}`);
 });
 
+test("case intro slide hides unsafe finding text", async () => {
+  const { buildDeck } = await import("../src/deck.mjs");
+  const sharp = (await import("sharp")).default;
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "radiology-deck-safe-intro-"));
+  const imagePath = path.join(tempDir, "image.png");
+  const outputPath = path.join(tempDir, "safe-intro.pptx");
+
+  await sharp({
+    create: {
+      width: 512,
+      height: 512,
+      channels: 3,
+      background: "#111111",
+    },
+  }).png().toFile(imagePath);
+
+  await buildDeck({
+    cases: [
+      {
+        rawInput: "example",
+        diagnosisQuery: "example",
+        caseTitle: "Hidden diagnosis",
+        caseUrl: "https://radiopaedia.org/cases/example",
+        author: "Test Author",
+        licenseName: "CC BY-NC-SA 3.0",
+        rid: "rID-2",
+        patientData: {},
+        caseIntro: "The lateral projection is normal.",
+        revealSummary: "Short diagnosis summary.",
+        footerText: "Radiopaedia • rID-2",
+        images: [{ localPath: imagePath, label: "Image" }],
+        teachingPoints: [],
+      },
+    ],
+    deckTitle: "Safe Intro Regression",
+    outputPath,
+    scratchDir: path.join(tempDir, "scratch"),
+  });
+
+  const pptx = await fs.readFile(outputPath);
+  const caseSlideText = decodeXmlText(readZipEntryText(pptx, "ppt/slides/slide1.xml"));
+
+  assert.match(caseSlideText, /Case 1/);
+  assert.equal(caseSlideText.includes("lateral projection"), false);
+});
+
+test("renders cases with no selected images instead of crashing", async () => {
+  const { buildDeck } = await import("../src/deck.mjs");
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "radiology-deck-no-images-"));
+  const outputPath = path.join(tempDir, "no-images.pptx");
+
+  await buildDeck({
+    cases: [
+      {
+        rawInput: "example",
+        diagnosisQuery: "example",
+        caseTitle: "No-image case",
+        caseUrl: "https://radiopaedia.org/cases/example",
+        author: "Test Author",
+        licenseName: "CC BY-NC-SA 3.0",
+        rid: "rID-3",
+        patientData: { age: "8", gender: "female" },
+        caseIntro: "The patient is an 8-year-old female.",
+        revealSummary: "Diagnosis summary.",
+        footerText: "Radiopaedia • rID-3",
+        images: [],
+        teachingPoints: [],
+      },
+    ],
+    deckTitle: "No Images Regression",
+    outputPath,
+    scratchDir: path.join(tempDir, "scratch"),
+  });
+
+  const pptx = await fs.readFile(outputPath);
+  const imageSlideText = decodeXmlText(readZipEntryText(pptx, "ppt/slides/slide2.xml"));
+
+  assert.match(imageSlideText, /No selected images for this case\./);
+});
+
 function readZipEntryText(buffer, entryName) {
   const entry = readZipEntry(buffer, entryName);
   return entry.toString("utf8");

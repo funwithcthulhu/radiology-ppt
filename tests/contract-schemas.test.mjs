@@ -199,3 +199,37 @@ test("prepared output schema rejects missing case data", () => {
     /caseData is required/,
   );
 });
+
+test("contracts reject empty and out-of-range GUI payloads", () => {
+  assert.throws(
+    () => validate(schemas["prepare-input.schema.json"], []),
+    /must include at least 1 item/,
+  );
+  assert.throws(
+    () => validate(schemas["prepare-input.schema.json"], {
+      entries: [
+        {
+          ...request,
+          requestMode: "random",
+          randomCount: 21,
+        },
+      ],
+    }),
+    /randomCount must be <= 20/,
+  );
+  assert.throws(
+    () => validate(schemas["prepare-input.schema.json"], {
+      entries: [
+        {
+          ...request,
+          requestMode: "surprise-me",
+        },
+      ],
+    }),
+    /requestMode must be one of/,
+  );
+  assert.throws(
+    () => validate(schemas["render-input.schema.json"], { items: [] }),
+    /must include at least 1 item/,
+  );
+});
