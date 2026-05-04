@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/funwithcthulhu/radiology-ppt/actions/workflows/ci.yml/badge.svg)](https://github.com/funwithcthulhu/radiology-ppt/actions/workflows/ci.yml)
 [![Latest Release](https://img.shields.io/github/v/release/funwithcthulhu/radiology-ppt?label=latest%20installer)](https://github.com/funwithcthulhu/radiology-ppt/releases/latest)
-[![License: MIT](https://img.shields.io/github/license/funwithcthulhu/radiology-ppt)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-97ca00)](LICENSE)
 [![Windows App](https://img.shields.io/badge/app-C%23%20WPF%20%2B%20Node-0f766e)](docs/ARCHITECTURE.md)
 
 Windows desktop app for building case-based radiology PowerPoints from Radiopaedia.
