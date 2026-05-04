@@ -525,8 +525,6 @@ export async function expandCaseRequests(
           ageGroup: request.ageGroup,
           topicFocus: request.topicFocus,
           difficulty: request.difficulty,
-          cropMode: request.cropMode,
-          markupStyle: request.markupStyle,
           requestedImagesPerCase: request.requestedImagesPerCase,
           selectedCasePath: pick.casePath,
           selectedCaseTitle: pick.title,

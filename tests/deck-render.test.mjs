@@ -64,6 +64,54 @@ test("renders teaching point bullets as complete PowerPoint text", async () => {
   assert.equal(slideText.includes(teachingPoint), true);
 });
 
+test("preserves image aspect ratio on image slides", async () => {
+  const { buildDeck } = await import("../src/deck.mjs");
+  const sharp = (await import("sharp")).default;
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "radiology-deck-aspect-"));
+  const imagePath = path.join(tempDir, "wide-image.png");
+  const outputPath = path.join(tempDir, "aspect-ratio.pptx");
+
+  await sharp({
+    create: {
+      width: 1200,
+      height: 300,
+      channels: 3,
+      background: "#222222",
+    },
+  }).png().toFile(imagePath);
+
+  await buildDeck({
+    cases: [
+      {
+        rawInput: "wide image",
+        diagnosisQuery: "Wide image",
+        caseTitle: "Wide image aspect test",
+        caseUrl: "https://radiopaedia.org/cases/example",
+        author: "Test Author",
+        licenseName: "CC BY-NC-SA 3.0",
+        rid: "rID-1",
+        patientData: {},
+        caseIntro: "",
+        revealSummary: "The diagnosis slide has a short summary.",
+        footerText: "Radiopaedia • rID-1",
+        images: [{ localPath: imagePath, label: "Wide image" }],
+        teachingPoints: [],
+      },
+    ],
+    deckTitle: "Aspect Ratio Regression",
+    outputPath,
+    scratchDir: path.join(tempDir, "scratch"),
+  });
+
+  const pptx = await fs.readFile(outputPath);
+  const imageSlideXml = readZipEntryText(pptx, "ppt/slides/slide2.xml");
+  const imageExt = /<p:pic>[\s\S]*?<a:ext cx="(\d+)" cy="(\d+)"/.exec(imageSlideXml);
+  assert.ok(imageExt, "image extent should exist on the image slide");
+
+  const ratio = Number(imageExt[1]) / Number(imageExt[2]);
+  assert.ok(ratio > 3.8 && ratio < 4.2, `expected a 4:1 image ratio, got ${ratio}`);
+});
+
 function readZipEntryText(buffer, entryName) {
   const entry = readZipEntry(buffer, entryName);
   return entry.toString("utf8");

@@ -7,11 +7,6 @@ import {
   truncate,
 } from "./utils.mjs";
 import {
-  canonicalCropMode,
-  canonicalMarkupStyle,
-} from "./request-parser.mjs";
-import { focusCropImage } from "./focus-crop.mjs";
-import {
   buildImageCandidates,
   evaluateSelectedImages,
   imageCandidateCacheKey,
@@ -60,17 +55,6 @@ function licenseNameFromUrl(url) {
     return "Creative Commons";
   }
   return url;
-}
-
-async function applyFocusCrop(imagePath, focusPoints, { cropMode = "default", markupStyle = "none" } = {}) {
-  if (!Array.isArray(focusPoints) || !focusPoints.length) {
-    return imagePath;
-  }
-  try {
-    return await focusCropImage(imagePath, focusPoints, { cropMode, markupStyle });
-  } catch {
-    return imagePath;
-  }
 }
 
 async function fetchStudy(studyId, caseUrl) {
@@ -216,9 +200,6 @@ export async function fetchRadiopaediaCaseByPath(
   });
   const imageDir = path.join(cacheDir, "images", caseSlug);
   const images = [];
-  const variantTag = [canonicalCropMode(request.cropMode || ""), canonicalMarkupStyle(request.markupStyle || "")]
-    .filter((value) => value && value !== "default" && value !== "none")
-    .join("-");
 
   for (let index = 0; index < selectedImages.length; index += 1) {
     const image = selectedImages[index];
@@ -226,18 +207,14 @@ export async function fetchRadiopaediaCaseByPath(
     const extension = path.extname(parsedUrl.pathname) || ".jpg";
     const localPath = path.join(
       imageDir,
-      `${String(index + 1).padStart(2, "0")}-${image.frameId}${variantTag ? `-${variantTag}` : ""}${extension}`,
+      `${String(index + 1).padStart(2, "0")}-${image.frameId}${extension}`,
     );
 
     await downloadFile(image.url, localPath);
     emitProgress("Downloaded case image", { caseTitle, frameId: image.frameId, index: index + 1 });
-    const focusedPath = await applyFocusCrop(localPath, image.focusPoints, {
-      cropMode: request.cropMode,
-      markupStyle: request.markupStyle,
-    });
     images.push({
       ...image,
-      localPath: focusedPath,
+      localPath,
     });
   }
 

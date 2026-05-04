@@ -120,8 +120,6 @@ const request = {
   requestedImagesPerCase: 3,
   includeClinicalHistory: true,
   useOllamaAssist: false,
-  cropMode: "default",
-  markupStyle: "none",
 };
 
 const image = {

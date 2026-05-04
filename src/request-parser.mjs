@@ -231,25 +231,6 @@ export function normalizedDifficulty(value) {
   return ["easy", "medium", "hard"].includes(normalized) ? normalized : "";
 }
 
-export function canonicalCropMode(value) {
-  const normalized = normalizePhrase(value);
-  if (normalized === "tighter") {
-    return "tighter";
-  }
-  if (normalized === "wider") {
-    return "wider";
-  }
-  return "default";
-}
-
-export function canonicalMarkupStyle(value) {
-  const normalized = normalizePhrase(value);
-  if (normalized === "focus ring") {
-    return "focus-ring";
-  }
-  return "none";
-}
-
 function buildStructuredFilterQuery(payload) {
   if (!payload || typeof payload !== "object") {
     return "";
@@ -654,8 +635,6 @@ export function parseCaseRequest(input) {
   const preferredModalities = buildPreferredModalities(payload, structuredStudyHint);
   const searchSystems = filterSystemsFromPayload(payload);
   const difficulty = normalizedDifficulty(payload.difficulty);
-  const cropMode = canonicalCropMode(payload.cropMode || "");
-  const markupStyle = canonicalMarkupStyle(payload.markupStyle || "");
 
   if (requestMode === "manual" || payload.selectedCasePath) {
     const selectedCasePath = collapseWhitespace(payload.selectedCasePath || "");
@@ -673,8 +652,6 @@ export function parseCaseRequest(input) {
       filterQuery,
       searchSystems,
       difficulty,
-      cropMode,
-      markupStyle,
       randomSpec: null,
       preferredModalities,
       searchText: collapseWhitespace([diagnosis, studyHint, filterQuery].filter(Boolean).join(" ")),
@@ -694,8 +671,6 @@ export function parseCaseRequest(input) {
       filterQuery,
       searchSystems,
       difficulty,
-      cropMode,
-      markupStyle,
       randomSpec: structuredRandomSpec,
       preferredModalities,
       searchText: collapseWhitespace([diagnosis, studyHint, filterQuery].filter(Boolean).join(" ")),
@@ -737,8 +712,6 @@ export function parseCaseRequest(input) {
     filterQuery,
     searchSystems,
     difficulty,
-    cropMode,
-    markupStyle,
     randomSpec,
     preferredModalities: buildPreferredModalities(payload, studyHint),
     searchText: collapseWhitespace([diagnosis, studyHint, filterQuery].filter(Boolean).join(" ")),

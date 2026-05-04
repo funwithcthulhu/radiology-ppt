@@ -11,7 +11,5 @@ public sealed record GenerationSettings
     public string OllamaModel { get; init; } = "";
     public string Theme { get; init; } = "classic";
     public string PowerPointStyle { get; init; } = "case-conference";
-    public string CropMode { get; init; } = "default";
-    public string MarkupStyle { get; init; } = "none";
     public bool IncludeTeachingPoints { get; init; }
 }

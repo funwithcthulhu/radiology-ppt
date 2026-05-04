@@ -51,18 +51,14 @@
                     <DockPanel Grid.Row="0" Margin="0,0,0,6">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" DockPanel.Dock="Right">
                             <TextBlock Text="Images" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,8,0" />
-                            <TextBox x:Name="ImagesBox" Width="52" Text="3" Margin="0,0,18,0" />
-                            <TextBlock Text="Crop" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,8,0" />
-                            <ComboBox x:Name="CropCombo" Width="150" Margin="0,0,18,0" />
-                            <TextBlock Text="Markup" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,8,0" />
-                            <ComboBox x:Name="MarkupCombo" Width="150" />
+                            <TextBox x:Name="ImagesBox" Width="52" Text="3" />
                         </StackPanel>
                         <TextBlock Text="Selected Images" VerticalAlignment="Center" FontWeight="SemiBold"
                                    Foreground="{StaticResource MutedBrush}" />
                     </DockPanel>
 
                     <Border Grid.Row="1" Style="{StaticResource Card}" Padding="10">
-                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" PreviewMouseWheel="SlowImageScroll_PreviewMouseWheel">
                             <ItemsControl x:Name="ImageItemsControl">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
@@ -111,7 +107,7 @@
                         <Button DockPanel.Dock="Right" Content="Use Selected Candidates" Style="{StaticResource PrimaryButton}" Click="UseSelectedCandidates_Click" />
                     </DockPanel>
                     <Border Grid.Row="1" Style="{StaticResource Card}">
-                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" PreviewMouseWheel="SlowImageScroll_PreviewMouseWheel">
                             <ItemsControl x:Name="CandidateItemsControl">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>

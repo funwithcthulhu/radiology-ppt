@@ -36,14 +36,6 @@
     "includeClinicalHistory": { "type": "boolean" },
     "useOllamaAssist": { "type": "boolean" },
     "ollamaModel": { "type": "string" },
-    "cropMode": {
-      "type": "string",
-      "enum": ["default", "tighter", "wider"]
-    },
-    "markupStyle": {
-      "type": "string",
-      "enum": ["none", "focus-ring"]
-    },
     "excludeCasePaths": {
       "type": "array",
       "items": { "type": "string" }

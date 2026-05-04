@@ -89,7 +89,7 @@ There is no success popup after export. Use the left status area, Activity tab, 
 - `Cases`: request grid for diagnoses, random pulls, or Radiopaedia URLs.
 - `Library`: local history of reviewed cases with decision, image count, score, and case path.
 - `Core Boards`: local PDF import for a private ABR Core-style study workspace.
-- `PowerPoint`: title, output path, images per case, style, theme, crop/markup, Ollama model, presets, generation, and output shortcuts.
+- `PowerPoint`: title, output path, images per case, style, theme, Ollama model, presets, generation, and output shortcuts.
 - `Activity`: diagnostics, backend logs, SQLite/cache counts, state folder access, cleanup, and maintenance.
 
 The app keeps main and review windows within the visible Windows work area on launch, including high-DPI/scaled displays.

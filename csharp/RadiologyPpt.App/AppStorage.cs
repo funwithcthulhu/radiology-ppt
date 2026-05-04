@@ -42,8 +42,6 @@ public sealed class AppStorage
         SaveSetting("ollama_model", settings.OllamaModel);
         SaveSetting("theme", settings.Theme);
         SaveSetting("powerpoint_style", settings.PowerPointStyle);
-        SaveSetting("crop_mode", settings.CropMode);
-        SaveSetting("markup_style", settings.MarkupStyle);
         SaveSetting("include_teaching_points", settings.IncludeTeachingPoints ? "1" : "0");
     }
 

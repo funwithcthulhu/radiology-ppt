@@ -99,8 +99,6 @@ Options:
 - `Images per case`: target image count. Review can keep fewer when a case only has a few useful images.
 - `PowerPoint style`: `Case Conference` or `Core Review`.
 - `Theme`: visual style for slides.
-- `Image crop`: default, tighter, or wider.
-- `Image markup`: none or focus ring.
 - `Output .pptx`: optional explicit output path. If blank, the app writes to `outputs\`.
 - `Open PowerPoint when finished`: opens the output file after export.
 - `Show patient age/sex when available`: adds minimal patient info on the case slide when clean data exists.
@@ -111,7 +109,6 @@ Options:
 Presets:
 
 - `Fast Preview`: fastest standard review.
-- `Image Quality Review`: tighter crops and focus rings, no Ollama.
 - `Ollama Assisted`: enables optional case-by-case Ollama scoring during review.
 - `Core Review Teaching`: Core Review style with teaching points when available.
 - `Dark Conference`: darker presentation style.
@@ -122,7 +119,6 @@ Buttons:
 - `Cancel Current Task`: cancels prepare/render/import work.
 - `Open Last PowerPoint`: opens the last generated file if it exists.
 - `Open Outputs Folder`: opens generated PowerPoint outputs.
-- `Open Project Folder`: opens the repository folder.
 
 ## Review Window
 

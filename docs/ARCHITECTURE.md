@@ -115,7 +115,7 @@ Radiopaedia behavior is intentionally split:
 
 - `src/radiopaedia.mjs`: small facade for preparing one case with fallback candidate attempts.
 - `src/radiopaedia-search.mjs`: search URL construction, search-result parsing, random selection, local case-index reuse, exclusion handling, and random-history expansion.
-- `src/radiopaedia-case-fetch.mjs`: case page validation, study loading, image candidate loading, image downloads, focus crops, attribution, quality scoring, and final case assembly.
+- `src/radiopaedia-case-fetch.mjs`: case page validation, study loading, image candidate loading, image downloads, attribution, quality scoring, and final case assembly.
 - `src/radiopaedia-case-text.mjs`: patient data extraction, intro text, redacted case prompts, and teaching-point text.
 - `src/providers/radiopaedia-provider.mjs`: Radiopaedia-specific IO seam.
 - `src/radiopaedia-client.mjs`: HTTP, downloads, retry/concurrency behavior, and persistent fetch cache.
@@ -123,7 +123,6 @@ Radiopaedia behavior is intentionally split:
 ### Image And PowerPoint Modules
 
 - `src/image-candidates.mjs`: frame candidate extraction, relevance scoring, selected-image quality, and replacement rules.
-- `src/focus-crop.mjs`: focus crop and optional focus-ring image variants.
 - `src/ollama-review.mjs`: optional local vision-model scoring with time/image caps.
 - `src/deck.mjs`: PPTX rendering.
 

@@ -77,10 +77,6 @@ public partial class MainWindow : Window
         PowerPointStyleCombo.SelectedIndex = 0;
         ThemeCombo.ItemsSource = AppOptions.Themes;
         ThemeCombo.SelectedIndex = 0;
-        InitialCropCombo.ItemsSource = AppOptions.CropModes;
-        InitialCropCombo.SelectedIndex = 0;
-        InitialMarkupCombo.ItemsSource = AppOptions.MarkupStyles;
-        InitialMarkupCombo.SelectedIndex = 0;
         PresetCombo.ItemsSource = AppOptions.PowerPointPresets;
         PresetCombo.SelectedIndex = 0;
         OllamaModelCombo.Text = "moondream";
@@ -121,8 +117,6 @@ public partial class MainWindow : Window
             SetCheckBox(TeachingPointsCheck, values, "include_teaching_points");
             SelectByCliValue(ThemeCombo, AppOptions.Themes, AppOptions.ThemeCliValue, values, "theme");
             SelectByCliValue(PowerPointStyleCombo, AppOptions.PowerPointStyles, AppOptions.PowerPointStyleCliValue, values, "powerpoint_style");
-            SelectByCliValue(InitialCropCombo, AppOptions.CropModes, AppOptions.CropCliValue, values, "crop_mode");
-            SelectByCliValue(InitialMarkupCombo, AppOptions.MarkupStyles, AppOptions.MarkupCliValue, values, "markup_style");
             if (values.TryGetValue("ollama_model", out var ollamaModel) && !string.IsNullOrWhiteSpace(ollamaModel))
             {
                 OllamaModelCombo.Text = ollamaModel;
@@ -265,8 +259,6 @@ public partial class MainWindow : Window
         ImagesPerCaseBox.Text = preset.ImagesPerCase.ToString();
         SelectComboByCliValue(PowerPointStyleCombo, AppOptions.PowerPointStyles, AppOptions.PowerPointStyleCliValue, preset.PowerPointStyle);
         SelectComboByCliValue(ThemeCombo, AppOptions.Themes, AppOptions.ThemeCliValue, preset.Theme);
-        SelectComboByCliValue(InitialCropCombo, AppOptions.CropModes, AppOptions.CropCliValue, preset.CropMode);
-        SelectComboByCliValue(InitialMarkupCombo, AppOptions.MarkupStyles, AppOptions.MarkupCliValue, preset.MarkupStyle);
         ClinicalHistoryCheck.IsChecked = preset.UseClinicalHistory;
         OllamaCheck.IsChecked = preset.UseOllamaReview;
         TeachingPointsCheck.IsChecked = preset.IncludeTeachingPoints;
@@ -427,8 +419,6 @@ public partial class MainWindow : Window
         OpenPath(_backend.OutputsDir);
     }
 
-    private void OpenProject_Click(object sender, RoutedEventArgs e) => OpenPath(_backend.ProjectRoot);
-
     private void OpenStateFolder_Click(object sender, RoutedEventArgs e)
     {
         Directory.CreateDirectory(_backend.StateDir);
@@ -511,8 +501,6 @@ public partial class MainWindow : Window
             OllamaModelCombo.Text,
             ThemeCombo.SelectedItem?.ToString() ?? "",
             PowerPointStyleCombo.SelectedItem?.ToString() ?? "",
-            InitialCropCombo.SelectedItem?.ToString() ?? "",
-            InitialMarkupCombo.SelectedItem?.ToString() ?? "",
             TeachingPointsCheck.IsChecked == true));
     }
 

@@ -35,10 +35,6 @@ public partial class CaseReviewWindow : Window
         _storage = storage;
         _reviewSessionId = reviewSessionId;
         _items = preparedItems.Select(item => item.DeepClone().AsObject()).ToList();
-        CropCombo.ItemsSource = AppOptions.CropModes;
-        CropCombo.SelectedItem = AppOptions.CropModes.FirstOrDefault(option => AppOptions.CropCliValue(option) == settings.CropMode) ?? AppOptions.CropModes[0];
-        MarkupCombo.ItemsSource = AppOptions.MarkupStyles;
-        MarkupCombo.SelectedItem = AppOptions.MarkupStyles.FirstOrDefault(option => AppOptions.MarkupCliValue(option) == settings.MarkupStyle) ?? AppOptions.MarkupStyles[0];
         ImagesBox.Text = settings.ImagesPerCase.ToString();
         OllamaScoreButton.IsEnabled = settings.UseOllamaReview;
         ShowCurrentCase();
@@ -425,8 +421,6 @@ public partial class CaseReviewWindow : Window
         request["diagnosis"] = TextValue(caseData, "caseTitle", TextValue(request, "diagnosis", ""));
         request["rawInput"] = TextValue(caseData, "caseTitle", TextValue(request, "rawInput", ""));
         request["requestedImagesPerCase"] = imageCount;
-        request["cropMode"] = AppOptions.CropCliValue(CropCombo.SelectedItem?.ToString() ?? "");
-        request["markupStyle"] = AppOptions.MarkupCliValue(MarkupCombo.SelectedItem?.ToString() ?? "");
         if (caseData?["imageCandidateBank"] is JsonArray candidateBank)
         {
             request["imageCandidateBank"] = candidateBank.DeepClone();
@@ -459,8 +453,6 @@ public partial class CaseReviewWindow : Window
         request["selectedCaseTitle"] = "";
         request.Remove("imageCandidateBank");
         request["requestedImagesPerCase"] = ReadRequestedImageCount();
-        request["cropMode"] = AppOptions.CropCliValue(CropCombo.SelectedItem?.ToString() ?? "");
-        request["markupStyle"] = AppOptions.MarkupCliValue(MarkupCombo.SelectedItem?.ToString() ?? "");
 
         if (hasRandomIntent)
         {
@@ -519,9 +511,7 @@ public partial class CaseReviewWindow : Window
     {
         return _settings with
         {
-            ImagesPerCase = ReadRequestedImageCount(),
-            CropMode = AppOptions.CropCliValue(CropCombo.SelectedItem?.ToString() ?? ""),
-            MarkupStyle = AppOptions.MarkupCliValue(MarkupCombo.SelectedItem?.ToString() ?? "")
+            ImagesPerCase = ReadRequestedImageCount()
         };
     }
 
@@ -680,5 +670,17 @@ public partial class CaseReviewWindow : Window
         {
             return 0;
         }
+    }
+
+    private void SlowImageScroll_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (sender is not ScrollViewer viewer)
+        {
+            return;
+        }
+
+        var offset = viewer.VerticalOffset + (e.Delta < 0 ? 44 : -44);
+        viewer.ScrollToVerticalOffset(Math.Max(0, offset));
+        e.Handled = true;
     }
 }

@@ -84,7 +84,6 @@ Use these boundaries when deciding where a change belongs:
 - provider IO seam: `src/providers/radiopaedia-provider.mjs`
 - HTTP/download/cache: `src/radiopaedia-client.mjs`
 - image selection/scoring: `src/image-candidates.mjs`
-- focus crops/markup: `src/focus-crop.mjs`
 - optional local vision scoring: `src/ollama-review.mjs`
 - PowerPoint rendering: `src/deck.mjs`
 - backend SQLite/cache/history/index: `src/app-store.mjs`

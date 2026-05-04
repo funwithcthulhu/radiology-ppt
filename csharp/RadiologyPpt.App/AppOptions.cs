@@ -32,29 +32,14 @@ public static class AppOptions
     public static readonly string[] Difficulties = ["Any", "Easy", "Medium", "Hard"];
     public static readonly string[] Themes = ["Radiopaedia Classic", "Clean Light", "Conference Dark", "Teaching Warm"];
     public static readonly string[] PowerPointStyles = ["Case Conference", "Core Review"];
-    public static readonly string[] CropModes = ["Default", "Tighter", "Wider"];
-    public static readonly string[] MarkupStyles = ["None", "Focus Ring"];
     public static readonly PowerPointPreset[] PowerPointPresets =
     [
         new(
             "Fast Preview",
-            "Fastest workflow: no Ollama, no teaching slides, standard crops.",
+            "Fastest workflow: no Ollama review and no teaching slides.",
             3,
             "case-conference",
             "classic",
-            "default",
-            "none",
-            UseClinicalHistory: true,
-            UseOllamaReview: false,
-            IncludeTeachingPoints: false),
-        new(
-            "Image Quality Review",
-            "Use tighter crops and focus rings so review starts from more teaching-focused images.",
-            3,
-            "case-conference",
-            "classic",
-            "tighter",
-            "focus-ring",
             UseClinicalHistory: true,
             UseOllamaReview: false,
             IncludeTeachingPoints: false),
@@ -64,8 +49,6 @@ public static class AppOptions
             3,
             "case-conference",
             "classic",
-            "tighter",
-            "focus-ring",
             UseClinicalHistory: true,
             UseOllamaReview: true,
             IncludeTeachingPoints: false),
@@ -75,8 +58,6 @@ public static class AppOptions
             3,
             "core-review",
             "teaching-warm",
-            "tighter",
-            "focus-ring",
             UseClinicalHistory: true,
             UseOllamaReview: false,
             IncludeTeachingPoints: true),
@@ -86,8 +67,6 @@ public static class AppOptions
             3,
             "case-conference",
             "conference-dark",
-            "default",
-            "none",
             UseClinicalHistory: true,
             UseOllamaReview: false,
             IncludeTeachingPoints: false)
@@ -139,15 +118,6 @@ public static class AppOptions
 
     public static string PowerPointStyleCliValue(string label) => label == "Core Review" ? "core-review" : "case-conference";
 
-    public static string CropCliValue(string label) => label switch
-    {
-        "Tighter" => "tighter",
-        "Wider" => "wider",
-        _ => "default"
-    };
-
-    public static string MarkupCliValue(string label) => label == "Focus Ring" ? "focus-ring" : "none";
-
     public static string BoardDomainCliValue(string label) => label switch
     {
         "Breast Imaging" => "breast",
@@ -177,8 +147,6 @@ public sealed record PowerPointPreset(
     int ImagesPerCase,
     string PowerPointStyle,
     string Theme,
-    string CropMode,
-    string MarkupStyle,
     bool UseClinicalHistory,
     bool UseOllamaReview,
     bool IncludeTeachingPoints);

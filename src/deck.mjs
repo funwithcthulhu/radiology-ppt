@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import pptxgen from "pptxgenjs";
+import sharp from "sharp";
 
 const SHAPE_TYPES = new pptxgen().ShapeType;
 const W = 1280;
@@ -199,12 +200,43 @@ function addText(
   });
 }
 
-async function addImage(slide, imagePath, position, alt) {
+async function containedImageFrame(imagePath, position) {
   const frame = pos(position);
+  try {
+    const metadata = await sharp(imagePath).metadata();
+    if (!metadata.width || !metadata.height || frame.w <= 0 || frame.h <= 0) {
+      return frame;
+    }
+
+    const imageRatio = metadata.width / metadata.height;
+    const frameRatio = frame.w / frame.h;
+    if (imageRatio >= frameRatio) {
+      const h = frame.w / imageRatio;
+      return {
+        x: frame.x,
+        y: frame.y + (frame.h - h) / 2,
+        w: frame.w,
+        h,
+      };
+    }
+
+    const w = frame.h * imageRatio;
+    return {
+      x: frame.x + (frame.w - w) / 2,
+      y: frame.y,
+      w,
+      h: frame.h,
+    };
+  } catch {
+    return frame;
+  }
+}
+
+async function addImage(slide, imagePath, position, alt) {
+  const frame = await containedImageFrame(imagePath, position);
   slide.addImage({
     path: imagePath,
     ...frame,
-    sizing: { type: "contain", ...frame },
     altText: alt,
   });
 }
@@ -249,6 +281,30 @@ function truncateText(value, maxLength) {
     return text;
   }
   return `${text.slice(0, Math.max(0, maxLength - 1)).trimEnd()}.`;
+}
+
+function truncateAtSentence(value, maxLength) {
+  const text = normalizeText(value);
+  if (text.length <= maxLength) {
+    return text;
+  }
+
+  const sentences = text.match(/[^.!?]+[.!?]+/g) || [];
+  let output = "";
+  for (const sentence of sentences) {
+    const candidate = normalizeText(`${output} ${sentence}`);
+    if (candidate.length > maxLength) {
+      break;
+    }
+    output = candidate;
+  }
+
+  if (output) {
+    return output;
+  }
+
+  const clipped = text.slice(0, maxLength).replace(/\s+\S*$/, "").trim();
+  return clipped ? `${clipped}.` : "";
 }
 
 function normalizeText(value) {
@@ -507,10 +563,10 @@ function addDiagnosisSlide(slide, caseData, caseNumber, deckTitle, theme) {
   addText(
     slide,
     caseData.caseTitle,
-    { left: 82, top: 216, width: 1116, height: 102 },
+    { left: 82, top: 212, width: 1116, height: 112 },
     theme,
     {
-      fontSize: 34,
+      fontSize: 31,
       color: theme.colors.accentDark,
       face: theme.fonts.title,
       bold: true,
@@ -520,18 +576,18 @@ function addDiagnosisSlide(slide, caseData, caseNumber, deckTitle, theme) {
   addShape(
     slide,
     "roundRect",
-    { left: 82, top: 352, width: 1116, height: 226 },
+    { left: 82, top: 348, width: 1116, height: 286 },
     theme.colors.panel,
     theme.colors.border,
     1.1,
   );
   addText(
     slide,
-    caseData.revealSummary,
-    { left: 114, top: 392, width: 1050, height: 148 },
+    truncateAtSentence(caseData.revealSummary, 520),
+    { left: 114, top: 382, width: 1050, height: 216 },
     theme,
     {
-      fontSize: 24,
+      fontSize: 21,
       color: theme.colors.ink,
       face: theme.fonts.body,
     },
@@ -574,28 +630,31 @@ function addTeachingPointsSlide(slide, caseData, caseNumber, deckTitle, theme, {
   addText(
     slide,
     caseData.caseTitle,
-    { left: 82, top: 212, width: 1116, height: 42 },
+    { left: 82, top: 212, width: 1116, height: 56 },
     theme,
     {
-      fontSize: 26,
+      fontSize: 24,
       color: theme.colors.accentDark,
       face: theme.fonts.body,
       bold: true,
-      autoFit: null,
     },
   );
 
   const bullets = Array.isArray(caseData.teachingPoints) ? caseData.teachingPoints.filter(Boolean) : [];
-  bullets.slice(0, 3).forEach((bullet, index) => {
-    const top = 292 + index * 124;
+  const visibleBullets = bullets.slice(0, 3);
+  const firstBulletTop = 302;
+  const bottomLimit = 648;
+  const slotHeight = visibleBullets.length ? (bottomLimit - firstBulletTop) / visibleBullets.length : 0;
+  visibleBullets.forEach((bullet, index) => {
+    const top = firstBulletTop + index * slotHeight;
     addShape(slide, "ellipse", { left: 92, top: top + 10, width: 16, height: 16 }, theme.colors.accent, TRANSPARENT, 0);
     addText(
       slide,
-      bullet,
-      { left: 126, top, width: 1040, height: 104 },
+      truncateAtSentence(bullet, 260),
+      { left: 126, top, width: 1040, height: Math.max(78, slotHeight - 18) },
       theme,
       {
-        fontSize: 23,
+        fontSize: visibleBullets.length >= 3 ? 20 : 22,
         color: theme.colors.ink,
         face: theme.fonts.body,
       },

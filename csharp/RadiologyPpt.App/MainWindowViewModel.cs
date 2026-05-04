@@ -55,8 +55,6 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             OllamaModel = snapshot.OllamaModel.Trim(),
             Theme = AppOptions.ThemeCliValue(snapshot.Theme),
             PowerPointStyle = AppOptions.PowerPointStyleCliValue(snapshot.PowerPointStyle),
-            CropMode = AppOptions.CropCliValue(snapshot.CropMode),
-            MarkupStyle = AppOptions.MarkupCliValue(snapshot.MarkupStyle),
             IncludeTeachingPoints = snapshot.IncludeTeachingPoints
         };
     }
@@ -117,6 +115,4 @@ public sealed record PowerPointSettingsSnapshot(
     string OllamaModel,
     string Theme,
     string PowerPointStyle,
-    string CropMode,
-    string MarkupStyle,
     bool IncludeTeachingPoints);

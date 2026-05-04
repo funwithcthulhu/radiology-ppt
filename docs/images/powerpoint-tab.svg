@@ -25,11 +25,9 @@
     <text x="246" y="254" font-weight="700">Style</text>
     <rect x="390" y="232" width="250" height="32" fill="#f7fafc" stroke="#aebdca"/>
     <text x="402" y="254">Case Conference</text>
-    <text x="246" y="304" font-weight="700">Crop / markup</text>
-    <rect x="390" y="282" width="115" height="32" fill="#f7fafc" stroke="#aebdca"/>
-    <text x="402" y="304">Tighter</text>
-    <rect x="520" y="282" width="120" height="32" fill="#f7fafc" stroke="#aebdca"/>
-    <text x="532" y="304">Focus Ring</text>
+    <text x="246" y="304" font-weight="700">Output</text>
+    <rect x="390" y="282" width="250" height="32" fill="#ffffff" stroke="#aebdca"/>
+    <text x="402" y="304">Auto-save to outputs</text>
     <text x="246" y="356">☑ Show patient age/sex when available</text>
     <text x="246" y="388">☑ Add teaching-points slides</text>
     <text x="246" y="420">☐ Use Ollama image review</text>
@@ -37,7 +35,7 @@
   <rect x="700" y="118" width="220" height="350" rx="12" fill="#ffffff" stroke="#c9d7e2"/>
   <text x="724" y="158" font-family="Segoe UI, Arial" font-size="20" font-weight="700" fill="#102132">Create PowerPoint</text>
   <rect x="724" y="190" width="172" height="34" fill="#f7fafc" stroke="#aebdca"/>
-  <text x="810" y="212" text-anchor="middle" font-family="Segoe UI, Arial" font-size="14" fill="#102132">Image Quality Review</text>
+  <text x="810" y="212" text-anchor="middle" font-family="Segoe UI, Arial" font-size="14" fill="#102132">Fast Preview</text>
   <rect x="724" y="244" width="172" height="46" rx="3" fill="#0f766e"/>
   <text x="810" y="273" text-anchor="middle" font-family="Segoe UI, Arial" font-size="15" font-weight="700" fill="#ffffff">Generate PowerPoint</text>
   <rect x="724" y="306" width="172" height="36" fill="#ffffff" stroke="#c9d7e2"/>

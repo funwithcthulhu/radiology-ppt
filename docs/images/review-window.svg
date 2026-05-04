@@ -16,12 +16,9 @@
   </g>
   <rect x="34" y="214" width="890" height="246" rx="12" fill="#ffffff" stroke="#c9d7e2"/>
   <text x="58" y="250" font-family="Segoe UI, Arial" font-size="14" font-weight="700" fill="#102132">Selected Images</text>
-  <text x="542" y="250" font-family="Segoe UI, Arial" font-size="13" font-weight="700" fill="#102132">Images</text>
-  <rect x="596" y="232" width="42" height="26" fill="#ffffff" stroke="#aebdca"/>
-  <text x="610" y="250" font-family="Segoe UI, Arial" font-size="13" fill="#102132">3</text>
-  <text x="676" y="250" font-family="Segoe UI, Arial" font-size="13" font-weight="700" fill="#102132">Crop</text>
-  <rect x="718" y="232" width="100" height="26" fill="#f7fafc" stroke="#aebdca"/>
-  <text x="730" y="250" font-family="Segoe UI, Arial" font-size="13" fill="#102132">Default</text>
+  <text x="760" y="250" font-family="Segoe UI, Arial" font-size="13" font-weight="700" fill="#102132">Images</text>
+  <rect x="814" y="232" width="42" height="26" fill="#ffffff" stroke="#aebdca"/>
+  <text x="828" y="250" font-family="Segoe UI, Arial" font-size="13" fill="#102132">3</text>
   <rect x="58" y="280" width="250" height="142" rx="8" fill="#f7fafc" stroke="#c9d7e2"/>
   <rect x="72" y="306" width="222" height="88" fill="#0b0f14"/>
   <circle cx="183" cy="350" r="34" fill="#d7dde5"/>

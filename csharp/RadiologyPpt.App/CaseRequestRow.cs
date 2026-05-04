@@ -87,9 +87,7 @@ public sealed class CaseRequestRow : INotifyPropertyChanged
             ["requestId"] = $"request-{index}",
             ["requestedImagesPerCase"] = settings.ImagesPerCase,
             ["includeClinicalHistory"] = settings.UseClinicalHistory,
-            ["useOllamaAssist"] = settings.UseOllamaReview,
-            ["cropMode"] = settings.CropMode,
-            ["markupStyle"] = settings.MarkupStyle
+            ["useOllamaAssist"] = settings.UseOllamaReview
         };
 
         if (settings.UseOllamaReview && !string.IsNullOrWhiteSpace(settings.OllamaModel))
