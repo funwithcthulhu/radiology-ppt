@@ -67,7 +67,7 @@ The app is moving toward MVVM:
 - `AppJobRunner.cs`: cancellable background jobs for prepare/render/import.
 - `BackendHealthMonitor.cs`: idle-time backend pings and restart messages when the local Node service dies.
 
-`MainWindow.xaml.cs` still owns WPF event wiring, but business logic should continue moving into view models and services.
+`MainWindow.xaml.cs` owns WPF event wiring. New workflow logic belongs in view models and services.
 
 ### BackendClient
 
@@ -106,8 +106,8 @@ Non-ping commands write durable job rows to SQLite through `src/app-store.mjs`. 
 - optional Ollama scoring
 - PowerPoint rendering
 - random-history persistence after render
-- Core Boards source/PDF ingestion helpers
-- Core Review quiz helper functions
+- Core Boards source/PDF ingestion
+- Core Review quiz assembly
 
 ### Radiopaedia Modules
 
@@ -132,10 +132,10 @@ Radiopaedia behavior is intentionally split:
 - `src/core_review/schema.mjs`: ABR-style domains and question-type schema.
 - `src/core_review/ingest.mjs`: text/JSON source ingestion.
 - `src/core_review/pdf-ingest.mjs`: local PDF copy, page rendering, embedded-image extraction, text chunking, and provenance.
-- `src/core_review/quiz.mjs`: question-bank validation, session assembly, scoring, and localization scoring helpers.
+- `src/core_review/quiz.mjs`: question-bank validation, session assembly, scoring, and localization scoring.
 - `src/core_review/index.mjs`: exports.
 
-The GUI supports Core Boards PDF import and local study-library management. Backend Core Boards modules also validate question banks and assemble quiz sessions for study workflows.
+The GUI supports Core Boards PDF import and local study-library management. Backend Core Boards modules validate question banks and assemble quiz sessions.
 
 ## Data Flow
 
@@ -230,12 +230,12 @@ src\contracts
 
 Contract-related code:
 
-- `csharp/RadiologyPpt.App/BackendContracts.cs`: C# payload builders/readers.
+- `csharp/RadiologyPpt.App/BackendContracts.cs`: C# payload builders and readers.
 - `tests/contract-schemas.test.mjs`: representative schema validation.
 - `src/backend-service.mjs`: runtime command envelope.
 - `src/backend-api.mjs`: payload normalization and workflow execution.
 
-When changing C# to Node fields, update schemas, C# payload helpers, backend normalization, and tests together.
+When changing C# to Node fields, update schemas, C# payload contracts, backend normalization, and tests together.
 
 Image candidates include `audit` and `selectionExplanation` fields. The audit object is machine-readable scoring/provenance; the explanation string is user-facing rationale for review and manifests.
 

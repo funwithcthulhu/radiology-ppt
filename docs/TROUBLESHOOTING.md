@@ -2,7 +2,7 @@
 
 ## The App Says Not Responding
 
-This should be uncommon because prepare/render/import work runs through background jobs and the Node backend service.
+If Windows marks the app as not responding, the backend is usually waiting on Radiopaedia, PowerPoint rendering, or a local model.
 
 Try:
 
@@ -11,13 +11,13 @@ Try:
 3. Use `Cancel Action` in the review window for reroll, re-pick, replace, or Ollama scoring.
 4. Check the Activity tab for the last logged step.
 
-Behind the scenes, cancelling a stuck action may kill and restart the local Node backend service. That is expected.
+Canceling a stuck action may kill and restart the local Node backend service.
 
 If freezing repeatedly happens during review, disable Ollama review and use `Ollama Score Case` only on one case at a time.
 
 ## Backend Service Restarted
 
-The GUI keeps one local Node backend service open for faster review actions. The health monitor pings the service only when it is idle. If the service dies, the app logs a restart and continues.
+The GUI keeps one local Node backend service open for review actions. The health monitor pings the service only when it is idle. If the service dies, the app logs a restart and continues.
 
 This is normal if:
 
@@ -40,7 +40,7 @@ The app records random history, skipped/rejected cases, and prepared-case qualit
 state\radiology-ppt.sqlite
 ```
 
-Helpful actions:
+Actions:
 
 - Skip weak cases during review so random mode avoids them later.
 - Reroll unwanted cases instead of approving them.
@@ -52,7 +52,7 @@ The first run for a new category may still need live Radiopaedia search. Later r
 
 ## Reroll Case Says No Alternate Was Found
 
-Reroll excludes the current case and searches again for the same request. It should not try to reuse the exact selected case.
+Reroll excludes the current case and searches again for the same request. It does not intentionally reuse the selected case.
 
 If no alternate is found:
 
@@ -71,7 +71,7 @@ Random preparation has two phases:
 
 The Activity tab logs timing for major stages.
 
-Helpful actions:
+Actions:
 
 - Start with fewer random cases for a new category.
 - Use broader filters.
@@ -96,7 +96,7 @@ $env:RADIOLOGY_PPT_PREFETCH_FALLBACKS = "1"
 
 Ollama is optional and intentionally deferred to review.
 
-Recommended workflow:
+Recommended use:
 
 1. Enable `Use Ollama image review` only if you want local model help.
 2. Choose a local model in the PowerPoint tab.
@@ -126,7 +126,7 @@ Use the image rationale in the review window to see why a frame was selected. If
 
 ## The Case Intro Gives Away The Diagnosis
 
-The app tries to keep intro slides minimal. With `Show patient age/sex when available` enabled, it prefers age/sex context and avoids diagnosis-revealing findings.
+Intro slides stay minimal. With `Show patient age/sex when available` enabled, the app prefers age/sex context and avoids diagnosis-revealing findings.
 
 If Radiopaedia does not expose clean patient information, the slide may only say `Case N`.
 
@@ -134,7 +134,7 @@ If you want pure unknown-case conference mode, leave teaching-point slides off.
 
 ## PowerPoint Completed But I Did Not See A Popup
 
-That is expected. The success popup was removed because it interrupted the workflow.
+The success popup was removed because it interrupted review/export flow.
 
 Use:
 
@@ -178,7 +178,7 @@ Use the installer only from the official GitHub Releases page:
 https://github.com/funwithcthulhu/radiology-ppt/releases
 ```
 
-Code signing can be added later if distribution grows.
+Code signing is not configured yet.
 
 ## Generator Files Are Missing
 

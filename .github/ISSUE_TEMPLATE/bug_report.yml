@@ -1,17 +1,17 @@
 name: Bug report
-description: Report something broken in the desktop app or backend workflow.
+description: Report a reproducible problem in the desktop app or backend.
 title: "[Bug]: "
 labels: ["bug"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for helping improve the app. Please do not attach private patient data, private PDFs, or generated PowerPoints containing material you cannot share.
+        Do not attach private patient data, private PDFs, or generated PowerPoints containing material you cannot share.
   - type: textarea
     id: summary
     attributes:
       label: What happened?
-      description: Describe the problem and what you expected instead.
+      description: Describe the problem and expected behavior.
     validations:
       required: true
   - type: textarea
@@ -20,9 +20,9 @@ body:
       label: Steps to reproduce
       placeholder: |
         1. Open the app
-        2. Add this kind of request
-        3. Click this button
-        4. See this error or bad output
+        2. Add a request
+        3. Click the relevant button
+        4. Note the error or incorrect output
     validations:
       required: true
   - type: input

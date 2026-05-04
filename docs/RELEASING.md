@@ -55,7 +55,7 @@ git tag v0.1.0
 git push origin main v0.1.0
 ```
 
-Pushing a `v*` tag runs the `Build Windows Installer` workflow. The workflow builds the installer, uploads it as a workflow artifact, and attaches it to the GitHub Release for that tag. If the release does not exist yet, the workflow creates it.
+Pushing a `v*` tag runs `Build Windows Installer`. It builds the installer, uploads a workflow artifact, and attaches the installer to the matching GitHub Release. If the release does not exist, the workflow creates it.
 
 For a local/manual repair, build the installer and upload it yourself:
 
@@ -76,7 +76,7 @@ gh release upload v0.1.0 `
 
 ## GitHub Actions
 
-The `Build Windows Installer` workflow can build the installer on demand or when a `v*` tag is pushed. It uploads the installer as a workflow artifact. Release publishing is still manual so the release notes can be reviewed before distribution.
+`Build Windows Installer` runs on demand or from a `v*` tag. It uploads the installer as a workflow artifact. Release publishing stays manual so release notes can be reviewed before distribution.
 
 ## Installer Notes
 

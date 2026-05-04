@@ -72,7 +72,7 @@ Use these boundaries when deciding where a change belongs:
 - local case library state: `csharp/RadiologyPpt.App/CaseLibraryViewModel.cs`
 - local SQLite app storage: `csharp/RadiologyPpt.App/AppStorage.cs`
 - cancellable GUI jobs: `csharp/RadiologyPpt.App/AppJobRunner.cs`
-- C# to Node payload helpers: `csharp/RadiologyPpt.App/BackendContracts.cs`
+- C# to Node payload contract: `csharp/RadiologyPpt.App/BackendContracts.cs`
 - C# to Node service boundary: `csharp/RadiologyPpt.App/BackendClient.cs`
 - backend health monitor: `csharp/RadiologyPpt.App/BackendHealthMonitor.cs`
 - persistent backend process: `src/backend-service.mjs`
@@ -82,7 +82,7 @@ Use these boundaries when deciding where a change belongs:
 - patient/prompt/teaching text: `src/radiopaedia-case-text.mjs`
 - fallback orchestration facade: `src/radiopaedia.mjs`
 - provider IO seam: `src/providers/radiopaedia-provider.mjs`
-- HTTP/download/cache helpers: `src/radiopaedia-client.mjs`
+- HTTP/download/cache: `src/radiopaedia-client.mjs`
 - image selection/scoring: `src/image-candidates.mjs`
 - focus crops/markup: `src/focus-crop.mjs`
 - optional local vision scoring: `src/ollama-review.mjs`
@@ -98,9 +98,9 @@ Use these boundaries when deciding where a change belongs:
 - Keep `src/backend-service.mjs` thin. It should own JSONL protocol mechanics, not Radiopaedia or PowerPoint business logic.
 - Keep moving C# logic from click handlers into view models, services, and contracts.
 - Keep slow/optional work out of initial preparation. Use review actions for expensive steps such as Ollama scoring.
-- Keep backend observability durable: long-running service commands should create/update `backend_jobs` rows.
+- Long-running service commands should create/update `backend_jobs` rows.
 - Keep image-selection rationale user-facing. If the scoring logic changes, update `selectionExplanation`, tests, and docs.
-- Keep random behavior explainable: history, skipped/rejected cases, and indexed reuse should remain visible in Activity/Decision Logic.
+- Keep random behavior explainable: history, skipped/rejected cases, and indexed reuse should remain visible in Activity and Decision Logic.
 - When adding C# to Node fields, update `src/contracts`, `BackendContracts.cs`, backend normalization, and tests.
 - Prefer additive SQLite migrations and record them in `schema_migrations`.
 - Preserve Radiopaedia attribution in generated slides.
@@ -143,7 +143,7 @@ node --check .\src\backend-service.mjs
 node --check .\src\image-candidates.mjs
 ```
 
-When touching syntax-sensitive backend modules, useful spot checks:
+When touching syntax-sensitive backend modules, run:
 
 ```powershell
 node --check .\src\backend-service.mjs

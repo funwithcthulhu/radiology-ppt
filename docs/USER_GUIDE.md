@@ -1,6 +1,6 @@
 # User Guide
 
-This app builds case-based radiology PowerPoints from Radiopaedia cases. The intended workflow is entirely through the desktop GUI.
+This app builds case-based radiology PowerPoints from Radiopaedia cases.
 
 ## Quick Start
 
@@ -23,7 +23,7 @@ For normal use, install from GitHub Releases:
 3. Run the installer.
 4. Keep the optional desktop shortcut checked if you want one.
 
-The installer is per-user and does not require administrator elevation. It bundles the desktop app, local backend resources, Node runtime, and app dependencies.
+The installer is per-user, does not require administrator elevation, and bundles the desktop app, backend resources, Node runtime, and app dependencies.
 
 ## Cases Tab
 
@@ -72,7 +72,7 @@ The Library is built from your local SQLite state. It is not synced to Radiopaed
 
 Core Boards imports local study PDFs into a private ABR Core-style study workspace.
 
-Current GUI support:
+Core Boards supports:
 
 - choose a default topic/domain
 - import local PDFs
@@ -93,7 +93,7 @@ The desktop app uses this area for local PDF import and study-library management
 
 ![PowerPoint tab overview](images/powerpoint-tab.svg)
 
-Main options:
+Options:
 
 - `Title`: optional. If blank, the app creates a title automatically.
 - `Images per case`: target image count. Review can keep fewer when a case only has a few useful images.
@@ -130,7 +130,7 @@ Buttons:
 
 The review window appears after case preparation and before PowerPoint creation.
 
-Top area:
+Header:
 
 - `Case Review N of M`: current position in the review queue.
 - Case title: the Radiopaedia case currently selected.
@@ -175,7 +175,7 @@ Keyboard shortcuts:
 
 ## Activity Tab
 
-Use Activity when something feels slow or strange.
+Use Activity for performance and error diagnosis.
 
 It shows:
 
@@ -203,7 +203,7 @@ Fast random PowerPoint:
 3. PowerPoint: apply `Fast Preview`.
 4. Generate, review, skip/reroll weak cases, export.
 
-If this is the first run for a narrow category, expect initial preparation to be slower while the local case index warms up. Later runs should avoid repeats better and often prepare faster.
+The first run for a narrow category may be slower while the local case index fills. Later runs can prepare faster and repeat less often.
 
 Higher-quality image PowerPoint:
 
@@ -238,7 +238,7 @@ Local generated/private paths:
 
 Installed app data lives under `%LOCALAPPDATA%\RadiopaediaCasePowerPointBuilder`. Source-checkout app data lives under the repository root. The Activity tab shows the current database and folder paths.
 
-These are ignored by Git. They may contain local paths, source metadata, review decisions, generated PowerPoints, imported PDF-derived data, or extracted images.
+These paths are ignored by Git. They may contain local paths, source metadata, review decisions, generated PowerPoints, imported PDF-derived data, or extracted images.
 
 Radiopaedia images are attributed in generated slides. Keep attribution intact and follow source material terms.
 

@@ -1,20 +1,20 @@
 name: Feature request
-description: Suggest an improvement to the desktop app, workflow, or generated PowerPoints.
+description: Request a change to the desktop app, workflow, or generated PowerPoints.
 title: "[Feature]: "
 labels: ["enhancement"]
 body:
   - type: textarea
     id: problem
     attributes:
-      label: What problem should this solve?
-      description: Describe the workflow pain point or missing capability.
+      label: Problem
+      description: Describe the workflow gap or missing capability.
     validations:
       required: true
   - type: textarea
     id: proposal
     attributes:
       label: Proposed behavior
-      description: What should the app do?
+      description: Describe the requested behavior.
     validations:
       required: true
   - type: dropdown

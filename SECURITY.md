@@ -4,7 +4,7 @@ Please report security-sensitive issues privately if possible. If you cannot, op
 
 ## Data Handling
 
-The app is designed for local use. Generated PowerPoints, review history, cache files, imported PDFs, extracted images, and SQLite state are local generated data and should not be committed.
+The app is designed for local use. Generated PowerPoints, review history, cache files, imported PDFs, extracted images, and SQLite state should not be committed.
 
 The SQLite database may include local file paths, reviewed case titles, random history, image decisions, backend job timing/details, and generated PowerPoint metadata. Treat it as private local state.
 
