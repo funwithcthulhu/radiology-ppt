@@ -24,6 +24,27 @@ import { radiopaediaProvider } from "./providers/radiopaedia-provider.mjs";
 const RESOURCE_ROOT =
   process.env.RADIOLOGY_PPT_RESOURCE_ROOT || path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const APP_ROOT = process.env.RADIOLOGY_PPT_APP_ROOT || RESOURCE_ROOT;
+const RANDOM_PREPARE_FALLBACK_ATTEMPTS = boundedInteger(
+  process.env.RADIOLOGY_PPT_RANDOM_PREPARE_FALLBACK_ATTEMPTS,
+  8,
+  0,
+  40,
+);
+const RANDOM_PREPARE_REPLACEMENT_ATTEMPTS = boundedInteger(
+  process.env.RADIOLOGY_PPT_RANDOM_PREPARE_REPLACEMENT_ATTEMPTS,
+  8,
+  0,
+  40,
+);
+
+function boundedInteger(rawValue, defaultValue, minimum, maximum) {
+  const parsed = Number.parseInt(rawValue ?? "", 10);
+  if (!Number.isInteger(parsed)) {
+    return defaultValue;
+  }
+
+  return Math.max(minimum, Math.min(maximum, parsed));
+}
 
 async function buildDeck(options) {
   const deck = await import("./deck.mjs");
@@ -263,7 +284,7 @@ async function prepareEntry(entry, args, cacheDir) {
       fetchRadiopaediaCase(entry, {
         cacheDir,
         imagesPerCase: entry.requestedImagesPerCase || args.imagesPerCase,
-        maxFallbackAttempts: isRandomPreparedRequest(entry) ? 1 : null,
+        maxFallbackAttempts: isRandomPreparedRequest(entry) ? RANDOM_PREPARE_FALLBACK_ATTEMPTS : null,
       }),
     );
     await recordCaseIndex({
@@ -316,14 +337,86 @@ function retryEntryForDuplicateRandomCase(request, excludedPaths) {
   });
 }
 
+async function prepareReplacementRandomCase(request, excludedPaths, args, cacheDir) {
+  let exclusions = dedupe(excludedPaths.map((value) => normalizedCasePath(value)).filter(Boolean));
+  let lastFailure = null;
+
+  for (let attempt = 1; attempt <= RANDOM_PREPARE_REPLACEMENT_ATTEMPTS; attempt += 1) {
+    const retrySeed = retryEntryForDuplicateRandomCase(request, exclusions);
+    let retryEntries = [];
+    try {
+      retryEntries = await expandCaseRequests([retrySeed], {
+        readRandomHistory: true,
+        writeRandomHistory: false,
+        allowRandomHistoryFallback: args.onlyNewRandomCases === false,
+      });
+    } catch (error) {
+      lastFailure = error.message;
+      break;
+    }
+
+    const retryEntry = retryEntries[0];
+    const retryCasePath = normalizedCasePath(retryEntry?.selectedCasePath || "");
+    if (!retryEntry || !retryCasePath || exclusions.includes(retryCasePath)) {
+      lastFailure = "No unused replacement random case was found.";
+      if (retryCasePath) {
+        exclusions = dedupe([...exclusions, retryCasePath]);
+      }
+      continue;
+    }
+
+    emitProgress("Preparing replacement random case", {
+      request: request.rawInput,
+      attempt,
+      casePath: retryEntry.selectedCasePath,
+      title: retryEntry.selectedCaseTitle,
+    });
+    const retry = await prepareEntry(retryEntry, args, cacheDir);
+    const preparedPath = normalizedCasePath(retry.item?.caseData?.casePath || retryEntry.selectedCasePath);
+    if (retry.item && preparedPath && !exclusions.includes(preparedPath)) {
+      return retry;
+    }
+
+    lastFailure =
+      retry.failure ||
+      `Replacement random case "${retryEntry.selectedCaseTitle || retryEntry.selectedCasePath}" could not be prepared.`;
+    exclusions = dedupe([...exclusions, retryCasePath, preparedPath].filter(Boolean));
+  }
+
+  return {
+    item: null,
+    failure: lastFailure || "No replacement random case could be prepared.",
+  };
+}
+
 async function replaceDuplicateRandomPreparedResults(preparedResults, entries, args, cacheDir) {
   const uniqueResults = [];
   const usedCasePaths = new Set();
+  const unavailableCasePaths = new Set();
 
   for (let index = 0; index < preparedResults.length; index += 1) {
     let result = preparedResults[index];
     const request = result.item?.request || entries[index];
     let casePath = normalizedCasePath(result.item?.caseData?.casePath || "");
+
+    if (!result.item && isRandomPreparedRequest(request)) {
+      emitWarning("Random case failed to prepare; looking for a replacement", {
+        request: request.rawInput,
+        failure: result.failure,
+      });
+      const excludedPaths = dedupe(
+        [
+          ...usedCasePaths,
+          ...unavailableCasePaths,
+          request.selectedCasePath,
+          ...(request.excludeCasePaths || []),
+        ]
+          .map((value) => normalizedCasePath(value))
+          .filter(Boolean),
+      );
+      result = await prepareReplacementRandomCase(request, excludedPaths, args, cacheDir);
+      casePath = normalizedCasePath(result.item?.caseData?.casePath || "");
+    }
 
     if (result.item && casePath && usedCasePaths.has(casePath) && isRandomPreparedRequest(request)) {
       emitWarning("Duplicate random case detected; looking for an alternate", {
@@ -341,8 +434,7 @@ async function replaceDuplicateRandomPreparedResults(preparedResults, entries, a
           .map((value) => normalizedCasePath(value))
           .filter(Boolean),
       );
-      const retryEntry = retryEntryForDuplicateRandomCase(request, excludedPaths);
-      const retry = await prepareEntry(retryEntry, args, cacheDir);
+      const retry = await prepareReplacementRandomCase(request, excludedPaths, args, cacheDir);
       const retryCasePath = normalizedCasePath(retry.item?.caseData?.casePath || "");
 
       if (retry.item && retryCasePath && !usedCasePaths.has(retryCasePath)) {
@@ -362,7 +454,11 @@ async function replaceDuplicateRandomPreparedResults(preparedResults, entries, a
     }
 
     if (casePath) {
-      usedCasePaths.add(casePath);
+      if (result.item) {
+        usedCasePaths.add(casePath);
+      } else {
+        unavailableCasePaths.add(casePath);
+      }
     }
     uniqueResults.push(result);
   }

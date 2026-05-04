@@ -53,6 +53,10 @@ Random mode starts with live Radiopaedia search. Later runs may still improve be
 
 For generic random decks, repeated runs should continue finding unused Radiopaedia cases. If repeats still happen, check that `Only use new random cases` is checked and review the Activity log for Radiopaedia errors or cancelled searches.
 
+During preparation, a selected random case may still be rejected if the case page is unavailable, the image set is too weak,
+or it resolves to a duplicate. The app now tries alternate random cases so a 10-case random request should still prepare
+10 reviewable cases whenever Radiopaedia has enough usable public cases.
+
 ## Reroll Case Says No Alternate Was Found
 
 Reroll excludes the current case and searches again for the same request. It does not intentionally reuse the selected case.
@@ -88,6 +92,8 @@ Random discovery defaults:
 - `RADIOLOGY_PPT_RANDOM_SEARCH_PAGE_LIMIT=250`
 - `RADIOLOGY_PPT_RANDOM_CANDIDATE_LIMIT=3000`
 - `RADIOLOGY_PPT_RANDOM_SEARCH_TIMEOUT_MS=300000`
+- `RADIOLOGY_PPT_RANDOM_PREPARE_FALLBACK_ATTEMPTS=8`
+- `RADIOLOGY_PPT_RANDOM_PREPARE_REPLACEMENT_ATTEMPTS=8`
 
 If network work feels too aggressive or Radiopaedia/curl errors become frequent, lower HTTP concurrency before launching the app:
 
