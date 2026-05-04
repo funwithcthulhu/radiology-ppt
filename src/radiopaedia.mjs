@@ -11,6 +11,7 @@ export { buildTeachingPoints } from "./radiopaedia-case-text.mjs";
 export {
   buildCaseSearchUrl,
   expandCaseRequests,
+  extractSearchPageNumbers,
   inspectRadiopaediaCaseCandidates,
   parseCaseSearchResults,
   parseCaseSystemsFromHtml,

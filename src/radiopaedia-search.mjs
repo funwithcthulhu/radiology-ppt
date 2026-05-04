@@ -34,9 +34,9 @@ import {
 const RANDOM_HISTORY_LIMIT = 1000;
 const RANDOM_HISTORY_PATH = path.join(APP_ROOT, "cache", "random-selection-history.json");
 const RANDOM_SEARCH_QUERY_LIMIT = boundedInteger(process.env.RADIOLOGY_PPT_RANDOM_SEARCH_QUERY_LIMIT, 8, 1, 20);
-const RANDOM_SEARCH_PAGE_SCAN_LIMIT = boundedInteger(process.env.RADIOLOGY_PPT_RANDOM_SEARCH_PAGE_LIMIT, 80, 2, 500);
-const RANDOM_CANDIDATE_REVIEW_LIMIT = boundedInteger(process.env.RADIOLOGY_PPT_RANDOM_CANDIDATE_LIMIT, 1000, 25, 5000);
-const RANDOM_SEARCH_TIME_LIMIT_MS = boundedInteger(process.env.RADIOLOGY_PPT_RANDOM_SEARCH_TIMEOUT_MS, 120000, 10000, 600000);
+const RANDOM_SEARCH_PAGE_SCAN_LIMIT = boundedInteger(process.env.RADIOLOGY_PPT_RANDOM_SEARCH_PAGE_LIMIT, 250, 2, 1000);
+const RANDOM_CANDIDATE_REVIEW_LIMIT = boundedInteger(process.env.RADIOLOGY_PPT_RANDOM_CANDIDATE_LIMIT, 3000, 25, 10000);
+const RANDOM_SEARCH_TIME_LIMIT_MS = boundedInteger(process.env.RADIOLOGY_PPT_RANDOM_SEARCH_TIMEOUT_MS, 300000, 10000, 900000);
 
 function boundedInteger(rawValue, defaultValue, minimum, maximum) {
   const parsed = Number.parseInt(rawValue ?? "", 10);
@@ -202,10 +202,18 @@ export function comparableCasePath(value) {
   }
 }
 
-function extractSearchPageNumbers(html) {
+export function extractSearchPageNumbers(html) {
   return dedupe(
-    [...html.matchAll(/href="[^"]*page=(\d+)[^"]*scope=cases[^"]*"/g)]
-      .map((match) => Number.parseInt(match[1], 10))
+    [...String(html ?? "").matchAll(/href="([^"]+)"/g)]
+      .map((match) => match[1].replace(/&amp;/g, "&"))
+      .filter((href) => href.includes("scope=cases"))
+      .map((href) => {
+        try {
+          return Number.parseInt(new URL(href, BASE_URL).searchParams.get("page") || "", 10);
+        } catch {
+          return Number.NaN;
+        }
+      })
       .filter((value) => Number.isInteger(value) && value >= 1),
   ).sort((left, right) => left - right);
 }
@@ -269,6 +277,16 @@ function queueDiscoveredSearchPages(queue, queuedPages, visitedPages, pageNumber
     queuedPages.add(page);
     queue.push(page);
   }
+}
+
+function queueNextSequentialSearchPage(queue, queuedPages, visitedPages) {
+  const nextPage = Math.max(0, ...visitedPages) + 1;
+  if (queuedPages.has(nextPage) || visitedPages.has(nextPage)) {
+    return false;
+  }
+  queuedPages.add(nextPage);
+  queue.push(nextPage);
+  return true;
 }
 
 async function candidateSystemList(candidate, htmlCache = new Map()) {
@@ -430,6 +448,7 @@ async function pickRandomCaseCandidates(
     const queue = [1];
     const queuedPages = new Set(queue);
     const visitedPages = new Set();
+    let emptyPagesInARow = 0;
 
     while (queue.length) {
       if (
@@ -449,7 +468,27 @@ async function pickRandomCaseCandidates(
       visitedPages.add(page);
       searchedPages += 1;
 
-      const { candidates, pageNumbers } = await fetchRandomSearchPage(query, systems, page);
+      let pageResult;
+      try {
+        pageResult = await fetchRandomSearchPage(query, systems, page);
+      } catch (error) {
+        emitWarning("Radiopaedia random page could not be read", {
+          query,
+          systems,
+          page,
+          message: error.message,
+        });
+        emptyPagesInARow += 1;
+        if (emptyPagesInARow >= 3) {
+          break;
+        }
+        if (!queue.length) {
+          queueNextSequentialSearchPage(queue, queuedPages, visitedPages);
+        }
+        continue;
+      }
+
+      const { candidates, pageNumbers } = pageResult;
       emitProgress("Scanned Radiopaedia random page", {
         query,
         systems,
@@ -458,6 +497,13 @@ async function pickRandomCaseCandidates(
         totalPagesScanned: searchedPages,
       });
       queueDiscoveredSearchPages(queue, queuedPages, visitedPages, pageNumbers);
+      emptyPagesInARow = candidates.length ? 0 : emptyPagesInARow + 1;
+      if (emptyPagesInARow >= 3) {
+        break;
+      }
+      if (!queue.length) {
+        queueNextSequentialSearchPage(queue, queuedPages, visitedPages);
+      }
 
       for (const candidate of shuffle(candidates)) {
         if (Date.now() - startedAt > RANDOM_SEARCH_TIME_LIMIT_MS || reviewedCandidates >= RANDOM_CANDIDATE_REVIEW_LIMIT) {

@@ -8,6 +8,7 @@ import {
   buildTeachingPoints,
   buildCaseSearchUrl,
   expandCaseRequests,
+  extractSearchPageNumbers,
   inspectRadiopaediaCaseCandidates,
   parseCaseSearchResults,
   parseCaseSystemsFromHtml,
@@ -37,6 +38,17 @@ test("builds stable Radiopaedia case search URLs", () => {
   assert.equal(url.searchParams.get("q"), "multiple sclerosis");
   assert.equal(url.searchParams.get("page"), "2");
   assert.deepEqual(url.searchParams.getAll("system[]"), ["Central Nervous System", "Paediatrics"]);
+});
+
+test("extracts Radiopaedia search pages regardless of query parameter order", () => {
+  const html = `
+    <a href="/search?page=2&amp;scope=cases&amp;q=msk">2</a>
+    <a href="/search?scope=cases&amp;q=msk&amp;page=3">3</a>
+    <a href="https://radiopaedia.org/search?lang=us&amp;scope=cases&amp;page=4">4</a>
+    <a href="/search?page=5&amp;scope=articles">not cases</a>
+  `;
+
+  assert.deepEqual(extractSearchPageNumbers(html), [2, 3, 4]);
 });
 
 test("matches excluded manual case paths even when query strings differ", async () => {

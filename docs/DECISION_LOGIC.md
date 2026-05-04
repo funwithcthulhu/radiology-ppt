@@ -19,7 +19,7 @@ Random mode uses history and filters to reduce repeated cases.
 Selection order:
 
 1. Read local exclusions from recent random history, skipped/rejected cases, and the current review request.
-2. Search live Radiopaedia results for unused cases that match the filters, walking deeper result pages as needed.
+2. Search live Radiopaedia results for unused cases that match the filters, walking deeper result pages as needed. The scanner follows Radiopaedia pagination links and continues sequentially when the visible pagination window ends.
 3. If live search does not find enough unused cases, use the local `case_index` as a fallback for unused previously discovered cases.
 4. If `Only use new random cases` is unchecked, fill any remaining slots with older cases only after unused discovery fails.
 5. Add selected cases to random history so later runs avoid them.

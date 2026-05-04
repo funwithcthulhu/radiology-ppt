@@ -85,9 +85,9 @@ Actions:
 
 Random discovery defaults:
 
-- `RADIOLOGY_PPT_RANDOM_SEARCH_PAGE_LIMIT=80`
-- `RADIOLOGY_PPT_RANDOM_CANDIDATE_LIMIT=1000`
-- `RADIOLOGY_PPT_RANDOM_SEARCH_TIMEOUT_MS=120000`
+- `RADIOLOGY_PPT_RANDOM_SEARCH_PAGE_LIMIT=250`
+- `RADIOLOGY_PPT_RANDOM_CANDIDATE_LIMIT=3000`
+- `RADIOLOGY_PPT_RANDOM_SEARCH_TIMEOUT_MS=300000`
 
 If network work feels too aggressive or Radiopaedia/curl errors become frequent, lower HTTP concurrency before launching the app:
 
