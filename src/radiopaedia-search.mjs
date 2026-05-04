@@ -439,20 +439,42 @@ async function pickRandomCaseCandidates(request, { excludePaths = new Set(), all
     candidateCount: shuffledCandidates.length,
     requestedCount: request.randomSpec.count,
   });
-  const picks =
+  let picks =
     request.randomSpec?.diversify === "mixed"
       ? await pickMixedCandidates(shuffledCandidates, request.randomSpec.count, htmlCache)
       : shuffledCandidates.slice(0, request.randomSpec.count);
   if (picks.length < request.randomSpec.count && excludePaths.size > 0 && allowReuseIfNeeded) {
-    emitWarning("Random case history exhausted; allowing older cases as fallback", {
+    emitWarning("Fresh random case pool exhausted; filling only the remaining slots with older cases", {
       request: request.rawInput,
       requestedCount: request.randomSpec.count,
-      picksFound: picks.length,
+      freshPicksFound: picks.length,
     });
-    return pickRandomCaseCandidates(request, {
-      excludePaths: new Set(),
+
+    const pickedPaths = new Set(picks.map((candidate) => comparableCasePath(candidate.casePath)));
+    const fallbackPicks = await pickRandomCaseCandidates(request, {
+      excludePaths: pickedPaths,
       allowReuseIfNeeded: false,
     });
+    const supplemental = [];
+    for (const candidate of fallbackPicks) {
+      const casePath = comparableCasePath(candidate.casePath);
+      if (pickedPaths.has(casePath)) {
+        continue;
+      }
+      supplemental.push(candidate);
+      pickedPaths.add(casePath);
+      if (picks.length + supplemental.length >= request.randomSpec.count) {
+        break;
+      }
+    }
+    picks = picks.concat(supplemental);
+    if (picks.length < request.randomSpec.count) {
+      emitWarning("Random case pool returned fewer cases than requested", {
+        request: request.rawInput,
+        requestedCount: request.randomSpec.count,
+        picksFound: picks.length,
+      });
+    }
   }
   if (!picks.length) {
     const filterBits = dedupe([...(request.randomSpec.systems || []), request.randomSpec.queryText, request.studyHint]).filter(Boolean);

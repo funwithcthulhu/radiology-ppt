@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { recordCaseIndex } from "../src/app-store.mjs";
+import { recordCaseIndex, writeRandomHistory } from "../src/app-store.mjs";
 import {
   buildTeachingPoints,
   buildCaseSearchUrl,
@@ -124,4 +124,58 @@ test("expands random requests from the local case index before live search", asy
   assert.equal(expanded.length, 1);
   assert.equal(expanded[0].selectedCasePath, "/cases/cached-ms-1");
   assert.equal(expanded[0].selectedCaseTitle, "Cached multiple sclerosis");
+});
+
+test("excludes previously selected random cases from later random runs", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "radiology-random-history-"));
+  process.env.RADIOLOGY_PPT_DATABASE_PATH = path.join(tempDir, "state.sqlite");
+
+  await recordCaseIndex({
+    caseData: {
+      casePath: "/cases/prior-random-case?lang=us",
+      caseTitle: "Prior random case",
+      diagnosisQuery: "prior",
+      modalitySummary: "CT",
+      images: [{ frameId: "a" }, { frameId: "b" }],
+      quality: {
+        selectedCount: 2,
+        strongCount: 2,
+        overallScore: 900,
+        summary: "2 relevant images selected.",
+      },
+    },
+    request: {},
+    source: "unit-test",
+  });
+  await recordCaseIndex({
+    caseData: {
+      casePath: "/cases/fresh-random-case?lang=us",
+      caseTitle: "Fresh random case",
+      diagnosisQuery: "fresh",
+      modalitySummary: "CT",
+      images: [{ frameId: "c" }, { frameId: "d" }],
+      quality: {
+        selectedCount: 2,
+        strongCount: 2,
+        overallScore: 800,
+        summary: "2 relevant images selected.",
+      },
+    },
+    request: {},
+    source: "unit-test",
+  });
+  await writeRandomHistory(["/cases/prior-random-case"], { source: "unit-test", limit: 10 });
+
+  const expanded = await expandCaseRequests(
+    [
+      {
+        requestMode: "random",
+        randomCount: 1,
+      },
+    ],
+    { readRandomHistory: true, writeRandomHistory: false },
+  );
+
+  assert.equal(expanded.length, 1);
+  assert.equal(expanded[0].selectedCasePath, "/cases/fresh-random-case");
 });
