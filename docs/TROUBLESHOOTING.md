@@ -51,6 +51,8 @@ Actions:
 
 Random mode starts with live Radiopaedia search. Later runs may still improve because the app can use `case_index` as a fallback after live search cannot fill the request.
 
+For generic random decks, repeated runs should continue finding unused Radiopaedia cases. If repeats still happen, check that `Only use new random cases` is checked and review the Activity log for Radiopaedia errors or cancelled searches.
+
 ## Reroll Case Says No Alternate Was Found
 
 Reroll excludes the current case and searches again for the same request. It does not intentionally reuse the selected case.
@@ -74,12 +76,18 @@ The Activity tab logs timing for major stages.
 
 Actions:
 
-- Start with fewer random cases for a new category.
-- Use broader filters.
+- Start with fewer random cases only if Radiopaedia is slow or your filters are very narrow.
+- Use broader filters if a filtered search stalls.
 - Re-run after one successful pass so cached metadata and `case_index` can help.
 - Avoid Ollama during initial preparation.
 - Use `Run Maintenance` after many test runs.
 - Check `Activity` for recent backend job duration. If `prepare` is long, the delay is usually live Radiopaedia case/study loading rather than PowerPoint rendering.
+
+Random discovery defaults:
+
+- `RADIOLOGY_PPT_RANDOM_SEARCH_PAGE_LIMIT=80`
+- `RADIOLOGY_PPT_RANDOM_CANDIDATE_LIMIT=1000`
+- `RADIOLOGY_PPT_RANDOM_SEARCH_TIMEOUT_MS=120000`
 
 If network work feels too aggressive or Radiopaedia/curl errors become frequent, lower HTTP concurrency before launching the app:
 

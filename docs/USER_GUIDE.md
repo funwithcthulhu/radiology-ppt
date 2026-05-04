@@ -104,7 +104,7 @@ Options:
 - `Open PowerPoint when finished`: opens the output file after export.
 - `Show patient age/sex when available`: adds minimal patient info on the case slide when clean data exists.
 - `Add teaching-points slides when available`: adds teaching points after diagnosis.
-- `Only use new random cases`: enabled by default. Prevents random mode from backfilling with cases already used in prior random decks. If filters are narrow, review may contain fewer cases than requested.
+- `Only use new random cases`: enabled by default. Prevents random mode from backfilling with cases already used in prior random decks.
 - `Use Ollama image review`: enables the review-window `Ollama Score Case` action.
 - `Refresh Models`: loads local Ollama model names into the model dropdown.
 

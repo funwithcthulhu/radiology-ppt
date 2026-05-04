@@ -33,10 +33,19 @@ import {
 
 const RANDOM_HISTORY_LIMIT = 1000;
 const RANDOM_HISTORY_PATH = path.join(APP_ROOT, "cache", "random-selection-history.json");
-const RANDOM_SEARCH_QUERY_LIMIT = 5;
-const RANDOM_SEARCH_PAGE_LIMIT = 2;
-const RANDOM_CANDIDATE_REVIEW_LIMIT = 32;
-const RANDOM_SEARCH_TIME_LIMIT_MS = 30000;
+const RANDOM_SEARCH_QUERY_LIMIT = boundedInteger(process.env.RADIOLOGY_PPT_RANDOM_SEARCH_QUERY_LIMIT, 8, 1, 20);
+const RANDOM_SEARCH_PAGE_SCAN_LIMIT = boundedInteger(process.env.RADIOLOGY_PPT_RANDOM_SEARCH_PAGE_LIMIT, 80, 2, 500);
+const RANDOM_CANDIDATE_REVIEW_LIMIT = boundedInteger(process.env.RADIOLOGY_PPT_RANDOM_CANDIDATE_LIMIT, 1000, 25, 5000);
+const RANDOM_SEARCH_TIME_LIMIT_MS = boundedInteger(process.env.RADIOLOGY_PPT_RANDOM_SEARCH_TIMEOUT_MS, 120000, 10000, 600000);
+
+function boundedInteger(rawValue, defaultValue, minimum, maximum) {
+  const parsed = Number.parseInt(rawValue ?? "", 10);
+  if (!Number.isInteger(parsed)) {
+    return defaultValue;
+  }
+
+  return Math.max(minimum, Math.min(maximum, parsed));
+}
 
 async function loadRandomHistory(historyPath = RANDOM_HISTORY_PATH) {
   if (historyPath === RANDOM_HISTORY_PATH) {
@@ -237,33 +246,29 @@ function buildRandomSearchQueries(request) {
   ]);
 }
 
-async function collectRandomCasePool(query, systems) {
-  emitProgress("Searching Radiopaedia random cases", { query, systems });
-  const pageOneHtml = await fetchText(buildCaseSearchUrl({ query, systems, page: 1 }));
-  const pageNumbers = extractSearchPageNumbers(pageOneHtml);
-  const desiredPageCount = Math.min(pageNumbers.length || 1, RANDOM_SEARCH_PAGE_LIMIT);
-  const extraPages = pageNumbers
-    .filter((page) => page > 1)
-    .slice(0, Math.max(0, desiredPageCount - 1));
-  const pagesToFetch = dedupe([1, ...extraPages]);
-  const poolMap = new Map();
+async function fetchRandomSearchPage(query, systems, page) {
+  const html = await fetchText(buildCaseSearchUrl({ query, systems, page }));
+  return {
+    pageNumbers: extractSearchPageNumbers(html),
+    candidates: parseCaseSearchResults(html).map((candidate) => ({
+      ...candidate,
+      searchedSystems: dedupe(systems || []),
+      systemsFilterTrusted: Boolean((systems || []).length),
+    })),
+  };
+}
 
-  for (const page of pagesToFetch) {
-    const html =
-      page === 1 ? pageOneHtml : await fetchText(buildCaseSearchUrl({ query, systems, page }));
+function queueDiscoveredSearchPages(queue, queuedPages, visitedPages, pageNumbers) {
+  const newPages = shuffle(
+    dedupe(pageNumbers)
+      .filter((page) => page > 0)
+      .filter((page) => !queuedPages.has(page) && !visitedPages.has(page)),
+  );
 
-    for (const candidate of parseCaseSearchResults(html)) {
-      if (!poolMap.has(candidate.casePath)) {
-        poolMap.set(candidate.casePath, {
-          ...candidate,
-          searchedSystems: dedupe(systems || []),
-          systemsFilterTrusted: Boolean((systems || []).length),
-        });
-      }
-    }
+  for (const page of newPages) {
+    queuedPages.add(page);
+    queue.push(page);
   }
-
-  return [...poolMap.values()];
 }
 
 async function candidateSystemList(candidate, htmlCache = new Map()) {
@@ -402,9 +407,10 @@ async function pickRandomCaseCandidates(
   const systemMode = request.randomSpec?.systemMode || "all";
   const candidateMap = new Map();
   const htmlCache = new Map();
-  const targetPoolSize = Math.max(request.randomSpec.count + 14, 24);
+  const targetPoolSize = Math.max(request.randomSpec.count * 5, request.randomSpec.count + 40, 80);
   const startedAt = Date.now();
   let reviewedCandidates = 0;
+  let searchedPages = 0;
 
   const liveQueries = allowLiveSearch ? buildRandomSearchQueries(request).slice(0, RANDOM_SEARCH_QUERY_LIMIT) : [];
   for (const query of liveQueries) {
@@ -414,26 +420,65 @@ async function pickRandomCaseCandidates(
     if (Date.now() - startedAt > RANDOM_SEARCH_TIME_LIMIT_MS) {
       break;
     }
-    const pool = await collectRandomCasePool(query, systems);
-    for (const candidate of shuffle(pool)) {
-      if (Date.now() - startedAt > RANDOM_SEARCH_TIME_LIMIT_MS || reviewedCandidates >= RANDOM_CANDIDATE_REVIEW_LIMIT) {
+
+    emitProgress("Searching Radiopaedia random cases", {
+      query,
+      systems,
+      pageLimit: RANDOM_SEARCH_PAGE_SCAN_LIMIT,
+    });
+
+    const queue = [1];
+    const queuedPages = new Set(queue);
+    const visitedPages = new Set();
+
+    while (queue.length) {
+      if (
+        candidateMap.size >= targetPoolSize ||
+        searchedPages >= RANDOM_SEARCH_PAGE_SCAN_LIMIT ||
+        reviewedCandidates >= RANDOM_CANDIDATE_REVIEW_LIMIT ||
+        Date.now() - startedAt > RANDOM_SEARCH_TIME_LIMIT_MS
+      ) {
         break;
       }
-      reviewedCandidates += 1;
-      if (excludePaths.has(comparableCasePath(candidate.casePath)) || candidateMap.has(candidate.casePath)) {
+
+      const page = queue.shift();
+      queuedPages.delete(page);
+      if (visitedPages.has(page)) {
         continue;
       }
-      if (!(await candidateMatchesSystems(candidate, systems, htmlCache, systemMode))) {
-        continue;
+      visitedPages.add(page);
+      searchedPages += 1;
+
+      const { candidates, pageNumbers } = await fetchRandomSearchPage(query, systems, page);
+      emitProgress("Scanned Radiopaedia random page", {
+        query,
+        systems,
+        page,
+        candidates: candidates.length,
+        totalPagesScanned: searchedPages,
+      });
+      queueDiscoveredSearchPages(queue, queuedPages, visitedPages, pageNumbers);
+
+      for (const candidate of shuffle(candidates)) {
+        if (Date.now() - startedAt > RANDOM_SEARCH_TIME_LIMIT_MS || reviewedCandidates >= RANDOM_CANDIDATE_REVIEW_LIMIT) {
+          break;
+        }
+        reviewedCandidates += 1;
+        if (excludePaths.has(comparableCasePath(candidate.casePath)) || candidateMap.has(comparableCasePath(candidate.casePath))) {
+          continue;
+        }
+        if (!(await candidateMatchesSystems(candidate, systems, htmlCache, systemMode))) {
+          continue;
+        }
+        addRandomCandidate(candidateMap, candidate);
+        if (candidateMap.size >= targetPoolSize) {
+          break;
+        }
       }
-      addRandomCandidate(candidateMap, candidate);
+
       if (candidateMap.size >= targetPoolSize) {
         break;
       }
-    }
-
-    if (candidateMap.size >= targetPoolSize) {
-      break;
     }
   }
 
@@ -500,7 +545,9 @@ async function pickRandomCaseCandidates(
     const filterBits = dedupe([...(request.randomSpec.systems || []), request.randomSpec.queryText, request.studyHint]).filter(Boolean);
     const filterText = filterBits.length ? ` (${filterBits.join(" | ")})` : "";
     const stoppedText =
-      Date.now() - startedAt > RANDOM_SEARCH_TIME_LIMIT_MS || reviewedCandidates >= RANDOM_CANDIDATE_REVIEW_LIMIT
+      Date.now() - startedAt > RANDOM_SEARCH_TIME_LIMIT_MS ||
+      reviewedCandidates >= RANDOM_CANDIDATE_REVIEW_LIMIT ||
+      searchedPages >= RANDOM_SEARCH_PAGE_SCAN_LIMIT
         ? " within the search limits"
         : "";
     throw new Error(`No suitable random Radiopaedia cases were found for "${request.rawInput}"${filterText}${stoppedText}. Try broader filters or fewer constraints.`);

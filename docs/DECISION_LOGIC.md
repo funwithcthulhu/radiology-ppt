@@ -19,16 +19,16 @@ Random mode uses history and filters to reduce repeated cases.
 Selection order:
 
 1. Read local exclusions from recent random history, skipped/rejected cases, and the current review request.
-2. Search live Radiopaedia results for unused cases that match the filters.
+2. Search live Radiopaedia results for unused cases that match the filters, walking deeper result pages as needed.
 3. If live search does not find enough unused cases, use the local `case_index` as a fallback for unused previously discovered cases.
 4. If `Only use new random cases` is unchecked, fill any remaining slots with older cases only after unused discovery fails.
 5. Add selected cases to random history so later runs avoid them.
 
-`Only use new random cases` is enabled by default. In that mode, “not enough cases” means no more unused cases were found inside the current live-search window and local unused fallback. It does not mean Radiopaedia has no more cases.
+`Only use new random cases` is enabled by default. Generic random searches should keep finding unused Radiopaedia cases across repeated decks. If an unusually narrow filter still cannot fill the request, that indicates a filter/network/search-limit problem rather than a small Radiopaedia case pool.
 
 The first run for a new category is often slower because the app starts with live Radiopaedia discovery. Later runs can still benefit from the local index as a fallback, but random mode does not start from previously prepared cases.
 
-Narrow filters can still exhaust the public case pool. If reroll cannot find a new case, broaden modality/anatomy/area filters or skip the case.
+Narrow filters can still over-constrain discovery. If reroll cannot find a new case, broaden modality/anatomy/area filters or skip the case.
 
 ## Image Selection
 
