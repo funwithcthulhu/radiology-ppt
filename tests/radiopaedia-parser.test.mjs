@@ -179,3 +179,50 @@ test("excludes previously selected random cases from later random runs", async (
   assert.equal(expanded.length, 1);
   assert.equal(expanded[0].selectedCasePath, "/cases/fresh-random-case");
 });
+
+test("strict new-random mode does not backfill with previous random cases", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "radiology-only-new-random-"));
+  process.env.RADIOLOGY_PPT_DATABASE_PATH = path.join(tempDir, "state.sqlite");
+
+  for (const [casePath, caseTitle] of [
+    ["/cases/used-random-case", "Used random case"],
+    ["/cases/new-random-case", "New random case"],
+  ]) {
+    await recordCaseIndex({
+      caseData: {
+        casePath,
+        caseTitle,
+        diagnosisQuery: caseTitle,
+        modalitySummary: "MRI",
+        images: [{ frameId: `${casePath}-1` }, { frameId: `${casePath}-2` }],
+        quality: {
+          selectedCount: 2,
+          strongCount: 2,
+          overallScore: 850,
+          summary: "2 relevant images selected.",
+        },
+      },
+      request: {},
+      source: "unit-test",
+    });
+  }
+  await writeRandomHistory(["/cases/used-random-case"], { source: "unit-test", limit: 10 });
+
+  const expanded = await expandCaseRequests(
+    [
+      {
+        requestMode: "random",
+        randomCount: 2,
+      },
+    ],
+    {
+      readRandomHistory: true,
+      writeRandomHistory: false,
+      allowRandomHistoryFallback: false,
+      allowLiveSearch: false,
+    },
+  );
+
+  assert.equal(expanded.length, 1);
+  assert.deepEqual(expanded.map((entry) => entry.selectedCasePath), ["/cases/new-random-case"]);
+});

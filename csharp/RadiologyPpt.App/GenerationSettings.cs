@@ -12,4 +12,5 @@ public sealed record GenerationSettings
     public string Theme { get; init; } = "classic";
     public string PowerPointStyle { get; init; } = "case-conference";
     public bool IncludeTeachingPoints { get; init; }
+    public bool OnlyNewRandomCases { get; init; }
 }

@@ -24,6 +24,8 @@ Selection order:
 4. If the local index does not have enough matches, run live Radiopaedia search.
 5. Add selected cases to random history so later runs avoid them.
 
+By default, random mode prefers new cases but may backfill missing slots with older cases if the filtered pool is exhausted. Enable `Only use new random cases` on the PowerPoint tab when you would rather get fewer cases than reuse cases from previous random decks.
+
 The first run for a new category is often slower. Later runs are usually faster and less repetitive because the local index has prepared-case metadata.
 
 Narrow filters can still exhaust the public case pool. If reroll cannot find a new case, broaden modality/anatomy/area filters or skip the case.

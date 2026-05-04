@@ -28,8 +28,9 @@ The case intro slide avoids giving away the diagnosis when possible. If clean pa
 - Review before export, with controls to keep, favorite, skip, reroll, re-pick, replace, remove, or manually choose images.
 - Image-selection rationale in the review window and generated manifest.
 - Local Library tab for reviewed cases and favorites.
-- PowerPoint presets for fast preview, image review, Ollama-assisted review, Core Review teaching, and dark conference mode.
+- PowerPoint presets for fast preview, Ollama-assisted review, Core Review teaching, and dark conference mode.
 - Optional Ollama vision scoring during review.
+- Optional strict random mode that uses only cases not seen in previous random decks.
 - Local SQLite cache for Radiopaedia metadata, image candidates, random history, review decisions, and backend diagnostics.
 - Persistent local Node backend service with idle health checks.
 

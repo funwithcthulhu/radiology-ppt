@@ -44,6 +44,7 @@ Actions:
 
 - Skip weak cases during review so random mode avoids them later.
 - Reroll unwanted cases instead of approving them.
+- Enable `Only use new random cases` on the PowerPoint tab if you prefer fewer cases over reused random cases.
 - Use broader filters if a narrow category has only a small pool.
 - Use the Library tab to see whether a category is cycling through familiar cases.
 - Do not delete the state database unless you intentionally want to reset history.

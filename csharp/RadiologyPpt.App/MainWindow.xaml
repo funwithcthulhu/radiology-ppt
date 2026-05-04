@@ -232,7 +232,13 @@
                                 <CheckBox x:Name="AutoOpenCheck" Grid.Row="6" Grid.Column="1" Content="Open PowerPoint when finished" IsChecked="True" Margin="0,0,0,8" />
                                 <CheckBox x:Name="ClinicalHistoryCheck" Grid.Row="7" Grid.Column="1" Content="Show patient age/sex when available" IsChecked="True" Margin="0,0,0,8" />
                                 <CheckBox x:Name="TeachingPointsCheck" Grid.Row="8" Grid.Column="1" Content="Add teaching-points slides when available" Margin="0,0,0,8" />
-                                <StackPanel Grid.Row="9" Grid.Column="1">
+                                <CheckBox x:Name="OnlyNewRandomCheck"
+                                          Grid.Row="9"
+                                          Grid.Column="1"
+                                          Content="Only use new random cases"
+                                          ToolTip="When checked, random requests skip cases already used in previous random decks instead of backfilling with older cases."
+                                          Margin="0,0,0,8" />
+                                <StackPanel Grid.Row="10" Grid.Column="1">
                                     <CheckBox x:Name="OllamaCheck" Content="Use Ollama image review" Margin="0,0,0,8" />
                                     <DockPanel>
                                         <Button DockPanel.Dock="Right" Content="Refresh Models" Click="RefreshOllama_Click" Margin="8,0,0,0" />

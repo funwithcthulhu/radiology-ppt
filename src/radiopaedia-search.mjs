@@ -385,7 +385,10 @@ async function pickMixedCandidates(candidates, desiredCount, htmlCache) {
   return picks.slice(0, desiredCount);
 }
 
-async function pickRandomCaseCandidates(request, { excludePaths = new Set(), allowReuseIfNeeded = true } = {}) {
+async function pickRandomCaseCandidates(
+  request,
+  { excludePaths = new Set(), allowReuseIfNeeded = true, allowLiveSearch = true } = {},
+) {
   const systems = request.randomSpec?.systems || [];
   const systemMode = request.randomSpec?.systemMode || "all";
   const candidateMap = new Map();
@@ -403,7 +406,8 @@ async function pickRandomCaseCandidates(request, { excludePaths = new Set(), all
     }
   }
 
-  for (const query of buildRandomSearchQueries(request).slice(0, RANDOM_SEARCH_QUERY_LIMIT)) {
+  const liveQueries = allowLiveSearch ? buildRandomSearchQueries(request).slice(0, RANDOM_SEARCH_QUERY_LIMIT) : [];
+  for (const query of liveQueries) {
     if (candidateMap.size >= request.randomSpec.count) {
       break;
     }
@@ -454,6 +458,7 @@ async function pickRandomCaseCandidates(request, { excludePaths = new Set(), all
     const fallbackPicks = await pickRandomCaseCandidates(request, {
       excludePaths: pickedPaths,
       allowReuseIfNeeded: false,
+      allowLiveSearch,
     });
     const supplemental = [];
     for (const candidate of fallbackPicks) {
@@ -475,6 +480,12 @@ async function pickRandomCaseCandidates(request, { excludePaths = new Set(), all
         picksFound: picks.length,
       });
     }
+  } else if (picks.length < request.randomSpec.count && excludePaths.size > 0 && !allowReuseIfNeeded) {
+    emitWarning("Fresh random case pool returned fewer cases than requested", {
+      request: request.rawInput,
+      requestedCount: request.randomSpec.count,
+      freshPicksFound: picks.length,
+    });
   }
   if (!picks.length) {
     const filterBits = dedupe([...(request.randomSpec.systems || []), request.randomSpec.queryText, request.studyHint]).filter(Boolean);
@@ -499,7 +510,13 @@ async function pickRandomCaseCandidates(request, { excludePaths = new Set(), all
 
 export async function expandCaseRequests(
   inputs,
-  { readRandomHistory = false, writeRandomHistory = false, historyPath = RANDOM_HISTORY_PATH } = {},
+  {
+    readRandomHistory = false,
+    writeRandomHistory = false,
+    historyPath = RANDOM_HISTORY_PATH,
+    allowRandomHistoryFallback = true,
+    allowLiveSearch = true,
+  } = {},
 ) {
   const expanded = [];
   const selectedPaths = new Set(readRandomHistory ? (await loadRandomHistory(historyPath)).map(comparableCasePath) : []);
@@ -533,6 +550,8 @@ export async function expandCaseRequests(
 
     const picks = await pickRandomCaseCandidates(request, {
       excludePaths: new Set([...selectedPaths, ...requestExcludedPaths]),
+      allowReuseIfNeeded: allowRandomHistoryFallback,
+      allowLiveSearch,
     });
     for (const pick of picks) {
       emitProgress("Selected random case", { title: pick.title, casePath: pick.casePath });

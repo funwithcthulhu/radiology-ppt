@@ -103,6 +103,7 @@ Options:
 - `Open PowerPoint when finished`: opens the output file after export.
 - `Show patient age/sex when available`: adds minimal patient info on the case slide when clean data exists.
 - `Add teaching-points slides when available`: adds teaching points after diagnosis.
+- `Only use new random cases`: prevents random mode from backfilling with cases already used in prior random decks. If filters are narrow, review may contain fewer cases than requested.
 - `Use Ollama image review`: enables the review-window `Ollama Score Case` action.
 - `Refresh Models`: loads local Ollama model names into the model dropdown.
 
@@ -204,7 +205,7 @@ The first run for a narrow category may be slower while the local case index fil
 Higher-quality image PowerPoint:
 
 1. Cases: add specific diagnoses or filtered random rows.
-2. PowerPoint: apply `Image Quality Review`.
+2. PowerPoint: choose the style, theme, and image count you want.
 3. In review, use `Candidates` or `Replace Unchecked` for weak frames.
 
 Ollama-assisted review:

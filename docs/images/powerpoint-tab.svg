@@ -28,9 +28,10 @@
     <text x="246" y="304" font-weight="700">Output</text>
     <rect x="390" y="282" width="250" height="32" fill="#ffffff" stroke="#aebdca"/>
     <text x="402" y="304">Auto-save to outputs</text>
-    <text x="246" y="356">☑ Show patient age/sex when available</text>
-    <text x="246" y="388">☑ Add teaching-points slides</text>
-    <text x="246" y="420">☐ Use Ollama image review</text>
+    <text x="246" y="350">☑ Show patient age/sex when available</text>
+    <text x="246" y="380">☑ Add teaching-points slides</text>
+    <text x="246" y="410">☐ Only use new random cases</text>
+    <text x="246" y="440">☐ Use Ollama image review</text>
   </g>
   <rect x="700" y="118" width="220" height="350" rx="12" fill="#ffffff" stroke="#c9d7e2"/>
   <text x="724" y="158" font-family="Segoe UI, Arial" font-size="20" font-weight="700" fill="#102132">Create PowerPoint</text>

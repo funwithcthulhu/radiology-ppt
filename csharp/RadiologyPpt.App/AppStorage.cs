@@ -43,6 +43,7 @@ public sealed class AppStorage
         SaveSetting("theme", settings.Theme);
         SaveSetting("powerpoint_style", settings.PowerPointStyle);
         SaveSetting("include_teaching_points", settings.IncludeTeachingPoints ? "1" : "0");
+        SaveSetting("only_new_random_cases", settings.OnlyNewRandomCases ? "1" : "0");
     }
 
     public Dictionary<string, string> LoadSettings()

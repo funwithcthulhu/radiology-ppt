@@ -64,7 +64,8 @@ public static class BackendPayloads
             ["imagesPerCase"] = settings.ImagesPerCase,
             ["useClinicalHistory"] = settings.UseClinicalHistory,
             ["useOllamaAssist"] = settings.UseOllamaReview,
-            ["ollamaModel"] = settings.OllamaModel
+            ["ollamaModel"] = settings.OllamaModel,
+            ["onlyNewRandomCases"] = settings.OnlyNewRandomCases
         };
     }
 }

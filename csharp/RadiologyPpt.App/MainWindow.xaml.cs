@@ -115,6 +115,7 @@ public partial class MainWindow : Window
             SetCheckBox(ClinicalHistoryCheck, values, "use_clinical_history");
             SetCheckBox(OllamaCheck, values, "use_ollama_review");
             SetCheckBox(TeachingPointsCheck, values, "include_teaching_points");
+            SetCheckBox(OnlyNewRandomCheck, values, "only_new_random_cases");
             SelectByCliValue(ThemeCombo, AppOptions.Themes, AppOptions.ThemeCliValue, values, "theme");
             SelectByCliValue(PowerPointStyleCombo, AppOptions.PowerPointStyles, AppOptions.PowerPointStyleCliValue, values, "powerpoint_style");
             if (values.TryGetValue("ollama_model", out var ollamaModel) && !string.IsNullOrWhiteSpace(ollamaModel))
@@ -501,7 +502,8 @@ public partial class MainWindow : Window
             OllamaModelCombo.Text,
             ThemeCombo.SelectedItem?.ToString() ?? "",
             PowerPointStyleCombo.SelectedItem?.ToString() ?? "",
-            TeachingPointsCheck.IsChecked == true));
+            TeachingPointsCheck.IsChecked == true,
+            OnlyNewRandomCheck.IsChecked == true));
     }
 
     private void SetBusy(bool busy)

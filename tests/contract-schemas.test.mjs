@@ -18,7 +18,18 @@ function loadSchema(name) {
 
 const schemas = Object.fromEntries(SCHEMA_NAMES.map((name) => [name, loadSchema(name)]));
 
-function resolveReference(reference) {
+function resolveReference(reference, rootSchema) {
+  if (reference.startsWith("#/")) {
+    const resolved = reference
+      .slice(2)
+      .split("/")
+      .reduce((node, part) => node?.[part], rootSchema);
+    if (!resolved) {
+      throw new Error(`Unknown schema reference: ${reference}`);
+    }
+    return resolved;
+  }
+
   const schemaName = reference.replace(/^.*\//, "");
   const schema = schemas[schemaName];
   if (!schema) {
@@ -27,16 +38,16 @@ function resolveReference(reference) {
   return schema;
 }
 
-function validate(schema, value, location = "$") {
+function validate(schema, value, location = "$", rootSchema = schema) {
   if (schema.$ref) {
-    return validate(resolveReference(schema.$ref), value, location);
+    return validate(resolveReference(schema.$ref, rootSchema), value, location, rootSchema);
   }
 
   if (schema.anyOf) {
     const errors = [];
     for (const option of schema.anyOf) {
       try {
-        validate(option, value, location);
+        validate(option, value, location, rootSchema);
         return;
       } catch (error) {
         errors.push(error.message);
@@ -73,7 +84,7 @@ function validate(schema, value, location = "$") {
       throw new Error(`${location} must include at least ${schema.minItems} item(s)`);
     }
     if (schema.items) {
-      value.forEach((item, index) => validate(schema.items, item, `${location}[${index}]`));
+      value.forEach((item, index) => validate(schema.items, item, `${location}[${index}]`, rootSchema));
     }
   }
 
@@ -85,7 +96,7 @@ function validate(schema, value, location = "$") {
     }
     for (const [key, propertySchema] of Object.entries(schema.properties ?? {})) {
       if (key in value) {
-        validate(propertySchema, value[key], `${location}.${key}`);
+        validate(propertySchema, value[key], `${location}.${key}`, rootSchema);
       }
     }
   }
@@ -165,6 +176,16 @@ test("contract schemas load with stable ids", () => {
 test("prepare input schema accepts C# request payloads", () => {
   validate(schemas["prepare-input.schema.json"], [request]);
   validate(schemas["prepare-input.schema.json"], ["appendicitis, ct abdomen"]);
+  validate(schemas["prepare-input.schema.json"], {
+    entries: [request],
+    args: {
+      imagesPerCase: 3,
+      useClinicalHistory: true,
+      useOllamaAssist: false,
+      ollamaModel: "",
+      onlyNewRandomCases: true,
+    },
+  });
 });
 
 test("prepared output and render input schemas accept backend payloads", () => {
