@@ -788,6 +788,21 @@ function addMarkerOverlay(slide, imageFrame, hotspot, color = CORE_REVIEW_MARKER
   });
 }
 
+function addMoveableFocusMarker(slide, imageFrame, color = CORE_REVIEW_MARKER_COLOR) {
+  const diameter = Math.max(0.34, Math.min(imageFrame.w, imageFrame.h) * 0.11);
+  const markerFrame = {
+    x: imageFrame.x + Math.max(0.08, imageFrame.w * 0.04),
+    y: imageFrame.y + Math.max(0.08, imageFrame.h * 0.04),
+    w: diameter,
+    h: diameter,
+  };
+  slide.addShape(SHAPE_TYPES.ellipse, {
+    ...emuSafeFrame(markerFrame),
+    fill: { color: cleanColor(color), transparency: 86 },
+    line: { color: cleanColor(color), width: 3 },
+  });
+}
+
 function imageLocalPath(image) {
   return collapseWhitespace(image?.localPath || image?.path || "");
 }
@@ -1695,6 +1710,7 @@ function buildCoreReviewStructureFindingPrompt(caseData, anatomyQuestion, exerci
     image,
     hotspot: anatomyQuestion?.hotspot || null,
     showPromptMarker: false,
+    moveableFocusMarker: isPinAbnormality && !anatomyQuestion?.hotspot,
     promptLabel: isPinAbnormality ? "Pin Abnormality" : "Pin Anatomy",
     answerTitle: isPinAbnormality ? "Abnormality / Finding" : "Structure / Finding",
   };
@@ -2220,8 +2236,21 @@ async function addCoreReviewAnatomyAnswerSlide(
       },
     );
   }
+  if (anatomyQuestion.moveableFocusMarker) {
+    addText(
+      slide,
+      "Moveable marker: drag the gold ring onto the abnormality.",
+      { left: 82, top: caseTitle && !duplicateCaseTitle ? 492 : 392, width: 540, height: 42 },
+      theme,
+      {
+        fontSize: 17,
+        color: theme.colors.ink,
+        face: theme.fonts.body,
+      },
+    );
+  }
 
-  await addImageGallery(
+  const imageFrames = await addImageGallery(
     slide,
     [anatomyQuestion.image],
     { left: 684, top: 124, width: 486, height: 460 },
@@ -2232,6 +2261,12 @@ async function addCoreReviewAnatomyAnswerSlide(
       },
     },
   );
+  const answerImageFrame = imageFrames.find(({ image }) =>
+    imageLocalPath(image) === imageLocalPath(anatomyQuestion.image),
+  )?.frame;
+  if (anatomyQuestion.moveableFocusMarker && answerImageFrame) {
+    addMoveableFocusMarker(slide, answerImageFrame);
+  }
 
   addFooter(slide, caseData.footerText, theme);
   addSpeakerNotes(slide, caseData, caseNumber, [`Structure/finding answer: ${anatomyQuestion.answerText}`]);

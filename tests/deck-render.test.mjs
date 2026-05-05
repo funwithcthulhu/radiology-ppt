@@ -746,8 +746,13 @@ test("core review broad regional anatomy prompts ask to pin the abnormality", as
   const pptx = await fs.readFile(outputPath);
   const allSlideText = readAllSlideText(pptx);
   const case4QuestionText = readSlideTexts(pptx).find((text) => /Case 4 .* Pin Abnormality/.test(text)) || "";
+  const case4AnswerSlide = readSlideXmlEntries(pptx).find(({ text }) =>
+    /Case 4/.test(text) && /Abnormality \/ Finding/.test(text) && /Moveable marker/.test(text),
+  );
 
   assert.match(case4QuestionText, /Pin the abnormality\./);
+  assert.ok(case4AnswerSlide, "unannotated abnormality answers should include a moveable marker instruction");
+  assert.match(case4AnswerSlide.xml, /prst="ellipse"/, "answer slide should include a draggable marker shape");
   assert.doesNotMatch(allSlideText, /Pin: chest\./i);
   assert.doesNotMatch(allSlideText, /Case 4 .* Pin Anatomy/);
   assert.doesNotMatch(allSlideText, /Marked region: chest/i);
