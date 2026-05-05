@@ -147,6 +147,47 @@ test("shortens oversized teaching points at word boundaries", () => {
   assert.equal(points[0].length <= 221, true);
 });
 
+test("core review teaching points use board-style radiology pearls", () => {
+  const points = buildTeachingPoints({
+    request: {
+      coreReviewPlan: { domain: "mr", anatomyPrompt: "pelvis" },
+      studyHint: "MRI pelvis",
+    },
+    description:
+      "Surgically proved low type inter-sphincteric fistula. The integrity of the external anal sphincter is crucial for the management's planning, also it is important to identify any side branches.",
+    findings:
+      "A linear fistulous tract is seen oriented vertically, passing through the left side of the inter-sphincteric plane, starting superiorly from the level of the dentate line where it is seen abutting the internal sphincter.",
+    diagnosis: "Perianal fistula",
+    caseTitle: "Perianal fistula",
+    modalitySummary: "MRI pelvis",
+    images: [{}],
+  });
+
+  assert.equal(points.length, 3);
+  assert.match(points.join(" "), /MRI CORE discriminator/);
+  assert.match(points.join(" "), /sphincter relationship/);
+  assert.match(points.join(" "), /secondary tracts/);
+  assert.equal(points.some((point) => /Surgically proved|management's planning/i.test(point)), false);
+  assert.equal(points.some((point) => /This case is best reviewed|selected image/i.test(point)), false);
+});
+
+test("core review teaching points do not pad with generic non-radiology filler", () => {
+  const points = buildTeachingPoints({
+    request: {
+      coreReviewPlan: { domain: "gi", anatomyPrompt: "abdomen" },
+      studyHint: "CT abdomen",
+    },
+    description: "The patient had abdominal pain and was treated clinically.",
+    findings: "Clinical follow-up was recommended.",
+    diagnosis: "Unrecognized example",
+    caseTitle: "Unrecognized example",
+    modalitySummary: "CT",
+    images: [{}],
+  });
+
+  assert.deepEqual(points, []);
+});
+
 test("uses the local case index when live random search is disabled", async () => {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "radiology-indexed-random-"));
   process.env.RADIOLOGY_PPT_DATABASE_PATH = path.join(tempDir, "state.sqlite");

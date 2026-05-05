@@ -1,6 +1,118 @@
 import { cleanText, collapseWhitespace, redactTerms, truncate } from "./utils.mjs";
 import { normalizePhrase, normalizedDifficulty } from "./request-parser.mjs";
 
+const RADIOLOGY_TEACHING_PATTERN =
+  /\b(?:ct|mri|mr\b|x-?ray|radiograph|ultrasound|sonograph|fluoro|pet|spect|nuclear|mammograph|angiograph|t1|t2|flair|dwi|adc|diffusion|enhanc|attenuat|density|signal|hyperintense|hypointense|calcif|restricted|rim|mass|lesion|tract|fistula|abscess|opening|sphincter|secondary|branch|extension|compartment|origin|margin|edema|fat|fluid|cystic|solid|obstruction|perforation|ischemia|hemorrhage|infarct|thrombosis|filling defect|classification|staging|report|differential|mimic|complication)\b/i;
+const LOW_VALUE_TEACHING_PATTERN =
+  /\b(?:surgically proved|pathologically proved|biopsy proved|histologically proved|this case is best reviewed|focus on the|teaching example|selected images?|patient presented|clinical history|diagnosed with)\b/i;
+
+const CORE_REVIEW_PEARL_GROUPS = [
+  {
+    patterns: [/\bperianal\b/i, /\bfistula(?:-in-ano)?\b/i, /\banal fistula\b/i],
+    points: [
+      "MRI CORE discriminator: classify the tract by sphincter relationship: intersphincteric, transsphincteric, suprasphincteric, or extrasphincteric.",
+      "Report the internal opening, external sphincter involvement, abscess, horseshoe extension, and secondary tracts because these change operative planning.",
+      "Active fistula usually appears T2/STIR hyperintense with enhancement; simple scar or treated tract is less T2 bright and should not be overcalled as active disease.",
+    ],
+  },
+  {
+    patterns: [/\brotator cuff\b/i, /\bsupraspinatus\b/i, /\bsubscapularis\b/i, /\bshoulder\b/i],
+    points: [
+      "MRI/US CORE discriminator: a full-thickness cuff tear has fluid-signal communication from articular to bursal surface.",
+      "Report tendon involved, tear size, retraction, muscle atrophy, and fatty infiltration because these determine repairability.",
+      "Common mimics include tendinosis, partial-thickness tear, calcific tendinopathy, and subacromial-subdeltoid bursitis.",
+    ],
+  },
+  {
+    patterns: [/\bureter(?:ic|al)? stone\b/i, /\burolithiasis\b/i, /\bobstructing.*stone\b/i, /\bhydronephrosis\b/i],
+    points: [
+      "CT CORE discriminator: identify the obstructing calculus and the level of obstruction; secondary signs include hydronephrosis, hydroureter, and periureteric stranding.",
+      "Report infected obstruction red flags such as fever context, pyonephrosis, gas, or marked inflammatory change because urgent decompression may be needed.",
+      "Mimics include phleboliths, papillary necrosis, ureteral stricture, and upper tract urothelial carcinoma.",
+    ],
+  },
+  {
+    patterns: [/\bpulmonary embol/i, /\bpulmonary arteries?\b/i],
+    points: [
+      "CTA CORE discriminator: acute PE is an intraluminal pulmonary arterial filling defect, often central or eccentric within contrast-opacified blood.",
+      "Always assess right heart strain: RV/LV ratio, septal bowing, reflux into hepatic veins, and pulmonary artery enlargement.",
+      "Mimics include respiratory motion, streak artifact, flow-related mixing artifact, pulmonary vein thrombus, and lymph nodes adjacent to arteries.",
+    ],
+  },
+  {
+    patterns: [/\bvestibular schwannoma\b/i, /\bacoustic neuroma\b/i, /\binternal auditory canal\b/i, /\bcpa\b/i],
+    points: [
+      "MRI CORE discriminator: vestibular schwannoma typically enhances and expands the internal auditory canal with a CPA cisternal component.",
+      "Key differential is CPA meningioma, which more often has a broad dural base, dural tail, calcification, or hyperostosis.",
+      "Report extension to the fundus, cochlear aperture/labyrinth involvement, brainstem mass effect, and hydrocephalus.",
+    ],
+  },
+  {
+    patterns: [/\bchiari\b/i, /\bcerebellar tonsil/i, /\bforamen magnum\b/i],
+    points: [
+      "MRI CORE discriminator: Chiari I is tonsillar descent with crowding at the foramen magnum; measure descent but emphasize CSF effacement and morphology.",
+      "Look for associated syringohydromyelia and craniocervical junction abnormalities because they alter management.",
+      "Important mimics include intracranial hypotension, tonsillar ectopia without crowding, and mass-related downward herniation.",
+    ],
+  },
+  {
+    patterns: [/\bacute ischemic stroke\b/i, /\binfarct\b/i, /\bischemic stroke\b/i],
+    points: [
+      "CORE discriminator: restricted diffusion with low ADC confirms acute infarct; match the pattern to an arterial territory or embolic distribution.",
+      "On CT/CTA, report hemorrhage exclusion, large-vessel occlusion, ASPECTS/early ischemic change, and salvageable tissue when perfusion is available.",
+      "Mimics include seizure-related diffusion change, hypoglycemia, encephalitis, migraine, and demyelination.",
+    ],
+  },
+  {
+    patterns: [/\bappendicitis\b/i, /\bright lower quadrant\b/i, /\brlq\b/i],
+    points: [
+      "CT/US CORE discriminator: appendiceal dilation with wall thickening, hyperemia/enhancement, periappendiceal inflammation, or appendicolith supports appendicitis.",
+      "Report perforation signs: abscess, extraluminal gas, phlegmon, or diffuse peritonitis.",
+      "Mimics include terminal ileitis, epiploic appendagitis, cecal diverticulitis, mesenteric adenitis, and ovarian pathology.",
+    ],
+  },
+  {
+    patterns: [/\bcholecystitis\b/i, /\bcholedocholithiasis\b/i, /\bgallstones?\b/i, /\bbile duct\b/i],
+    points: [
+      "Ultrasound CORE discriminator for acute cholecystitis: stones plus wall thickening, distention, pericholecystic fluid, and sonographic Murphy sign.",
+      "For biliary obstruction, localize intrahepatic versus extrahepatic ductal dilation and look for choledocholithiasis or obstructing mass.",
+      "HIDA is most useful when ultrasound is equivocal; nonvisualization of the gallbladder supports cystic duct obstruction.",
+    ],
+  },
+  {
+    patterns: [/\bovarian torsion\b/i, /\badnexa/i, /\bectopic pregnancy\b/i],
+    points: [
+      "Ultrasound CORE discriminator for torsion: enlarged edematous ovary, peripheral follicles, twisted pedicle, and abnormal or asymmetric Doppler flow.",
+      "Normal Doppler flow does not exclude torsion because dual ovarian blood supply can preserve arterial flow.",
+      "Mimics include hemorrhagic cyst, tubo-ovarian abscess, endometrioma, and ectopic pregnancy.",
+    ],
+  },
+  {
+    patterns: [/\brenal cell carcinoma\b/i, /\bangiomyolipoma\b/i, /\brenal mass\b/i],
+    points: [
+      "Renal mass CORE discriminator: macroscopic fat strongly suggests angiomyolipoma, while enhancing solid renal mass is RCC until proven otherwise.",
+      "Report enhancement, venous invasion, collecting-system involvement, perinephric extension, nodes, and metastases for staging.",
+      "Mimics include lipid-poor angiomyolipoma, oncocytoma, renal abscess, lymphoma, and urothelial carcinoma.",
+    ],
+  },
+  {
+    patterns: [/\bosteosarcoma\b/i, /\bewing\b/i, /\bgiant cell tumor\b/i, /\bbone metastases\b/i],
+    points: [
+      "Bone tumor CORE approach: localize by patient age, bone, epiphyseal/metaphyseal/diaphyseal location, matrix, zone of transition, and periosteal reaction.",
+      "MRI defines marrow and soft-tissue extent; radiographs remain the board-relevant first discriminator for matrix and aggressiveness.",
+      "Do not miss infection and stress injury as tumor mimics, especially when marrow edema is disproportionate to a subtle cortical finding.",
+    ],
+  },
+  {
+    patterns: [/\bintussusception\b/i, /\bmalrotation\b/i, /\bmidgut volvulus\b/i, /\bpyloric stenosis\b/i],
+    points: [
+      "Pediatric abdomen CORE approach: know the age-specific diagnosis and first-line modality: ultrasound for intussusception/pyloric stenosis, upper GI for malrotation.",
+      "For malrotation with volvulus, the board-critical finding is abnormal duodenojejunal junction position or corkscrew duodenum; do not rely only on SMA/SMV orientation.",
+      "For intussusception, report lead point suspicion, obstruction, free fluid, or ischemia because these affect reduction safety.",
+    ],
+  },
+];
+
 function extractFirst(pattern, text) {
   const match = pattern.exec(text);
   return match ? match[1] : null;
@@ -150,15 +262,99 @@ function normalizeTeachingPoint(sentence) {
     .trim();
 }
 
-export function buildTeachingPoints({ request, description, findings, diagnosis, caseTitle, modalitySummary, images }) {
+function sourceSentences(...values) {
+  return values
+    .filter(Boolean)
+    .flatMap((text) => cleanText(text).split(/(?<=[.!?])\s+/))
+    .map(collapseWhitespace)
+    .filter(Boolean);
+}
+
+function isCoreReviewRequest(request) {
+  return Boolean(request?.coreReviewPlan || request?.deckMode === "core-review");
+}
+
+function diagnosisSearchText({ diagnosis, caseTitle, request, modalitySummary }) {
+  return [
+    diagnosis,
+    caseTitle,
+    request?.diagnosis,
+    request?.rawInput,
+    request?.studyHint,
+    request?.coreReviewPlan?.domain,
+    request?.coreReviewPlan?.anatomyPrompt,
+    modalitySummary,
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function curatedCoreReviewPearls(context) {
+  const text = diagnosisSearchText(context);
+  for (const group of CORE_REVIEW_PEARL_GROUPS) {
+    if (group.patterns.some((pattern) => pattern.test(text))) {
+      return group.points;
+    }
+  }
+  return [];
+}
+
+function isRadiologySpecificTeachingPoint(point) {
+  return RADIOLOGY_TEACHING_PATTERN.test(point) && !LOW_VALUE_TEACHING_PATTERN.test(point);
+}
+
+function addUniqueTeachingPoint(points, seen, point) {
+  const normalized = normalizeTeachingPoint(point);
+  const key = normalizePhrase(normalized);
+  if (!normalized || normalized.length < 18 || seen.has(key)) {
+    return;
+  }
+  seen.add(key);
+  points.push(normalized);
+}
+
+function buildCoreReviewTeachingPoints(context) {
   const bullets = [];
   const seen = new Set();
 
-  const candidateSentences = [findings, description]
-    .filter(Boolean)
-    .flatMap((text) => cleanText(text).split(/(?<=[.!?])\s+/));
+  for (const pearl of curatedCoreReviewPearls(context)) {
+    addUniqueTeachingPoint(bullets, seen, pearl);
+    if (bullets.length >= 3) {
+      return bullets;
+    }
+  }
 
-  for (const sentence of candidateSentences) {
+  for (const sentence of sourceSentences(context.findings, context.description)) {
+    const bullet = normalizeTeachingPoint(redactTerms(sentence, [context.diagnosis, context.caseTitle]));
+    if (!isRadiologySpecificTeachingPoint(bullet)) {
+      continue;
+    }
+    addUniqueTeachingPoint(bullets, seen, bullet);
+    if (bullets.length >= 3) {
+      break;
+    }
+  }
+
+  return bullets.slice(0, 3);
+}
+
+export function buildTeachingPoints({ request, description, findings, diagnosis, caseTitle, modalitySummary, images }) {
+  if (isCoreReviewRequest(request)) {
+    return buildCoreReviewTeachingPoints({
+      request,
+      description,
+      findings,
+      diagnosis,
+      caseTitle,
+      modalitySummary,
+      images,
+    });
+  }
+
+  const bullets = [];
+  const seen = new Set();
+
+  for (const sentence of sourceSentences(findings, description)) {
     const bullet = normalizeTeachingPoint(redactTerms(sentence, [diagnosis, caseTitle]));
     const key = normalizePhrase(bullet);
     if (!bullet || bullet.length < 18 || seen.has(key)) {
