@@ -4,6 +4,7 @@ import {
   getCoreReviewSchema,
   ingestCoreReviewPdfFiles,
   ingestCoreReviewTextFiles,
+  prepareCoreReviewDeck,
   prepareCases,
   renderCoreReviewQuizSessionText,
   renderPowerPoint,
@@ -68,6 +69,9 @@ async function runCommand(command, payload = {}) {
   }
   if (command === "prepare") {
     return prepareCases(payload.entries || [], args);
+  }
+  if (command === "coreReviewPrepareDeck") {
+    return prepareCoreReviewDeck(args);
   }
   if (command === "scoreImages") {
     return scoreImages(
@@ -187,6 +191,7 @@ function summarizeResultPayload(payload) {
   return {
     itemCount: Array.isArray(payload.items) ? payload.items.length : undefined,
     failureCount: Array.isArray(payload.failures) ? payload.failures.length : undefined,
+    planCaseCount: payload.plan?.plannedCaseCount,
     outputPath: typeof payload.outputPath === "string" ? payload.outputPath : undefined,
     manifestPath: typeof payload.manifestPath === "string" ? payload.manifestPath : undefined,
   };

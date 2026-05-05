@@ -12,6 +12,22 @@ Each row on the `Cases` tab becomes one or more normalized case requests.
 
 The backend logs progress and timing for each major stage. Activity displays those events and stores backend job rows in SQLite.
 
+## Core Review Case Planning
+
+The `Core Boards` tab can prepare a review lecture without reading the `Cases` tab.
+
+Planning order:
+
+1. Read the requested case count, domain, case mix, and modality mix.
+2. Load the bundled CORE diagnosis seed list, or a compatible custom list when provided by the backend payload.
+3. Build specific Radiopaedia requests with diagnosis, anatomy, modality hint, and broad Radiopaedia system filters.
+4. Prepare those cases through the same Radiopaedia case/image pipeline used by normal requests.
+5. Open the same review window so the user approves the final cases and images before export.
+
+NIS, physics, and RISC are treated as standalone question domains, not Radiopaedia case domains. Core Review decks add those questions during PowerPoint rendering from the bundled bank, imported Core Boards library, or a custom question-bank JSON file.
+
+The seed list is practice scaffolding aligned to public ABR Core domains. It is not official ABR content, and the actual case material still comes from reviewed Radiopaedia cases.
+
 ## Random Case Selection
 
 Random mode uses history and filters to reduce repeated cases.

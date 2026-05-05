@@ -42,6 +42,11 @@ public sealed class BackendClient
         return await RunServiceAsync("prepare", BackendPayloads.Prepare(entries, settings), log, cancellationToken);
     }
 
+    public async Task<JsonObject> PrepareCoreReviewDeckAsync(CoreReviewDeckSettings deckSettings, GenerationSettings settings, Action<string> log, CancellationToken cancellationToken)
+    {
+        return await RunServiceAsync("coreReviewPrepareDeck", BackendPayloads.CoreReviewDeck(deckSettings, settings), log, cancellationToken);
+    }
+
     public async Task<JsonObject?> PrepareSingleAsync(JsonObject request, GenerationSettings settings, Action<string> log, CancellationToken cancellationToken)
     {
         var payload = await PrepareAsync([request], settings, log, cancellationToken);
@@ -245,6 +250,7 @@ public sealed class BackendClient
         return command switch
         {
             "prepare" => "case preparation",
+            "coreReviewPrepareDeck" => "Core Review deck planning",
             "render" => "PowerPoint creation",
             "scoreImages" => "Ollama scoring",
             "coreReviewIngestPdf" => "Core Boards PDF import",

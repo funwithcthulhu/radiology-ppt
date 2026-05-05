@@ -7,6 +7,7 @@ const MODALITY_HINTS = [
   { label: "Ultrasound", patterns: [/\bultrasound\b/i, /\bsonograph(?:y|ic)?\b/i, /\bus\b/i] },
   { label: "Fluoroscopy", patterns: [/\bfluoro(?:scopy)?\b/i] },
   { label: "PET", patterns: [/\bpet\b/i] },
+  { label: "Nuclear Medicine", patterns: [/\bnuclear medicine\b/i, /\bnuc med\b/i, /\bscintigraph(?:y|ic)?\b/i, /\bspect\b/i, /\bhida\b/i] },
   { label: "Mammography", patterns: [/\bmammograph(?:y|ic)?\b/i, /\bmammo\b/i] },
   { label: "Angiography", patterns: [/\bangiograph(?:y|ic)?\b/i, /\bangio\b/i] },
 ];
@@ -254,6 +255,9 @@ function filterSystemsFromPayload(payload) {
   }
 
   const systems = [];
+  if (Array.isArray(payload.searchSystems)) {
+    systems.push(...payload.searchSystems);
+  }
   const ageGroup = normalizedAgeGroup(payload.ageGroup);
   const topicFocus = normalizedTopicFocus(payload.topicFocus);
   if (ageGroup && FILTER_SYSTEM_MAP[ageGroup]) {

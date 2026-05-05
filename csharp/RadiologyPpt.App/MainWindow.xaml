@@ -149,7 +149,7 @@
                         </Grid.RowDefinitions>
                         <StackPanel Grid.Row="0">
                             <TextBlock Text="Core Boards" Style="{StaticResource PageTitle}" />
-                            <TextBlock Text="Import PDFs, notes, or JSON study material into a private local Core Boards library."
+                            <TextBlock Text="Build CORE-scoped case review decks, then add NIS and physics questions from bundled or local sources."
                                        Style="{StaticResource PageSubtitle}" Margin="0,4,0,12" />
                         </StackPanel>
 
@@ -159,28 +159,52 @@
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <Border Style="{StaticResource Card}" Margin="0,0,12,0">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="180" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <StackPanel Grid.ColumnSpan="2" Margin="0,0,0,16">
+                                        <TextBlock Text="Core Review Deck" FontSize="18" FontWeight="SemiBold" />
+                                        <TextBlock Text="This does not use the Cases tab. The app plans CORE-style diagnosis searches and opens the usual review window before export."
+                                                   Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                                    </StackPanel>
+                                    <TextBlock Grid.Row="1" Text="Cases" FontWeight="SemiBold" />
+                                    <TextBox x:Name="CoreReviewCaseCountBox" Grid.Row="1" Grid.Column="1" Text="50" Width="90" HorizontalAlignment="Left" Margin="0,0,0,10" />
+                                    <TextBlock Grid.Row="2" Text="Domain" FontWeight="SemiBold" />
+                                    <ComboBox x:Name="BoardDomainCombo" Grid.Row="2" Grid.Column="1" Margin="0,0,0,10" />
+                                    <TextBlock Grid.Row="3" Text="Case mix" FontWeight="SemiBold" />
+                                    <ComboBox x:Name="CoreReviewCaseMixCombo" Grid.Row="3" Grid.Column="1" Margin="0,0,0,10" />
+                                    <TextBlock Grid.Row="4" Text="Modality mix" FontWeight="SemiBold" />
+                                    <ComboBox x:Name="CoreReviewModalityMixCombo" Grid.Row="4" Grid.Column="1" Margin="0,0,0,16" />
+                                    <Button x:Name="GenerateCoreReviewButton" Grid.Row="5" Grid.Column="1" Content="Generate Core Review Deck"
+                                            Style="{StaticResource PrimaryButton}" Click="GenerateCoreReviewDeck_Click" HorizontalAlignment="Left" />
+                                </Grid>
+                            </Border>
+                            <Border Grid.Column="1" Style="{StaticResource Card}">
                                 <StackPanel>
-                                    <TextBlock Text="Knowledge Base" FontSize="18" FontWeight="SemiBold" />
+                                    <TextBlock Text="Sources" FontSize="18" FontWeight="SemiBold" />
                                     <TextBlock Text="Imported PDFs, notes, JSON files, and extracted assets stay local under library\board-review, which is ignored by Git."
                                                Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,4,0,16" />
-                                    <TextBlock Text="Default topic" FontWeight="SemiBold" />
-                                    <ComboBox x:Name="BoardDomainCombo" Margin="0,6,0,14" />
                                     <StackPanel Orientation="Horizontal">
                                         <Button Content="Import Sources" Style="{StaticResource PrimaryButton}" Click="ImportPdfs_Click" />
                                         <Button Content="Open Folder" Click="OpenBoardFolder_Click" />
                                     </StackPanel>
                                     <TextBlock x:Name="BoardStatusText" TextWrapping="Wrap" Margin="0,16,0,0" />
-                                </StackPanel>
-                            </Border>
-                            <Border Grid.Column="1" Style="{StaticResource Card}">
-                                <StackPanel>
-                                    <TextBlock Text="Roadmap" FontSize="18" FontWeight="SemiBold" />
-                                    <TextBlock Text="1. Import source material" Margin="0,14,0,3" FontWeight="SemiBold" />
-                                    <TextBlock Text="Store PDFs, notes, and JSON files locally with extracted text and metadata." TextWrapping="Wrap" />
-                                    <TextBlock Text="2. Draft questions" Margin="0,14,0,3" FontWeight="SemiBold" />
-                                    <TextBlock Text="Generate source-grounded NIS and physics review items from the imported material." TextWrapping="Wrap" />
-                                    <TextBlock Text="3. Practice" Margin="0,14,0,3" FontWeight="SemiBold" />
-                                    <TextBlock Text="Use the imported library or a custom JSON bank in Core Review decks." TextWrapping="Wrap" />
+                                    <TextBlock Text="Question source" Margin="0,18,0,3" FontWeight="SemiBold" />
+                                    <TextBlock Text="Choose bundled, imported, or custom JSON question sources on the PowerPoint tab. NIS and physics questions are mixed into Core Review decks there."
+                                               TextWrapping="Wrap" />
+                                    <TextBlock Text="Case source" Margin="0,14,0,3" FontWeight="SemiBold" />
+                                    <TextBlock Text="Cases are searched from Radiopaedia using an editable CORE diagnosis seed list, then you approve the actual cases and images before export."
+                                               TextWrapping="Wrap" />
                                 </StackPanel>
                             </Border>
                         </Grid>

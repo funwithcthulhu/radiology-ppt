@@ -13,6 +13,22 @@ public static class BackendPayloads
         };
     }
 
+    public static JsonObject CoreReviewDeck(CoreReviewDeckSettings deckSettings, GenerationSettings settings)
+    {
+        var args = PrepareArgs(settings);
+        args["caseCount"] = deckSettings.CaseCount;
+        args["domain"] = deckSettings.Domain;
+        args["caseMix"] = deckSettings.CaseMix;
+        args["modalityMix"] = deckSettings.ModalityMix;
+        args["seed"] = deckSettings.Seed;
+        args["caseBankPath"] = deckSettings.CaseBankPath;
+
+        return new JsonObject
+        {
+            ["args"] = args
+        };
+    }
+
     public static JsonObject ScoreImages(JsonObject item, GenerationSettings settings)
     {
         return new JsonObject

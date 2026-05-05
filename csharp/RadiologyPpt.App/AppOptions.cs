@@ -11,7 +11,7 @@ public static class AppOptions
 
     public static readonly string[] Modalities =
     [
-        "Any", "MRI", "CT", "X-ray", "Ultrasound", "Fluoroscopy", "PET", "Mammography", "Angiography"
+        "Any", "MRI", "CT", "X-ray", "Ultrasound", "Fluoroscopy", "PET", "Nuclear Medicine", "Mammography", "Angiography"
     ];
 
     public static readonly string[] Anatomy =
@@ -37,6 +37,18 @@ public static class AppOptions
         "Bundled Free CORE Review Questions",
         "Imported Core Boards Library",
         "Custom Question Bank JSON"
+    ];
+    public static readonly string[] CoreReviewCaseMixes =
+    [
+        "Blueprint Weighted",
+        "Even Domain Mix",
+        "Focused Domain"
+    ];
+    public static readonly string[] CoreReviewModalityMixes =
+    [
+        "Mixed Modalities",
+        "Prefer Classic Modality",
+        "Any Modality"
     ];
     public static readonly PowerPointPreset[] PowerPointPresets =
     [
@@ -151,6 +163,20 @@ public static class AppOptions
         "Thoracic" => "thoracic",
         "Ultrasound" => "ultrasound",
         _ => ""
+    };
+
+    public static string CoreReviewCaseMixCliValue(string label) => label switch
+    {
+        "Even Domain Mix" => "even",
+        "Focused Domain" => "focused",
+        _ => "blueprint"
+    };
+
+    public static string CoreReviewModalityMixCliValue(string label) => label switch
+    {
+        "Prefer Classic Modality" => "classic",
+        "Any Modality" => "any",
+        _ => "mixed"
     };
 }
 

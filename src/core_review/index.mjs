@@ -28,3 +28,10 @@ export {
   loadCoreReviewCorpus,
   mergeCoreReviewCorpora,
 } from "./source-bank.mjs";
+
+export {
+  CORE_REVIEW_CASE_SOURCES,
+  buildCoreReviewCasePlan,
+  loadCoreReviewCaseBank,
+  normalizeCoreReviewCaseDomain,
+} from "./case-plan.mjs";

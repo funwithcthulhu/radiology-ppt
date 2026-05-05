@@ -16,3 +16,13 @@ public sealed record GenerationSettings
     public bool IncludeTeachingPoints { get; init; }
     public bool OnlyNewRandomCases { get; init; } = true;
 }
+
+public sealed record CoreReviewDeckSettings
+{
+    public int CaseCount { get; init; } = 50;
+    public string Domain { get; init; } = "";
+    public string CaseMix { get; init; } = "blueprint";
+    public string ModalityMix { get; init; } = "mixed";
+    public string Seed { get; init; } = "";
+    public string CaseBankPath { get; init; } = "";
+}

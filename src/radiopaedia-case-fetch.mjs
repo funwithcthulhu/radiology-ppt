@@ -250,6 +250,7 @@ export async function fetchRadiopaediaCaseByPath(
     requestId: request.requestId || null,
     diagnosisQuery: effectiveDiagnosis,
     studyHint: request.studyHint,
+    coreReviewPlan: request.coreReviewPlan || null,
     caseTitle,
     caseUrl,
     author,

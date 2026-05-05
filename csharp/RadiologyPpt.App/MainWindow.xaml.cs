@@ -73,6 +73,10 @@ public partial class MainWindow : Window
 
         BoardDomainCombo.ItemsSource = AppOptions.BoardDomains;
         BoardDomainCombo.SelectedIndex = 0;
+        CoreReviewCaseMixCombo.ItemsSource = AppOptions.CoreReviewCaseMixes;
+        CoreReviewCaseMixCombo.SelectedIndex = 0;
+        CoreReviewModalityMixCombo.ItemsSource = AppOptions.CoreReviewModalityMixes;
+        CoreReviewModalityMixCombo.SelectedIndex = 0;
         PowerPointStyleCombo.ItemsSource = AppOptions.PowerPointStyles;
         PowerPointStyleCombo.SelectedIndex = 0;
         CoreReviewQuestionSourceCombo.ItemsSource = AppOptions.CoreReviewQuestionSources;
@@ -288,7 +292,6 @@ public partial class MainWindow : Window
 
         var requests = _viewModel.BuildRequestPayloads(rows, settings);
         _storage.SaveGenerationSettings(settings);
-        var reviewSessionId = "";
         try
         {
             SelectTab(MainTab.Activity);
@@ -298,54 +301,7 @@ public partial class MainWindow : Window
                 "Preparing cases...",
                 OnJobChanged,
                 token => _backend.PrepareAsync(requests, prepareSettings, AppendLog, token));
-            var preparedItems = BackendPayloadReader.ReadPreparedItems(prepared);
-            var failures = BackendPayloadReader.ReadFailures(prepared);
-            foreach (var failure in failures)
-            {
-                AppendLog($"Warning: {failure}");
-            }
-
-            if (preparedItems.Count == 0)
-            {
-                MessageBox.Show(this, MainWindowViewModel.BuildFailureMessage(failures), Title, MessageBoxButton.OK, MessageBoxImage.Warning);
-                StatusText = "No cases prepared";
-                return;
-            }
-
-            reviewSessionId = _storage.CreateReviewSession(prepared, MainWindowViewModel.BuildRequestSummary(rows, preparedItems.Count));
-            StatusText = "Review cases";
-            var reviewWindow = new CaseReviewWindow(_backend, preparedItems, settings, AppendLog, _storage, reviewSessionId)
-            {
-                Owner = this
-            };
-            if (reviewWindow.ShowDialog() != true || reviewWindow.ApprovedItems.Count == 0)
-            {
-                StatusText = "Review cancelled";
-                return;
-            }
-
-            AppendLog(MainWindowViewModel.BuildExportSummary(reviewWindow.ApprovedItems));
-
-            var stdout = await _jobs.RunAsync(
-                "Creating PowerPoint...",
-                OnJobChanged,
-                token => _backend.RenderAsync(reviewWindow.ApprovedItems, settings, AppendLog, token));
-            var outputPath = PowerPointResultParser.ExtractOutputPath(stdout);
-            var manifestPath = PowerPointResultParser.ExtractManifestPath(stdout);
-            if (!string.IsNullOrWhiteSpace(outputPath))
-            {
-                _lastPowerPointPath = outputPath;
-                LastPowerPointText = $"Last PowerPoint: {Path.GetFileName(outputPath)}";
-                _storage.SaveGeneratedPowerPoint(settings, outputPath, manifestPath, reviewWindow.ApprovedItems.Count);
-                _storage.MarkReviewSessionExported(reviewSessionId, outputPath, reviewWindow.ApprovedItems.Count);
-                if (settings.AutoOpen)
-                {
-                    OpenPath(outputPath);
-                }
-            }
-
-            StatusText = "PowerPoint complete";
-            AppendLog("PowerPoint created successfully.");
+            await ReviewAndRenderPreparedAsync(prepared, settings, count => MainWindowViewModel.BuildRequestSummary(rows, count));
         }
         catch (OperationCanceledException)
         {
@@ -358,6 +314,87 @@ public partial class MainWindow : Window
             AppendLog(exception.ToString());
             MessageBox.Show(this, exception.Message, Title, MessageBoxButton.OK, MessageBoxImage.Error);
         }
+    }
+
+    private async void GenerateCoreReviewDeck_Click(object sender, RoutedEventArgs e)
+    {
+        var deckSettings = BuildCoreReviewDeckSettings();
+        var settings = BuildCoreReviewGenerationSettings();
+        _storage.SaveGenerationSettings(settings);
+        try
+        {
+            SelectTab(MainTab.Activity);
+            AppendLog($"Planning Core Review deck with {deckSettings.CaseCount} case request(s)...");
+            var prepareSettings = settings with { UseOllamaReview = false };
+            var prepared = await _jobs.RunAsync(
+                "Planning Core Review deck...",
+                OnJobChanged,
+                token => _backend.PrepareCoreReviewDeckAsync(deckSettings, prepareSettings, AppendLog, token));
+            await ReviewAndRenderPreparedAsync(prepared, settings, count => BuildCoreReviewRequestSummary(prepared, deckSettings, count));
+        }
+        catch (OperationCanceledException)
+        {
+            StatusText = "Cancelled";
+            AppendLog("Task cancelled.");
+        }
+        catch (Exception exception)
+        {
+            StatusText = "Error";
+            AppendLog(exception.ToString());
+            MessageBox.Show(this, exception.Message, Title, MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async Task ReviewAndRenderPreparedAsync(JsonObject prepared, GenerationSettings settings, Func<int, string> buildReviewSummary)
+    {
+        var preparedItems = BackendPayloadReader.ReadPreparedItems(prepared);
+        var failures = BackendPayloadReader.ReadFailures(prepared);
+        foreach (var failure in failures)
+        {
+            AppendLog($"Warning: {failure}");
+        }
+
+        if (preparedItems.Count == 0)
+        {
+            MessageBox.Show(this, MainWindowViewModel.BuildFailureMessage(failures), Title, MessageBoxButton.OK, MessageBoxImage.Warning);
+            StatusText = "No cases prepared";
+            return;
+        }
+
+        var reviewSessionId = _storage.CreateReviewSession(prepared, buildReviewSummary(preparedItems.Count));
+        StatusText = "Review cases";
+        var reviewWindow = new CaseReviewWindow(_backend, preparedItems, settings, AppendLog, _storage, reviewSessionId)
+        {
+            Owner = this
+        };
+        if (reviewWindow.ShowDialog() != true || reviewWindow.ApprovedItems.Count == 0)
+        {
+            StatusText = "Review cancelled";
+            return;
+        }
+
+        AppendLog(MainWindowViewModel.BuildExportSummary(reviewWindow.ApprovedItems));
+
+        var stdout = await _jobs.RunAsync(
+            "Creating PowerPoint...",
+            OnJobChanged,
+            token => _backend.RenderAsync(reviewWindow.ApprovedItems, settings, AppendLog, token));
+        var outputPath = PowerPointResultParser.ExtractOutputPath(stdout);
+        var manifestPath = PowerPointResultParser.ExtractManifestPath(stdout);
+        if (!string.IsNullOrWhiteSpace(outputPath))
+        {
+            _lastPowerPointPath = outputPath;
+            LastPowerPointText = $"Last PowerPoint: {Path.GetFileName(outputPath)}";
+            _storage.SaveGeneratedPowerPoint(settings, outputPath, manifestPath, reviewWindow.ApprovedItems.Count);
+            _storage.MarkReviewSessionExported(reviewSessionId, outputPath, reviewWindow.ApprovedItems.Count);
+            if (settings.AutoOpen)
+            {
+                OpenPath(outputPath);
+            }
+        }
+
+        StatusText = "PowerPoint complete";
+        AppendLog("PowerPoint created successfully.");
     }
 
     private async void ImportPdfs_Click(object sender, RoutedEventArgs e)
@@ -531,6 +568,55 @@ public partial class MainWindow : Window
             OnlyNewRandomCheck.IsChecked == true));
     }
 
+    private CoreReviewDeckSettings BuildCoreReviewDeckSettings()
+    {
+        return new CoreReviewDeckSettings
+        {
+            CaseCount = ParseBoundedInt(CoreReviewCaseCountBox.Text, 50, 1, 150),
+            Domain = AppOptions.BoardDomainCliValue(BoardDomainCombo.SelectedItem?.ToString() ?? ""),
+            CaseMix = AppOptions.CoreReviewCaseMixCliValue(CoreReviewCaseMixCombo.SelectedItem?.ToString() ?? ""),
+            ModalityMix = AppOptions.CoreReviewModalityMixCliValue(CoreReviewModalityMixCombo.SelectedItem?.ToString() ?? "")
+        };
+    }
+
+    private GenerationSettings BuildCoreReviewGenerationSettings()
+    {
+        var settings = BuildSettings();
+        var title = settings.Title;
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            var domainLabel = BoardDomainCombo.SelectedItem?.ToString() ?? "General / Mixed";
+            title = domainLabel == "General / Mixed" ? "Core Review" : $"Core Review - {domainLabel}";
+        }
+
+        return settings with
+        {
+            Title = title,
+            PowerPointStyle = "core-review",
+            IncludeTeachingPoints = true
+        };
+    }
+
+    private static string BuildCoreReviewRequestSummary(JsonObject prepared, CoreReviewDeckSettings deckSettings, int preparedCount)
+    {
+        var plan = prepared["plan"]?.AsObject();
+        var summary = BackendPayloadReader.TextValue(plan, "summary");
+        if (!string.IsNullOrWhiteSpace(summary))
+        {
+            return $"{summary}, {preparedCount} prepared case(s)";
+        }
+        return $"Core Review deck: {deckSettings.CaseCount} requested case(s), {preparedCount} prepared case(s)";
+    }
+
+    private static int ParseBoundedInt(string value, int fallback, int minimum, int maximum)
+    {
+        if (!int.TryParse(value, out var parsed))
+        {
+            return fallback;
+        }
+        return Math.Max(minimum, Math.Min(maximum, parsed));
+    }
+
     private void PowerPointStyleCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
         RefreshCoreReviewQuestionSourceUi();
@@ -557,6 +643,7 @@ public partial class MainWindow : Window
     private void SetBusy(bool busy)
     {
         GenerateButton.IsEnabled = !busy;
+        GenerateCoreReviewButton.IsEnabled = !busy;
         CancelButton.IsEnabled = busy;
         Progress.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
     }

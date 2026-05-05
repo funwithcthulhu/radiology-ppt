@@ -39,7 +39,7 @@ Request types:
 
 Useful filters:
 
-- `Modality`: MRI, CT, X-ray, ultrasound, PET, mammography, angiography, and more.
+- `Modality`: MRI, CT, X-ray, ultrasound, fluoroscopy, PET, nuclear medicine, mammography, angiography, and more.
 - `Anatomy`: brain, spine, chest, abdomen, pelvis, breast, MSK regions, fetal, and more.
 - `Area`: neuro, pediatrics, pediatric neuro, MSK, body, chest, cardiac, GI, GU, breast, trauma, oncology, and more.
 - `Age`: adult, pediatric, neonatal.
@@ -71,14 +71,24 @@ The Library is built from your local SQLite state. It is not synced to Radiopaed
 
 ## Core Boards Tab
 
-Core Boards imports local study material into a local ABR Core-style study area.
+Core Boards has two jobs: build CORE-style case review lectures, and import local source material for standalone review questions.
 
-Core Boards supports:
+To build a Core Review lecture:
 
-- choose a default topic/domain
+1. Set `Cases` to the target deck size. Long reviews such as 50-100 cases are supported, but preparation will take time.
+2. Choose a `Domain`. `General / Mixed` uses a broad CORE-style mix. `NIS`, `Physics`, and `RISC` are question domains, so case planning falls back to mixed diagnostic cases.
+3. Choose `Case mix`. `Blueprint Weighted` gives more slots to large diagnostic areas. `Even Domain Mix` spreads cases more evenly. `Focused Domain` uses the selected diagnostic domain.
+4. Choose `Modality mix`. `Mixed Modalities` rotates through common modalities for a diagnosis. `Prefer Classic Modality` uses the first listed modality. `Any Modality` leaves modality broad.
+5. Click `Generate Core Review Deck`.
+6. Review the Radiopaedia cases and images before export.
+
+This path does not use the `Cases` tab. It starts from an editable diagnosis seed list aligned to public ABR Core domains, searches Radiopaedia, and lets you approve the actual cases.
+
+To add local question sources:
+
 - import local PDFs, notes, or JSON files
 - open the local study folder
-- view import status
+- choose the imported library as the `Review question source` on the PowerPoint tab
 
 Imported source files and extracted assets stay under:
 
@@ -86,9 +96,7 @@ Imported source files and extracted assets stay under:
 library\board-review\
 ```
 
-This folder is ignored by Git. Do not import copyrighted or private material unless you have the right to use it locally.
-
-The desktop app uses this area for local study-source import and library management.
+This folder is ignored by Git. Do not import copyrighted or private material unless you have the right to use it locally. Imported sources affect standalone NIS/physics questions, not Radiopaedia case selection.
 
 ## PowerPoint Tab
 
@@ -220,11 +228,17 @@ Review with Ollama:
 
 Core Review style PowerPoint:
 
-1. Cases: choose cases.
+1. Core Boards: set case count, domain, case mix, and modality mix.
+2. PowerPoint: choose the bundled bank, imported Core Boards library, or a custom question-bank JSON file for standalone review questions.
+3. Core Boards: click `Generate Core Review Deck`.
+4. Review and export.
+
+Hand-picked Core Review PowerPoint:
+
+1. Cases: choose specific diagnoses, manual Radiopaedia cases, or random rows.
 2. PowerPoint: apply `Core Review Teaching`.
-3. Choose the bundled bank, imported Core Boards library, or a custom question-bank JSON file for standalone review questions.
-4. Keep teaching points enabled if you want case-note slides.
-5. Review and export.
+3. Choose the question source for standalone NIS/physics slides.
+4. Review and export.
 
 ## Local Data And Privacy
 

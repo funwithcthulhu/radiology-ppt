@@ -290,6 +290,7 @@ test("core review mode renders diagnosis, anatomy, and standalone review prompts
 
   assert.match(allSlideText, /What is the most likely diagnosis\?/);
   assert.match(allSlideText, /What structure or finding is indicated by the marker\?/);
+  assert.match(allSlideText, /Verbal anatomy check: on this image, where would you place the pin\?/);
   assert.match(allSlideText, /Cerebellar tonsil/);
   assert.match(allSlideText, /Which communication step is best for an unexpected life-threatening finding\?/);
   assert.match(allSlideText, /After two half-lives, what percentage of the original activity remains\?/);

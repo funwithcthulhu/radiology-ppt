@@ -1037,7 +1037,31 @@ function buildCaseAnatomyQuestion(caseData) {
     };
   }
 
-  return null;
+  const verbalImage = (caseData.images || []).find((image) => imageLocalPath(image));
+  const verbalAnswer = buildVerbalAnatomyAnswer(caseData);
+  if (!verbalImage || !verbalAnswer) {
+    return null;
+  }
+
+  return {
+    stem: "Verbal anatomy check: on this image, where would you place the pin?",
+    answerText: verbalAnswer,
+    image: verbalImage,
+    hotspot: null,
+  };
+}
+
+function buildVerbalAnatomyAnswer(caseData) {
+  const plannedAnatomy = normalizeText(caseData?.coreReviewPlan?.anatomyPrompt || "");
+  if (plannedAnatomy) {
+    return plannedAnatomy;
+  }
+
+  const studyHint = normalizeText(caseData?.studyHint || "");
+  const withoutModality = studyHint
+    .replace(/\b(MRI|MR|CT|X-ray|radiograph|ultrasound|US|fluoroscopy|PET|mammography|angiography|nuclear medicine)\b/gi, "")
+    .replace(/[,\-_/]+/g, " ");
+  return collapseWhitespace(withoutModality);
 }
 
 function questionImageObject(question) {

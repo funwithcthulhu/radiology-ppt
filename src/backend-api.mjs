@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  buildCoreReviewCasePlan,
   buildCoreReviewQuestionBankFromCorpus,
   buildCoreReviewQuizSession,
   coreReviewSchemaSummary,
@@ -167,6 +168,33 @@ export async function prepareCases(entries, args) {
   });
   scheduleFallbackCasePrefetch(prepared.items);
   return prepared;
+}
+
+export async function prepareCoreReviewDeck(args) {
+  emitProgress("Planning Core Review case requests");
+  const plan = await buildCoreReviewCasePlan(args);
+  emitProgress("Starting Core Review case preparation", {
+    requestedCaseCount: plan.requestedCaseCount,
+    plannedCaseCount: plan.plannedCaseCount,
+    caseMix: plan.caseMix,
+    modalityMix: plan.modalityMix,
+  });
+  const prepared = await prepareCaseItems(
+    plan.entries,
+    {
+      ...args,
+      onlyNewRandomCases: args.onlyNewRandomCases !== false,
+    },
+    {
+      readRandomHistory: true,
+      writeRandomHistory: true,
+    },
+  );
+  scheduleFallbackCasePrefetch(prepared.items);
+  return {
+    plan,
+    ...prepared,
+  };
 }
 
 export async function scoreImages(payload, args) {
@@ -795,12 +823,14 @@ function toManifest(cases, entries, deckTitle, deckMode) {
       topicFocus: entry.topicFocus || null,
       difficulty: entry.difficulty || null,
       requestedImagesPerCase: entry.requestedImagesPerCase || null,
+      coreReviewPlan: entry.coreReviewPlan || null,
     })),
     cases: cases.map((caseData) => ({
       rawInput: caseData.rawInput,
       originalInput: caseData.originalInput || null,
       diagnosisQuery: caseData.diagnosisQuery,
       studyHint: caseData.studyHint,
+      coreReviewPlan: caseData.coreReviewPlan || null,
       caseTitle: caseData.caseTitle,
       caseUrl: caseData.caseUrl,
       author: caseData.author,

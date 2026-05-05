@@ -4,11 +4,13 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {
+  buildCoreReviewCasePlan,
   buildCoreReviewQuestionBankFromCorpus,
   buildCoreReviewQuizSession,
   chunkCoreReviewText,
   coreReviewSchemaSummary,
   ingestCoreReviewSources,
+  loadCoreReviewCaseBank,
   loadCoreReviewCorpus,
   loadCoreReviewQuestionBank,
   mergeCoreReviewCorpora,
@@ -140,6 +142,50 @@ test("loads the bundled Core Review bank for NIS and physics practice", async ()
 
   assert.equal(physicsSession.questions.length, 2);
   assert.equal(physicsSession.questions.every((question) => question.domain === "physics"), true);
+});
+
+test("builds deterministic CORE review case plans without using the Cases tab", async () => {
+  const bank = await loadCoreReviewCaseBank();
+  assert.ok(bank.cases.length >= 100);
+
+  const first = await buildCoreReviewCasePlan({
+    caseCount: 50,
+    caseMix: "blueprint",
+    modalityMix: "mixed",
+    imagesPerCase: 2,
+    seed: "core-plan-test",
+  });
+  const second = await buildCoreReviewCasePlan({
+    caseCount: 50,
+    caseMix: "blueprint",
+    modalityMix: "mixed",
+    imagesPerCase: 2,
+    seed: "core-plan-test",
+  });
+
+  assert.equal(first.entries.length, 50);
+  assert.deepEqual(
+    first.entries.map((entry) => entry.rawInput),
+    second.entries.map((entry) => entry.rawInput),
+  );
+  assert.equal(first.entries.every((entry) => entry.requestMode === "specific"), true);
+  assert.equal(first.entries.every((entry) => entry.coreReviewPlan?.domain), true);
+  assert.ok(new Set(first.entries.map((entry) => entry.coreReviewPlan.domain)).size >= 8);
+  assert.ok(first.entries.some((entry) => entry.modality && entry.studyHint.includes(entry.modality)));
+});
+
+test("can focus CORE review case plans by domain", async () => {
+  const plan = await buildCoreReviewCasePlan({
+    caseCount: 12,
+    domain: "msk",
+    caseMix: "focused",
+    modalityMix: "classic",
+    seed: "msk-focus",
+  });
+
+  assert.equal(plan.entries.length, 12);
+  assert.equal(plan.entries.every((entry) => entry.coreReviewPlan.domain === "msk"), true);
+  assert.equal(plan.entries.every((entry) => entry.modality), true);
 });
 
 test("builds source-grounded review questions from imported corpora", async () => {

@@ -29,6 +29,7 @@ The case intro slide avoids giving away the diagnosis when possible. If clean pa
 - Image-selection rationale in the review window and generated manifest.
 - Local Library tab for reviewed cases and favorites.
 - PowerPoint presets including `Fast Preview`, `Ollama Assisted`, `Core Review Teaching`, and `Dark Conference`.
+- Separate Core Boards deck builder for long CORE-style review lectures from a local diagnosis seed list.
 - Optional Ollama vision scoring during review.
 - Random mode searches live Radiopaedia first and avoids cases selected in previous random runs by default.
 - Local SQLite cache for Radiopaedia metadata, image candidates, random history, review decisions, and backend diagnostics.
@@ -89,7 +90,7 @@ There is no success popup after export. Use the left status area, Activity tab, 
 
 - `Cases`: request grid for diagnoses, random pulls, or Radiopaedia URLs.
 - `Library`: local history of reviewed cases with decision, image count, score, and case path.
-- `Core Boards`: local import for PDFs, notes, and JSON study material used in Core Review.
+- `Core Boards`: generate CORE-style review decks and import PDFs, notes, or JSON study material for review questions.
 - `PowerPoint`: title, output path, images per case, style, theme, Ollama model, presets, generation, and output shortcuts.
 - `Activity`: diagnostics, backend logs, SQLite/cache counts, state folder access, cleanup, and maintenance.
 
@@ -127,7 +128,7 @@ Use the `Activity` tab to refresh diagnostics, clean scratch files, clean old ca
 - `csharp\RadiologyPpt.App\BackendContracts.cs`: C# payload builders/readers for the Node JSON contract.
 - `csharp\RadiologyPpt.App\BackendHealthMonitor.cs`: backend ping/restart watchdog.
 - `src\backend-service.mjs`: persistent local JSONL backend service.
-- `src\backend-api.mjs`: workflow API for prepare, score, render, Core Boards ingestion, and quiz assembly.
+- `src\backend-api.mjs`: workflow API for prepare, score, render, Core Boards deck planning, ingestion, and quiz assembly.
 - `src\radiopaedia.mjs`: small facade for Radiopaedia case fallback orchestration.
 - `src\radiopaedia-search.mjs`: search URLs, search-result parsing, random selection, indexed random reuse, and random-history expansion.
 - `src\radiopaedia-case-fetch.mjs`: case page loading, study/image loading, image preparation, and final case assembly.
@@ -172,13 +173,19 @@ GitHub Actions runs Node tests and the WPF Release build on Windows.
 
 ## Core Boards
 
-Core Boards can import local PDFs, notes, and JSON source material into a local study library under `library\board-review\`. The imported corpora stay local and are not committed.
+Core Boards has its own lecture path. Set a case count, domain, case mix, and modality mix, then click `Generate Core Review Deck`. The app builds a CORE-scoped diagnosis plan, searches Radiopaedia for matching cases, opens the normal review window, and exports only the cases/images you approve. You do not need to select cases in the `Cases` tab for this workflow.
+
+The bundled diagnosis seed list is original practice scaffolding aligned to public ABR Core domains. It is not official ABR content and is not a board-recall list.
+
+Core Boards can also import local PDFs, notes, and JSON source material into a local study library under `library\board-review\`. The imported corpora stay local and are not committed.
 
 Core Review decks can source NIS and physics questions from:
 
 - the bundled free CORE-style bank
 - the imported local Core Boards library
 - a custom question-bank JSON file
+
+Question sources affect standalone NIS/physics slides. Case selection comes from the CORE diagnosis plan plus Radiopaedia search and review.
 
 The repository does not bundle copyrighted board-review books or question banks. Import local materials only when you have the right to use them. Generated Core Boards corpora remain ignored by Git.
 
