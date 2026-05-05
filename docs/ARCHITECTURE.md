@@ -297,7 +297,7 @@ Shortcut:
 Installer:
 
 ```powershell
-.\build-windows-installer.ps1 -Version 0.2.3
+.\build-windows-installer.ps1 -Version 0.2.4
 ```
 
 The installer package is built from a self-contained Windows publish plus `src\`, `node_modules\`, `runtime\node.exe`, license/readme files, and the app icon. The installed app finds backend resources beside the executable, but writes state/cache/output data under `%LOCALAPPDATA%\RadiopaediaCasePowerPointBuilder`.

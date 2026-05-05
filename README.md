@@ -165,7 +165,7 @@ Build and refresh the desktop app:
 Build the Windows installer:
 
 ```powershell
-.\build-windows-installer.ps1 -Version 0.2.3
+.\build-windows-installer.ps1 -Version 0.2.4
 ```
 
 GitHub Actions runs Node tests and the WPF Release build on Windows.

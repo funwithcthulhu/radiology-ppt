@@ -12,9 +12,12 @@ public sealed class BackendClient
     private readonly SemaphoreSlim _serviceStartLock = new(1, 1);
     private readonly SemaphoreSlim _serviceWriteLock = new(1, 1);
     private readonly object _pendingLock = new();
+    private readonly object _serviceDiagnosticsLock = new();
     private readonly Dictionary<string, PendingServiceRequest> _pendingRequests = new(StringComparer.Ordinal);
+    private readonly Queue<string> _recentServiceDiagnostics = new();
     private static readonly TimeSpan LongRunningLogDelay = TimeSpan.FromSeconds(12);
     private static readonly TimeSpan LongRunningLogInterval = TimeSpan.FromSeconds(20);
+    private const int RecentServiceDiagnosticLimit = 25;
 
     public BackendClient()
     {
@@ -168,6 +171,37 @@ public sealed class BackendClient
             throw new FileNotFoundException("The backend service was not found.", ServiceScript);
         }
 
+        for (var attempt = 1; attempt <= 2; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                return await RunServiceAttemptAsync(command, payload, log, cancellationToken);
+            }
+            catch (BackendServiceExitedException) when (attempt == 1 && !cancellationToken.IsCancellationRequested)
+            {
+                log($"Backend service exited during {DescribeCommand(command)}; restarting and retrying once.");
+                await RestartServiceAsync(log, cancellationToken);
+            }
+            catch (IOException exception) when (attempt == 1 && !cancellationToken.IsCancellationRequested)
+            {
+                log($"Lost connection to the backend during {DescribeCommand(command)}: {exception.Message}. Restarting and retrying once.");
+                CancelCurrentProcess();
+                await EnsureServiceAsync(log, cancellationToken);
+            }
+            catch (ObjectDisposedException exception) when (attempt == 1 && !cancellationToken.IsCancellationRequested)
+            {
+                log($"Backend connection closed during {DescribeCommand(command)}: {exception.Message}. Restarting and retrying once.");
+                CancelCurrentProcess();
+                await EnsureServiceAsync(log, cancellationToken);
+            }
+        }
+
+        throw new InvalidOperationException("Backend service request failed.");
+    }
+
+    private async Task<JsonObject> RunServiceAttemptAsync(string command, JsonObject payload, Action<string> log, CancellationToken cancellationToken)
+    {
         await EnsureServiceAsync(log, cancellationToken);
         var service = _serviceProcess ?? throw new InvalidOperationException("The backend service is not running.");
         var id = Guid.NewGuid().ToString("N");
@@ -196,7 +230,7 @@ public sealed class BackendClient
             {
                 if (service.HasExited)
                 {
-                    throw new InvalidOperationException("The backend service exited before the request could be sent.");
+                    throw BuildServiceExitException(service);
                 }
 
                 await service.StandardInput.WriteLineAsync(request.ToJsonString());
@@ -303,13 +337,20 @@ public sealed class BackendClient
             startInfo.Environment["NODE_NO_WARNINGS"] = "1";
 
             var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
-            process.Exited += (_, _) => FailPendingServiceRequests("The backend service exited.");
+            process.Exited += (_, _) => _ = Task.Run(async () =>
+            {
+                await Task.Delay(150);
+                var exception = BuildServiceExitException(process);
+                log(exception.Message);
+                FailPendingServiceRequests(exception);
+            });
             if (!process.Start())
             {
                 throw new InvalidOperationException("Could not start the backend service.");
             }
 
             _serviceProcess = process;
+            ClearServiceDiagnostics();
             _ = Task.Run(() => ReadServiceStdoutAsync(process));
             _ = Task.Run(() => ReadServiceStderrAsync(process, log));
             log("Backend service started.");
@@ -324,7 +365,7 @@ public sealed class BackendClient
     {
         try
         {
-            while (!process.HasExited)
+            while (true)
             {
                 var line = await process.StandardOutput.ReadLineAsync();
                 if (line is null)
@@ -344,13 +385,14 @@ public sealed class BackendClient
     {
         try
         {
-            while (!process.HasExited)
+            while (true)
             {
                 var line = await process.StandardError.ReadLineAsync();
                 if (line is null)
                 {
                     break;
                 }
+                RememberServiceDiagnostic(line);
                 if (TryParseBackendEvent(line, out var progressMessage))
                 {
                     LogToPendingRequests(progressMessage, fallbackLog);
@@ -376,6 +418,7 @@ public sealed class BackendClient
         }
         catch
         {
+            RememberServiceDiagnostic(line);
             LogToPendingRequests(line, _ => { });
             return;
         }
@@ -424,6 +467,11 @@ public sealed class BackendClient
 
     private void FailPendingServiceRequests(string message)
     {
+        FailPendingServiceRequests(new InvalidOperationException(message));
+    }
+
+    private void FailPendingServiceRequests(Exception exception)
+    {
         PendingServiceRequest[] pending;
         lock (_pendingLock)
         {
@@ -432,7 +480,68 @@ public sealed class BackendClient
         }
         foreach (var request in pending)
         {
-            request.Completion.TrySetException(new InvalidOperationException(message));
+            request.Completion.TrySetException(exception);
+        }
+    }
+
+    private BackendServiceExitedException BuildServiceExitException(Process process)
+    {
+        var exitCode = TryGetExitCode(process);
+        var message = exitCode is null
+            ? "The backend service exited unexpectedly."
+            : $"The backend service exited unexpectedly (exit code {exitCode}).";
+        var diagnostics = RecentServiceDiagnosticsText();
+        if (!string.IsNullOrWhiteSpace(diagnostics))
+        {
+            message += $"{Environment.NewLine}{Environment.NewLine}Recent backend output:{Environment.NewLine}{diagnostics}";
+        }
+
+        return new BackendServiceExitedException(message);
+    }
+
+    private static int? TryGetExitCode(Process process)
+    {
+        try
+        {
+            return process.HasExited ? process.ExitCode : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private void RememberServiceDiagnostic(string line)
+    {
+        var cleanLine = line.Trim();
+        if (string.IsNullOrWhiteSpace(cleanLine))
+        {
+            return;
+        }
+
+        lock (_serviceDiagnosticsLock)
+        {
+            _recentServiceDiagnostics.Enqueue(cleanLine);
+            while (_recentServiceDiagnostics.Count > RecentServiceDiagnosticLimit)
+            {
+                _recentServiceDiagnostics.Dequeue();
+            }
+        }
+    }
+
+    private string RecentServiceDiagnosticsText()
+    {
+        lock (_serviceDiagnosticsLock)
+        {
+            return string.Join(Environment.NewLine, _recentServiceDiagnostics);
+        }
+    }
+
+    private void ClearServiceDiagnostics()
+    {
+        lock (_serviceDiagnosticsLock)
+        {
+            _recentServiceDiagnostics.Clear();
         }
     }
 
@@ -593,6 +702,8 @@ public sealed class BackendClient
 
         public Action<string> Log { get; } = log;
     }
+
+    private sealed class BackendServiceExitedException(string message) : InvalidOperationException(message);
 }
 
 public sealed record BackendProgressEvent(

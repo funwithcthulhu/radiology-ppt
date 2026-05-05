@@ -29,13 +29,13 @@ From the repository root:
 npm ci
 npm test
 dotnet build .\csharp\RadiologyPpt.App\RadiologyPpt.App.csproj --configuration Release
-.\build-windows-installer.ps1 -Version 0.2.3
+.\build-windows-installer.ps1 -Version 0.2.4
 ```
 
 Output:
 
 ```text
-dist\installer\Radiopaedia-Case-PowerPoint-Builder-Setup-v0.2.3.exe
+dist\installer\Radiopaedia-Case-PowerPoint-Builder-Setup-v0.2.4.exe
 ```
 
 The installer bundles:
@@ -51,8 +51,8 @@ The installer bundles:
 Use a matching semantic version and tag:
 
 ```powershell
-git tag v0.2.3
-git push origin main v0.2.3
+git tag v0.2.4
+git push origin main v0.2.4
 ```
 
 Pushing a `v*` tag runs `Build Windows Installer`. It builds the installer, uploads a workflow artifact, and attaches the installer to the matching GitHub Release. If the release does not exist, the workflow creates it.
@@ -60,17 +60,17 @@ Pushing a `v*` tag runs `Build Windows Installer`. It builds the installer, uplo
 For a local/manual repair, build the installer and upload it yourself:
 
 ```powershell
-gh release create v0.2.3 `
-  .\dist\installer\Radiopaedia-Case-PowerPoint-Builder-Setup-v0.2.3.exe `
-  --title "Radiopaedia Case PowerPoint Builder v0.2.3" `
-  --notes-file .\docs\releases\v0.2.3.md
+gh release create v0.2.4 `
+  .\dist\installer\Radiopaedia-Case-PowerPoint-Builder-Setup-v0.2.4.exe `
+  --title "Radiopaedia Case PowerPoint Builder v0.2.4" `
+  --notes-file .\docs\releases\v0.2.4.md
 ```
 
 If a release already exists, upload or replace the installer asset:
 
 ```powershell
-gh release upload v0.2.3 `
-  .\dist\installer\Radiopaedia-Case-PowerPoint-Builder-Setup-v0.2.3.exe `
+gh release upload v0.2.4 `
+  .\dist\installer\Radiopaedia-Case-PowerPoint-Builder-Setup-v0.2.4.exe `
   --clobber
 ```
 
