@@ -407,8 +407,8 @@ test("core review mode renders mixed case exercises and standalone review prompt
   const notesMasterIndex = presentationXml.indexOf("<p:notesMasterIdLst");
   const slideListIndex = presentationXml.indexOf("<p:sldIdLst");
   assert.ok(
-    notesMasterIndex < 0 || slideListIndex < 0 || notesMasterIndex < slideListIndex,
-    "notes master list should appear before slide list in presentation.xml",
+    notesMasterIndex < 0 || slideListIndex < 0 || notesMasterIndex > slideListIndex,
+    "notes master list should remain after slide list for desktop PowerPoint compatibility",
   );
 
   const slideXmlEntries = listZipEntries(pptx).filter((entry) => /^ppt\/slides\/slide\d+\.xml$/.test(entry));

@@ -2654,18 +2654,20 @@ function normalizeOpenXmlCoordinateAttributes(xml) {
 
 function normalizePresentationXmlOrder(xml) {
   const notesMatch = /<p:notesMasterIdLst\b[\s\S]*?<\/p:notesMasterIdLst>/.exec(xml);
-  const slideListMatch = /<p:sldIdLst\b/.exec(xml);
-  if (!notesMatch || !slideListMatch || notesMatch.index < slideListMatch.index) {
+  const slideListMatch = /<p:sldIdLst\b[\s\S]*?<\/p:sldIdLst>/.exec(xml);
+  if (!notesMatch || !slideListMatch || notesMatch.index > slideListMatch.index) {
     return xml;
   }
 
+  // Desktop PowerPoint repairs decks when this list is moved before the slides.
   const withoutNotes = `${xml.slice(0, notesMatch.index)}${xml.slice(notesMatch.index + notesMatch[0].length)}`;
-  const slideListIndex = withoutNotes.indexOf("<p:sldIdLst");
-  if (slideListIndex < 0) {
+  const updatedSlideListMatch = /<p:sldIdLst\b[\s\S]*?<\/p:sldIdLst>/.exec(withoutNotes);
+  if (!updatedSlideListMatch) {
     return xml;
   }
 
-  return `${withoutNotes.slice(0, slideListIndex)}${notesMatch[0]}${withoutNotes.slice(slideListIndex)}`;
+  const insertAt = updatedSlideListMatch.index + updatedSlideListMatch[0].length;
+  return `${withoutNotes.slice(0, insertAt)}${notesMatch[0]}${withoutNotes.slice(insertAt)}`;
 }
 
 function removePowerPointCreationIdExtensions(xml) {
