@@ -391,6 +391,79 @@ test("core review mode renders mixed case exercises and standalone review prompt
   assert.deepEqual(danglingContentTypeOverrides, [], "content type overrides should only reference packaged parts");
 });
 
+test("core review standalone MCQs keep long stems separate from answer choices", async () => {
+  const { buildDeck } = await import("../src/deck.mjs");
+  const sharp = (await import("sharp")).default;
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "radiology-deck-core-long-standalone-"));
+  const imagePath = path.join(tempDir, "long-question.png");
+  const outputPath = path.join(tempDir, "long-standalone.pptx");
+  const stem =
+    "A patient develops limited urticaria shortly after iodinated contrast administration but remains hemodynamically stable without respiratory symptoms. Which immediate management is most appropriate?";
+
+  await sharp({
+    create: {
+      width: 640,
+      height: 420,
+      channels: 3,
+      background: "#202020",
+    },
+  }).png().toFile(imagePath);
+
+  await buildDeck({
+    cases: [
+      {
+        rawInput: "appendicitis, ct abdomen pelvis",
+        diagnosisQuery: "appendicitis",
+        caseTitle: "appendicitis",
+        caseUrl: "https://radiopaedia.org/cases/appendicitis",
+        footerText: "Radiopaedia • rID-test",
+        images: [{ localPath: imagePath, label: "CT abdomen pelvis" }],
+      },
+    ],
+    deckTitle: "Long Standalone Regression",
+    outputPath,
+    scratchDir: path.join(tempDir, "scratch"),
+    deckMode: "core-review",
+    theme: "conference-dark",
+    coreReviewQuestions: [
+      {
+        id: "nis-long-layout",
+        type: "single_best_answer",
+        domain: "nis",
+        stem,
+        options: [
+          {
+            id: "A",
+            text: "Recognize a mild allergic-like reaction, assess for progression, and provide symptomatic treatment or observation as needed",
+          },
+          { id: "B", text: "Initiate chest compressions immediately" },
+          { id: "C", text: "Send the patient home without assessment because hives are always self-limited" },
+          { id: "D", text: "Assume this is vasovagal syncope and place the patient in Trendelenburg position" },
+        ],
+        answerKey: "A",
+        explanation: "Limited urticaria without airway or hemodynamic symptoms is a mild allergic-like reaction.",
+        references: [{ label: "ABR NIS study guide" }],
+      },
+    ],
+  });
+
+  const pptx = await fs.readFile(outputPath);
+  const standaloneSlide = readSlideXmlEntries(pptx).find(({ text }) =>
+    /Review 1 .* NIS/.test(text) && text.includes("limited urticaria"),
+  );
+  assert.ok(standaloneSlide, "expected the long standalone NIS question slide");
+
+  const stemBounds = textBoxBoundsForText(standaloneSlide.xml, /A patient develops limited urticaria/);
+  const firstOptionBounds = textBoxBoundsForText(standaloneSlide.xml, /A\. Recognize a mild allergic-like reaction/);
+
+  assert.ok(stemBounds, "stem text box should be present");
+  assert.ok(firstOptionBounds, "first option text box should be present");
+  assert.ok(
+    stemBounds.y + stemBounds.cy < firstOptionBounds.y,
+    "long standalone stem should end before answer choices begin",
+  );
+});
+
 test("core review avoids pin-abnormality prompts without localized annotations", async () => {
   const { buildDeck } = await import("../src/deck.mjs");
   const sharp = (await import("sharp")).default;
@@ -848,11 +921,37 @@ function readAllSlideText(buffer) {
   return readSlideTexts(buffer).join("\n\n");
 }
 
-function readSlideTexts(buffer) {
+function readSlideXmlEntries(buffer) {
   return listZipEntries(buffer)
     .filter((entry) => /^ppt\/slides\/slide\d+\.xml$/.test(entry))
     .sort((left, right) => slideNumber(left) - slideNumber(right))
-    .map((entry) => decodeXmlText(readZipEntryText(buffer, entry)));
+    .map((entry) => {
+      const xml = readZipEntryText(buffer, entry);
+      return { entry, xml, text: decodeXmlText(xml) };
+    });
+}
+
+function readSlideTexts(buffer) {
+  return readSlideXmlEntries(buffer).map(({ text }) => text);
+}
+
+function textBoxBoundsForText(slideXml, pattern) {
+  const shapes = slideXml.match(/<p:sp>[\s\S]*?<\/p:sp>/g) || [];
+  for (const shape of shapes) {
+    if (!pattern.test(decodeXmlText(shape))) {
+      continue;
+    }
+    const bounds = /<a:off x="(-?\d+)" y="(-?\d+)"\/>\s*<a:ext cx="(\d+)" cy="(\d+)"/.exec(shape);
+    if (bounds) {
+      return {
+        x: Number(bounds[1]),
+        y: Number(bounds[2]),
+        cx: Number(bounds[3]),
+        cy: Number(bounds[4]),
+      };
+    }
+  }
+  return null;
 }
 
 function slideNumber(entryName) {

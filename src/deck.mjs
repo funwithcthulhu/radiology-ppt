@@ -1709,6 +1709,105 @@ function questionInstructions(question) {
   }
 }
 
+function estimateWrappedLineCount(text, width, fontSize) {
+  const charsPerLine = Math.max(16, Math.floor(width / Math.max(1, fontSize * 0.54)));
+  return String(text ?? "")
+    .split(/\n+/)
+    .reduce((lineCount, paragraph) => {
+      const words = normalizeText(paragraph).split(/\s+/).filter(Boolean);
+      if (!words.length) {
+        return lineCount + 1;
+      }
+
+      let lines = 1;
+      let currentLength = 0;
+      for (const word of words) {
+        const wordLength = word.length;
+        if (currentLength && currentLength + 1 + wordLength > charsPerLine) {
+          lines += Math.max(1, Math.ceil(wordLength / charsPerLine));
+          currentLength = wordLength % charsPerLine;
+        } else if (!currentLength && wordLength > charsPerLine) {
+          lines += Math.ceil(wordLength / charsPerLine) - 1;
+          currentLength = wordLength % charsPerLine;
+        } else {
+          currentLength += (currentLength ? 1 : 0) + wordLength;
+        }
+      }
+      return lineCount + lines;
+    }, 0);
+}
+
+function estimateTextBoxHeight(text, width, fontSize, lineHeight = 1.32) {
+  return Math.ceil(estimateWrappedLineCount(text, width, fontSize) * fontSize * lineHeight);
+}
+
+function chooseTextBoxLayout(text, width, fontSizes, { maxHeight, minHeight = 0, lineHeight = 1.32 } = {}) {
+  for (const fontSize of fontSizes) {
+    const estimatedHeight = estimateTextBoxHeight(text, width, fontSize, lineHeight) + 8;
+    if (!maxHeight || estimatedHeight <= maxHeight) {
+      return { fontSize, height: Math.max(minHeight, estimatedHeight) };
+    }
+  }
+
+  const fontSize = fontSizes[fontSizes.length - 1];
+  const estimatedHeight = estimateTextBoxHeight(text, width, fontSize, lineHeight) + 8;
+  return {
+    fontSize,
+    height: Math.max(minHeight, Math.min(maxHeight || Infinity, estimatedHeight)),
+  };
+}
+
+function optionText(option) {
+  return `${option.id}. ${option.text}`;
+}
+
+function chooseOptionListLayout(options, width, maxHeight, fontSizes) {
+  const normalizedOptions = options.map(optionText);
+  for (const fontSize of fontSizes) {
+    const gap = fontSize <= 18 ? 5 : 7;
+    const heights = normalizedOptions.map((text) =>
+      Math.max(Math.ceil(fontSize * 1.35), estimateTextBoxHeight(text, width, fontSize, 1.22) + 4),
+    );
+    const totalHeight = heights.reduce((sum, height) => sum + height, 0) + gap * Math.max(0, heights.length - 1);
+    if (totalHeight <= maxHeight) {
+      return { fontSize, gap, heights, totalHeight };
+    }
+  }
+
+  const fontSize = fontSizes[fontSizes.length - 1];
+  const gap = 4;
+  const heights = normalizedOptions.map((text) =>
+    Math.max(Math.ceil(fontSize * 1.3), estimateTextBoxHeight(text, width, fontSize, 1.15) + 2),
+  );
+  const totalHeight = heights.reduce((sum, height) => sum + height, 0) + gap * Math.max(0, heights.length - 1);
+  return { fontSize, gap, heights, totalHeight };
+}
+
+function addStandaloneOptionList(slide, options, position, theme, fontSizes) {
+  const layout = chooseOptionListLayout(options, position.width, position.height, fontSizes);
+  let top = position.top;
+  options.forEach((option, index) => {
+    const remainingHeight = Math.max(16, position.top + position.height - top);
+    addText(
+      slide,
+      optionText(option),
+      {
+        left: position.left,
+        top,
+        width: position.width,
+        height: Math.min(layout.heights[index], remainingHeight),
+      },
+      theme,
+      {
+        fontSize: layout.fontSize,
+        color: theme.colors.ink,
+        face: theme.fonts.body,
+      },
+    );
+    top += layout.heights[index] + layout.gap;
+  });
+}
+
 function questionOptions(question) {
   return Array.isArray(question?.options) ? question.options : [];
 }
@@ -2100,7 +2199,7 @@ async function addCoreReviewAnatomyAnswerSlide(
 
 async function addCoreReviewStandaloneQuestionSlide(slide, question, questionNumber, deckTitle, theme) {
   slide.background = { color: cleanColor(theme.colors.teachingBg) };
-  addTopBar(slide, deckTitle, theme, { dark: false });
+  addTopBar(slide, deckTitle, theme, { dark: theme === THEMES["conference-dark"] });
   const options = questionOptions(question);
 
   addText(
@@ -2142,35 +2241,37 @@ async function addCoreReviewStandaloneQuestionSlide(slide, question, questionNum
       theme.colors.border,
       1.1,
     );
+    const stemLayout = chooseTextBoxLayout(question.stem, 448, options.length ? [24, 22, 20, 18] : [26, 24, 22], {
+      maxHeight: options.length ? 150 : 240,
+      minHeight: 72,
+    });
+    const optionTop = Math.max(176 + stemLayout.height + 18, 326);
+    const instructionTop = 520;
     addText(
       slide,
       question.stem,
-      { left: 674, top: 176, width: 448, height: 126 },
+      { left: 674, top: 176, width: 448, height: stemLayout.height },
       theme,
       {
-        fontSize: 26,
+        fontSize: stemLayout.fontSize,
         color: theme.colors.ink,
         face: theme.fonts.title,
         bold: true,
       },
     );
     if (options.length) {
-      addText(
+      addStandaloneOptionList(
         slide,
-        options.map((option) => `${option.id}. ${option.text}`).join("\n"),
-        { left: 676, top: 316, width: 430, height: 180 },
+        options,
+        { left: 676, top: optionTop, width: 430, height: Math.max(72, instructionTop - optionTop - 18) },
         theme,
-        {
-          fontSize: 18,
-          color: theme.colors.ink,
-          face: theme.fonts.body,
-        },
+        [17, 16, 15, 14],
       );
     }
     addText(
       slide,
       questionInstructions(question),
-      { left: 676, top: 520, width: 430, height: 28 },
+      { left: 676, top: instructionTop, width: 430, height: 28 },
       theme,
       {
         fontSize: 12,
@@ -2187,13 +2288,19 @@ async function addCoreReviewStandaloneQuestionSlide(slide, question, questionNum
       theme.colors.border,
       1.1,
     );
+    const stemLayout = chooseTextBoxLayout(question.stem, 1012, options.length ? [26, 24, 22, 20] : [30, 28, 26, 24], {
+      maxHeight: options.length ? 184 : 250,
+      minHeight: options.length ? 94 : 120,
+    });
+    const optionTop = Math.max(178 + stemLayout.height + 22, 350);
+    const instructionTop = 560;
     addText(
       slide,
       question.stem,
-      { left: 122, top: 178, width: 1012, height: 120 },
+      { left: 122, top: 178, width: 1012, height: stemLayout.height },
       theme,
       {
-        fontSize: 30,
+        fontSize: stemLayout.fontSize,
         color: theme.colors.ink,
         face: theme.fonts.title,
         bold: true,
@@ -2201,22 +2308,18 @@ async function addCoreReviewStandaloneQuestionSlide(slide, question, questionNum
     );
 
     if (options.length) {
-      addText(
+      addStandaloneOptionList(
         slide,
-        options.map((option) => `${option.id}. ${option.text}`).join("\n"),
-        { left: 126, top: 326, width: 964, height: 208 },
+        options,
+        { left: 126, top: optionTop, width: 964, height: Math.max(96, instructionTop - optionTop - 18) },
         theme,
-        {
-          fontSize: 22,
-          color: theme.colors.ink,
-          face: theme.fonts.body,
-        },
+        [21, 20, 19, 18, 17],
       );
     } else if (question.type === "numeric_fill_blank") {
       addText(
         slide,
         "Open response. State the calculated answer verbally.",
-        { left: 126, top: 326, width: 900, height: 44 },
+        { left: 126, top: Math.max(178 + stemLayout.height + 28, 326), width: 900, height: 44 },
         theme,
         {
           fontSize: 22,
@@ -2229,7 +2332,7 @@ async function addCoreReviewStandaloneQuestionSlide(slide, question, questionNum
     addText(
       slide,
       questionInstructions(question),
-      { left: 126, top: 560, width: 960, height: 28 },
+      { left: 126, top: instructionTop, width: 960, height: 28 },
       theme,
       {
         fontSize: 12,
