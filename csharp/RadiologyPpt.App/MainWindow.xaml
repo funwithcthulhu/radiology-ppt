@@ -3,10 +3,10 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Radiopaedia Case PowerPoint Builder"
         Icon="Assets/app-icon.ico"
-        Height="760"
-        Width="1240"
-        MinHeight="620"
-        MinWidth="980"
+        Height="860"
+        Width="1320"
+        MinHeight="680"
+        MinWidth="1040"
         WindowStartupLocation="CenterScreen"
         SourceInitialized="Window_SourceInitialized">
     <Grid>
@@ -314,25 +314,28 @@
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
                         <TextBlock Text="Activity" Style="{StaticResource PageTitle}" Margin="0,0,0,12" />
-                        <Border Grid.Row="1" Style="{StaticResource Card}" Margin="0,0,0,12">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock x:Name="DiagnosticsText" Text="Diagnostics have not been loaded yet." TextWrapping="Wrap" />
-                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
-                                    <Button Content="Refresh Diagnostics" Click="RefreshDiagnostics_Click" />
-                                    <Button Content="Run Maintenance" Click="RunMaintenance_Click" />
-                                    <Button Content="Clean Scratch" Click="CleanScratch_Click" />
-                                    <Button Content="Clean Old Cache" Click="CleanOldCache_Click" />
-                                    <Button Content="Open State Folder" Click="OpenStateFolder_Click" />
-                                </StackPanel>
-                            </Grid>
-                        </Border>
+                        <Expander Grid.Row="1" Header="Diagnostics and maintenance" IsExpanded="False" Margin="0,0,0,12">
+                            <Border Style="{StaticResource Card}" Margin="0,8,0,0">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock x:Name="DiagnosticsText" Text="Diagnostics have not been loaded yet." TextWrapping="Wrap" />
+                                    <WrapPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="12,0,0,0">
+                                        <Button Content="Refresh Diagnostics" Click="RefreshDiagnostics_Click" />
+                                        <Button Content="Run Maintenance" Click="RunMaintenance_Click" />
+                                        <Button Content="Clean Scratch" Click="CleanScratch_Click" />
+                                        <Button Content="Clean Old Cache" Click="CleanOldCache_Click" />
+                                        <Button Content="Open State Folder" Click="OpenStateFolder_Click" />
+                                    </WrapPanel>
+                                </Grid>
+                            </Border>
+                        </Expander>
                         <TextBox x:Name="ActivityLogBox" Grid.Row="2" IsReadOnly="True" TextWrapping="Wrap"
-                                 VerticalScrollBarVisibility="Auto" FontFamily="Consolas" Background="#102132"
-                                 Foreground="#D9EBF7" BorderThickness="0" Padding="12" />
+                                 VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                                 FontFamily="Consolas" FontSize="13" Background="#102132"
+                                 Foreground="#D9EBF7" BorderThickness="0" Padding="14" />
                     </Grid>
                 </TabItem>
             </TabControl>
