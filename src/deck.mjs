@@ -15,8 +15,12 @@ const SY = SLIDE_H / H;
 const EMU_PER_INCH = 914400;
 const TRANSPARENT = "#00000000";
 const CORE_REVIEW_MARKER_COLOR = "#D4AF37";
-const SLIDE_XML_ENTRY_PATTERN = /^ppt\/slides\/slide\d+\.xml$/;
+const NOTES_SLIDE_XML_ENTRY_PATTERN = /^ppt\/notesSlides\/notesSlide\d+\.xml$/;
+const OPENXML_POSITIONABLE_ENTRY_PATTERN =
+  /^(?:ppt\/slides\/slide\d+\.xml|ppt\/notesSlides\/notesSlide\d+\.xml|ppt\/notesMasters\/notesMaster\d+\.xml)$/;
 const OPENXML_COORDINATE_ATTR_PATTERN = /\b(x|y|cx|cy)="(-?\d+\.\d+)"/g;
+const POWERPOINT_CREATION_ID_EXT_PATTERN =
+  /<p:extLst>\s*<p:ext\b[^>]*\buri="\{BB962C8B-B14F-4D97-AF65-F5344CB8AC3E\}"[^>]*>\s*<p14:creationId\b[^>]*\/>\s*<\/p:ext>\s*<\/p:extLst>/g;
 const DECK_MODES = {
   caseConference: "case-conference",
   coreReview: "core-review",
@@ -1753,6 +1757,10 @@ function normalizePresentationXmlOrder(xml) {
   return `${withoutNotes.slice(0, slideListIndex)}${notesMatch[0]}${withoutNotes.slice(slideListIndex)}`;
 }
 
+function removePowerPointCreationIdExtensions(xml) {
+  return xml.replace(POWERPOINT_CREATION_ID_EXT_PATTERN, "");
+}
+
 async function normalizePowerPointPackage(filePath) {
   const buffer = await fs.readFile(filePath);
   const zip = await JSZip.loadAsync(buffer);
@@ -1763,7 +1771,11 @@ async function normalizePowerPointPackage(filePath) {
       continue;
     }
 
-    if (entryName !== "ppt/presentation.xml" && !SLIDE_XML_ENTRY_PATTERN.test(entryName)) {
+    const shouldNormalize =
+      entryName === "ppt/presentation.xml" ||
+      OPENXML_POSITIONABLE_ENTRY_PATTERN.test(entryName);
+
+    if (!shouldNormalize) {
       continue;
     }
 
@@ -1772,7 +1784,10 @@ async function normalizePowerPointPackage(filePath) {
     if (entryName === "ppt/presentation.xml") {
       normalized = normalizePresentationXmlOrder(normalized);
     }
-    if (SLIDE_XML_ENTRY_PATTERN.test(entryName)) {
+    if (NOTES_SLIDE_XML_ENTRY_PATTERN.test(entryName)) {
+      normalized = removePowerPointCreationIdExtensions(normalized);
+    }
+    if (OPENXML_POSITIONABLE_ENTRY_PATTERN.test(entryName)) {
       normalized = normalizeOpenXmlCoordinateAttributes(normalized);
     }
 

@@ -312,6 +312,22 @@ test("core review mode renders diagnosis, anatomy, and standalone review prompts
       `${entry} should not contain fractional OpenXML coordinates`,
     );
   }
+
+  const notesSlideXmlEntries = listZipEntries(pptx).filter((entry) => /^ppt\/notesSlides\/notesSlide\d+\.xml$/.test(entry));
+  assert.ok(notesSlideXmlEntries.length > 0, "core review slides should retain speaker notes");
+  for (const entry of notesSlideXmlEntries) {
+    const notesSlideXml = readZipEntryText(pptx, entry);
+    assert.equal(
+      /<p14:creationId\b/.test(notesSlideXml),
+      false,
+      `${entry} should not contain duplicate PowerPoint creation metadata`,
+    );
+    assert.equal(
+      /\b(?:x|y|cx|cy)="-?\d+\.\d+"/.test(notesSlideXml),
+      false,
+      `${entry} should not contain fractional OpenXML coordinates`,
+    );
+  }
 });
 
 function readZipEntryText(buffer, entryName) {
