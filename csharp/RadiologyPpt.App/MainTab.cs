@@ -3,7 +3,7 @@ namespace RadiologyPpt.App;
 public enum MainTab
 {
     Cases = 0,
-    Library = 1,
-    CoreBoards = 2,
+    CoreBoards = 1,
+    Library = 2,
     Activity = 3
 }

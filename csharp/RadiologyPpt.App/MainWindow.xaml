@@ -31,10 +31,10 @@
                                FontSize="15"
                                FontWeight="SemiBold"
                                Margin="0,12,0,22" />
-                    <Button Content="Cases" Click="CasesNav_Click" Margin="0,0,0,8" />
-                    <Button Content="Library" Click="LibraryNav_Click" Margin="0,0,0,8" />
-                    <Button Content="Core Review" Click="CoreBoardsNav_Click" Margin="0,0,0,8" />
-                    <Button Content="Activity" Click="ActivityNav_Click" Margin="0,0,0,8" />
+                    <Button x:Name="CasesNavButton" Content="Cases" Click="CasesNav_Click" Margin="0,0,0,8" />
+                    <Button x:Name="CoreReviewNavButton" Content="Core Review" Click="CoreBoardsNav_Click" Margin="0,0,0,8" />
+                    <Button x:Name="LibraryNavButton" Content="Library" Click="LibraryNav_Click" Margin="0,0,0,8" />
+                    <Button x:Name="ActivityNavButton" Content="Activity" Click="ActivityNav_Click" Margin="0,0,0,8" />
                 </StackPanel>
 
                 <StackPanel DockPanel.Dock="Bottom">
@@ -46,117 +46,125 @@
         </Border>
 
         <Grid Grid.Row="0" Grid.Column="1" Margin="28,24,28,16">
-            <TabControl x:Name="MainTabs">
+            <TabControl x:Name="MainTabs"
+                        BorderThickness="0"
+                        Background="Transparent"
+                        Padding="0"
+                        SelectionChanged="MainTabs_SelectionChanged">
+                <TabControl.ItemContainerStyle>
+                    <Style TargetType="{x:Type TabItem}">
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="{x:Type TabItem}">
+                                    <Border Width="0" Height="0" />
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </TabControl.ItemContainerStyle>
                 <TabItem Header="Cases">
-                    <Grid Margin="0,16,0,0">
+                    <Grid Margin="0,10,0,0">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
 
-                        <StackPanel Grid.Row="0" Margin="0,0,0,12">
-                            <TextBlock Text="Cases" Style="{StaticResource PageTitle}" />
+                        <DockPanel Grid.Row="0" Margin="0,0,0,6">
+                            <TextBlock Text="Cases" FontSize="20" FontWeight="SemiBold"
+                                       Foreground="{StaticResource InkBrush}" DockPanel.Dock="Left" Margin="0,0,12,0" />
                             <TextBlock Text="Build a case conference PowerPoint from selected diagnoses, random pulls, or exact Radiopaedia URLs."
-                                       Style="{StaticResource PageSubtitle}" Margin="0,4,0,0" />
-                        </StackPanel>
+                                       Style="{StaticResource PageSubtitle}" VerticalAlignment="Center" />
+                        </DockPanel>
 
-                        <Border Grid.Row="1" Style="{StaticResource Card}" Margin="0,0,0,12">
+                        <Border Grid.Row="1" Style="{StaticResource Card}" Padding="16" Margin="0,0,0,8">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="1.15*" />
-                                    <ColumnDefinition Width="1*" />
-                                </Grid.ColumnDefinitions>
 
-                                <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,18,12">
-                                    <TextBlock Text="Case Conference" FontSize="20" FontWeight="SemiBold" />
+                                <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+                                    <TextBlock Text="Case Conference" FontSize="18" FontWeight="SemiBold" Margin="0,0,14,0" />
                                     <TextBlock Text="Settings for PowerPoints generated from the case rows below."
-                                               Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,4,0,14" />
-
-                                    <TextBlock Text="Title" FontWeight="SemiBold" />
-                                    <TextBox x:Name="TitleBox" Margin="0,4,0,10" />
-
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="120" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Grid.Column="0" Margin="0,0,12,0">
-                                            <TextBlock Text="Images" FontWeight="SemiBold" />
-                                            <TextBox x:Name="ImagesPerCaseBox" Text="3" Width="80" HorizontalAlignment="Left" Margin="0,4,0,0" />
-                                        </StackPanel>
-                                        <StackPanel Grid.Column="1">
-                                            <TextBlock Text="Theme" FontWeight="SemiBold" />
-                                            <ComboBox x:Name="ThemeCombo" MaxWidth="260" HorizontalAlignment="Stretch" Margin="0,4,0,0" />
-                                        </StackPanel>
-                                    </Grid>
+                                               Foreground="{StaticResource MutedBrush}" FontSize="12"
+                                               TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                                 </StackPanel>
 
-                                <StackPanel Grid.Row="0" Grid.Column="1" Margin="0,34,0,12">
-                                    <TextBlock Text="Output .pptx" FontWeight="SemiBold" />
-                                    <DockPanel LastChildFill="True" Margin="0,4,0,10">
-                                        <Button DockPanel.Dock="Right" Content="Browse" Click="BrowseOutput_Click" Margin="8,0,0,0" />
-                                        <TextBox x:Name="OutputBox" />
-                                    </DockPanel>
-
-                                    <UniformGrid Columns="2">
-                                        <CheckBox x:Name="AutoOpenCheck" Content="Open PowerPoint" IsChecked="True" Margin="0,0,10,8" />
-                                        <CheckBox x:Name="ClinicalHistoryCheck" Content="Show age/sex" IsChecked="True" Margin="0,0,0,8" />
-                                        <CheckBox x:Name="TeachingPointsCheck" Content="Teaching slides" Margin="0,0,10,8" />
+                                <WrapPanel Grid.Row="1" Margin="0,0,0,6">
+                                    <StackPanel Width="280" Margin="0,0,12,8">
+                                        <TextBlock Text="Title" FontWeight="SemiBold" />
+                                        <TextBox x:Name="TitleBox" Margin="0,3,0,0" />
+                                    </StackPanel>
+                                    <StackPanel Width="80" Margin="0,0,12,8">
+                                        <TextBlock Text="Images" FontWeight="SemiBold" />
+                                        <TextBox x:Name="ImagesPerCaseBox" Text="3" Margin="0,3,0,0" />
+                                    </StackPanel>
+                                    <StackPanel Width="220" Margin="0,0,12,8">
+                                        <TextBlock Text="Theme" FontWeight="SemiBold" />
+                                        <ComboBox x:Name="ThemeCombo" Margin="0,3,0,0" />
+                                    </StackPanel>
+                                    <StackPanel Width="360" Margin="0,0,12,8">
+                                        <TextBlock Text="Output .pptx" FontWeight="SemiBold" />
+                                        <DockPanel LastChildFill="True" Margin="0,3,0,0">
+                                            <Button DockPanel.Dock="Right" Content="Browse" Click="BrowseOutput_Click" Padding="10,5" Margin="8,0,0,0" />
+                                            <TextBox x:Name="OutputBox" />
+                                        </DockPanel>
+                                    </StackPanel>
+                                    <StackPanel Width="300" Margin="0,0,12,8">
+                                        <TextBlock Text="Preset" FontWeight="SemiBold" />
+                                        <DockPanel LastChildFill="True" Margin="0,3,0,0">
+                                            <Button DockPanel.Dock="Right" Content="Apply" Click="ApplyPreset_Click" Padding="10,5" Margin="8,0,0,0" />
+                                            <ComboBox x:Name="PresetCombo" DisplayMemberPath="Name" SelectionChanged="PresetCombo_SelectionChanged" />
+                                        </DockPanel>
+                                        <TextBlock x:Name="PresetDescriptionText" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" FontSize="11" Margin="0,3,0,0" />
+                                    </StackPanel>
+                                    <StackPanel Width="300" Margin="0,0,12,8">
+                                        <TextBlock Text="Ollama image review" FontWeight="SemiBold" />
+                                        <DockPanel LastChildFill="True" Margin="0,3,0,0">
+                                            <Button DockPanel.Dock="Right" Content="Refresh" Click="RefreshOllama_Click" Padding="10,5" Margin="8,0,0,0" />
+                                            <ComboBox x:Name="OllamaModelCombo" IsEditable="True" />
+                                        </DockPanel>
+                                        <CheckBox x:Name="OllamaCheck" Content="Enable optional review scoring" Margin="0,5,0,0" />
+                                    </StackPanel>
+                                    <UniformGrid Width="360" Columns="2" Margin="0,18,0,8">
+                                        <CheckBox x:Name="AutoOpenCheck" Content="Open PowerPoint" IsChecked="True" Margin="0,0,10,4" />
+                                        <CheckBox x:Name="ClinicalHistoryCheck" Content="Show age/sex" IsChecked="True" Margin="0,0,0,4" />
+                                        <CheckBox x:Name="TeachingPointsCheck" Content="Teaching slides" Margin="0,0,10,0" />
                                         <CheckBox x:Name="OnlyNewRandomCheck"
-                                                  Content="Only new random cases"
+                                                  Content="Only new cases"
                                                   IsChecked="True"
-                                                  ToolTip="On by default. Random requests search Radiopaedia first and skip cases already used in previous random PowerPoints instead of backfilling with older cases."
-                                                  Margin="0,0,0,8" />
+                                                  ToolTip="On by default. Random requests search Radiopaedia first and skip cases already used in previous random PowerPoints instead of backfilling with older cases." />
                                     </UniformGrid>
-                                </StackPanel>
+                                </WrapPanel>
 
-                                <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,18,0">
-                                    <TextBlock Text="Ollama image review" FontWeight="SemiBold" />
-                                    <CheckBox x:Name="OllamaCheck" Content="Enable optional review scoring" Margin="0,4,0,8" />
-                                    <DockPanel Margin="0,0,0,12">
-                                        <Button DockPanel.Dock="Right" Content="Refresh" Click="RefreshOllama_Click" Margin="8,0,0,0" />
-                                        <ComboBox x:Name="OllamaModelCombo" IsEditable="True" />
-                                    </DockPanel>
-                                </StackPanel>
-
-                                <StackPanel Grid.Row="1" Grid.Column="1">
-                                    <TextBlock Text="Preset" FontWeight="SemiBold" />
-                                    <DockPanel LastChildFill="True" Margin="0,4,0,6">
-                                        <Button DockPanel.Dock="Right" Content="Apply" Click="ApplyPreset_Click" Margin="8,0,0,0" />
-                                        <ComboBox x:Name="PresetCombo" DisplayMemberPath="Name" SelectionChanged="PresetCombo_SelectionChanged" />
-                                    </DockPanel>
-                                    <TextBlock x:Name="PresetDescriptionText" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" FontSize="11" Margin="0,0,0,12" />
-
-                                    <WrapPanel>
-                                        <Button x:Name="GenerateButton" Content="Generate PowerPoint" Style="{StaticResource PrimaryButton}" Click="Generate_Click" />
-                                        <Button x:Name="CancelButton" Content="Cancel" Click="Cancel_Click" IsEnabled="False" />
-                                        <Button Content="Open Last" Click="OpenLastPowerPoint_Click" />
-                                        <Button Content="Outputs" Click="OpenOutputs_Click" />
+                                <DockPanel Grid.Row="2">
+                                    <WrapPanel DockPanel.Dock="Right">
+                                        <Button x:Name="GenerateButton" Content="Generate PowerPoint" Style="{StaticResource PrimaryButton}" Click="Generate_Click" Padding="12,7" />
+                                        <Button x:Name="CancelButton" Content="Cancel" Click="Cancel_Click" IsEnabled="False" Padding="12,7" />
+                                        <Button Content="Open Last" Click="OpenLastPowerPoint_Click" Padding="12,7" />
+                                        <Button Content="Outputs" Click="OpenOutputs_Click" Padding="12,7" Margin="0" />
                                     </WrapPanel>
-                                </StackPanel>
+                                </DockPanel>
                             </Grid>
                         </Border>
 
-                        <DockPanel Grid.Row="2" Margin="0,0,0,8">
-                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
-                                <Button Content="Add Row" Click="AddRow_Click" MinWidth="96" />
-                                <Button Content="Remove Selected" Click="RemoveSelectedRow_Click" MinWidth="132" />
-                                <Button Content="Load File" Click="LoadFile_Click" MinWidth="96" Margin="0" />
-                            </StackPanel>
-                            <StackPanel>
-                                <TextBlock Text="Case requests" FontSize="16" FontWeight="SemiBold" />
-                                <TextBlock Text="Add diagnoses, random pulls, or exact Radiopaedia URLs. Use the dropdowns instead of typing filter shorthand."
-                                           Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
-                            </StackPanel>
+                        <DockPanel Grid.Row="2" Margin="0,0,0,4">
+                            <WrapPanel DockPanel.Dock="Right" HorizontalAlignment="Right">
+                                <Button Content="Add Row" Click="AddRow_Click" MinWidth="72" Padding="9,4" FontSize="12" />
+                                <Button Content="Remove Selected" Click="RemoveSelectedRow_Click" MinWidth="110" Padding="9,4" FontSize="12" />
+                                <Button Content="Load File" Click="LoadFile_Click" MinWidth="72" Padding="9,4" FontSize="12" Margin="0" />
+                            </WrapPanel>
+                            <DockPanel LastChildFill="True">
+                                <TextBlock Text="Case requests" FontSize="15" FontWeight="SemiBold" DockPanel.Dock="Left" Margin="0,0,12,0" />
+                                <TextBlock Text="Add diagnoses, random pulls, or exact Radiopaedia URLs; use dropdowns instead of filter shorthand."
+                                           Foreground="{StaticResource MutedBrush}" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" />
+                            </DockPanel>
                         </DockPanel>
 
-                        <Border Grid.Row="3" Style="{StaticResource Card}" MinHeight="150" MaxHeight="300" VerticalAlignment="Top">
+                        <Border Grid.Row="3" Style="{StaticResource Card}" Padding="10" MinHeight="260" VerticalAlignment="Stretch">
                             <DataGrid x:Name="RequestsGrid"
                                       AutoGenerateColumns="False"
                                       CanUserAddRows="False"
@@ -180,32 +188,177 @@
                     </Grid>
                 </TabItem>
 
+                <TabItem Header="Core Review">
+                    <Grid Margin="0,10,0,0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <DockPanel Grid.Row="0" Margin="0,0,0,6">
+                            <TextBlock Text="Core Review" FontSize="20" FontWeight="SemiBold"
+                                       Foreground="{StaticResource InkBrush}" DockPanel.Dock="Left" Margin="0,0,12,0" />
+                            <TextBlock Text="Generate CORE review lectures here; the Cases view is not used for this workflow."
+                                       Style="{StaticResource PageSubtitle}" VerticalAlignment="Center" />
+                        </DockPanel>
+
+                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <Border Style="{StaticResource Card}" Padding="16" Margin="0,0,0,2" VerticalAlignment="Top">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+
+                                    <DockPanel Grid.Row="0" Margin="0,0,0,8">
+                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="16,0,0,0"
+                                                    VerticalAlignment="Top">
+                                            <Button x:Name="GenerateCoreReviewButton" Content="Generate Core Review PowerPoint"
+                                                    Style="{StaticResource PrimaryButton}" Click="GenerateCoreReviewPowerPoint_Click"
+                                                    Padding="12,7" Height="36" />
+                                            <Button x:Name="CoreReviewCancelButton" Content="Cancel" Click="Cancel_Click" IsEnabled="False"
+                                                    Padding="12,7" Height="36" />
+                                        </StackPanel>
+                                        <StackPanel>
+                                            <TextBlock Text="Core Review PowerPoint" FontSize="18" FontWeight="SemiBold" />
+                                            <TextBlock Text="Plan the lecture, question mix, sources, and output from one place. NIS and physics count toward the total."
+                                                       Foreground="{StaticResource MutedBrush}" FontSize="12"
+                                                       TextWrapping="Wrap" Margin="0,3,0,0" />
+                                        </StackPanel>
+                                    </DockPanel>
+
+                                    <WrapPanel Grid.Row="1" Margin="0,0,0,6">
+                                        <StackPanel Width="300" Margin="0,0,12,8">
+                                            <TextBlock Text="Title" FontWeight="SemiBold" />
+                                            <TextBox x:Name="CoreReviewTitleBox" Margin="0,3,0,0" />
+                                        </StackPanel>
+                                        <StackPanel Width="92" Margin="0,0,12,8">
+                                            <TextBlock Text="Total items" FontWeight="SemiBold" />
+                                            <TextBox x:Name="CoreReviewCaseCountBox" Text="50" Margin="0,3,0,0" />
+                                        </StackPanel>
+                                        <StackPanel Width="220" Margin="0,0,12,8">
+                                            <TextBlock Text="Domain" FontWeight="SemiBold" />
+                                            <ComboBox x:Name="BoardDomainCombo" Margin="0,3,0,0" />
+                                        </StackPanel>
+                                        <StackPanel Width="260" Margin="0,0,12,8">
+                                            <TextBlock Text="Selection" FontWeight="SemiBold" />
+                                            <ComboBox x:Name="CoreReviewCaseMixCombo" Margin="0,3,0,0" />
+                                        </StackPanel>
+                                        <StackPanel Width="220" Margin="0,0,12,8">
+                                            <TextBlock Text="Modality mix" FontWeight="SemiBold" />
+                                            <ComboBox x:Name="CoreReviewModalityMixCombo" Margin="0,3,0,0" />
+                                        </StackPanel>
+                                        <StackPanel Width="320" Margin="0,0,12,8">
+                                            <TextBlock Text="Question source" FontWeight="SemiBold" />
+                                            <ComboBox x:Name="CoreReviewQuestionSourceCombo" Margin="0,3,0,0"
+                                                      SelectionChanged="CoreReviewQuestionSourceCombo_SelectionChanged" />
+                                        </StackPanel>
+                                        <StackPanel Width="220" Margin="0,0,12,8">
+                                            <TextBlock Text="Theme" FontWeight="SemiBold" />
+                                            <ComboBox x:Name="CoreReviewThemeCombo" Margin="0,3,0,0" />
+                                        </StackPanel>
+                                        <StackPanel Width="360" Margin="0,0,12,8">
+                                            <TextBlock Text="Output .pptx" FontWeight="SemiBold" />
+                                            <DockPanel LastChildFill="True" Margin="0,3,0,0">
+                                                <Button DockPanel.Dock="Right" Content="Browse" Click="BrowseCoreReviewOutput_Click"
+                                                        Padding="10,5" Margin="8,0,0,0" />
+                                                <TextBox x:Name="CoreReviewOutputBox" />
+                                            </DockPanel>
+                                        </StackPanel>
+                                        <StackPanel x:Name="CoreReviewQuestionBankGroup" Width="360" Margin="0,0,12,8">
+                                            <TextBlock x:Name="CoreReviewQuestionBankLabel" Text="Question bank" FontWeight="SemiBold" />
+                                            <DockPanel x:Name="CoreReviewQuestionBankPanel" LastChildFill="True" Margin="0,3,0,0">
+                                                <Button DockPanel.Dock="Right" Content="Browse" Click="BrowseCoreReviewQuestionBank_Click"
+                                                        Padding="10,5" Margin="8,0,0,0" />
+                                                <TextBox x:Name="CoreReviewQuestionBankBox" />
+                                            </DockPanel>
+                                        </StackPanel>
+                                        <UniformGrid Width="360" Columns="2" Margin="0,18,0,8">
+                                            <CheckBox x:Name="CoreReviewAutoOpenCheck" Content="Open PowerPoint" IsChecked="True" Margin="0,0,10,4" />
+                                            <CheckBox x:Name="CoreReviewClinicalHistoryCheck" Content="Show age/sex" IsChecked="True" Margin="0,0,0,4" />
+                                            <CheckBox x:Name="CoreReviewOnlyNewRandomCheck"
+                                                      Content="Only new random cases"
+                                                      IsChecked="True"
+                                                      ToolTip="On by default. Core Review searches skip cases already used in previous random PowerPoints instead of backfilling with older cases."
+                                                      Margin="0,0,10,0" />
+                                            <CheckBox x:Name="CoreReviewOllamaCheck" Content="Ollama review" Margin="0,0,0,0" />
+                                        </UniformGrid>
+                                    </WrapPanel>
+
+                                    <Border Grid.Row="2" BorderBrush="#D8E5F2" BorderThickness="1" CornerRadius="10"
+                                            Padding="10" Margin="0,0,0,0">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="340" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <StackPanel Grid.Column="0" Margin="0,0,18,0">
+                                                <DockPanel LastChildFill="True" Margin="0,0,0,4">
+                                                    <WrapPanel DockPanel.Dock="Right" Margin="12,0,0,0">
+                                                        <Button Content="Import Sources" Style="{StaticResource PrimaryButton}"
+                                                                Click="ImportPdfs_Click" Padding="10,5" />
+                                                        <Button Content="Open Folder" Click="OpenBoardFolder_Click" Padding="10,5" Margin="0" />
+                                                    </WrapPanel>
+                                                    <StackPanel>
+                                                        <TextBlock Text="Sources &amp; Review" FontWeight="SemiBold" />
+                                                        <TextBlock Text="Imported PDFs, notes, JSON, and assets stay local under library\board-review."
+                                                                   Foreground="{StaticResource MutedBrush}" FontSize="12"
+                                                                   TextWrapping="Wrap" Margin="0,2,0,0" />
+                                                    </StackPanel>
+                                                </DockPanel>
+                                                <TextBlock Text="Radiopaedia cases are planned separately; review cases and question types before export."
+                                                           Foreground="{StaticResource MutedBrush}" FontSize="12"
+                                                           TextWrapping="Wrap" />
+                                                <TextBlock x:Name="BoardStatusText" TextWrapping="Wrap" Margin="0,4,0,0" />
+                                            </StackPanel>
+
+                                            <StackPanel Grid.Column="1">
+                                                <TextBlock Text="Ollama model" FontWeight="SemiBold" />
+                                                <DockPanel Margin="0,3,0,6">
+                                                    <Button DockPanel.Dock="Right" Content="Refresh" Click="RefreshOllama_Click"
+                                                            Padding="10,5" Margin="8,0,0,0" />
+                                                    <ComboBox x:Name="CoreReviewOllamaModelCombo" IsEditable="True" />
+                                                </DockPanel>
+                                                <TextBlock Text="Enable Ollama review above only when you want optional image scoring."
+                                                           Foreground="{StaticResource MutedBrush}" FontSize="12"
+                                                           TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </Grid>
+                            </Border>
+                        </ScrollViewer>
+                    </Grid>
+                </TabItem>
+
                 <TabItem Header="Library">
-                    <Grid Margin="0,16,0,0"
-                          Width="{Binding ViewportWidth, RelativeSource={RelativeSource AncestorType=ScrollViewer}}">
+                    <Grid Margin="0,10,0,0">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
 
-                        <StackPanel Grid.Row="0">
-                            <TextBlock Text="Case Library" Style="{StaticResource PageTitle}" />
-                            <TextBlock Text="Browse cases you approved, skipped, rejected, or favorited. This is local history only."
-                                       Style="{StaticResource PageSubtitle}" Margin="0,4,0,12" />
-                        </StackPanel>
+                        <DockPanel Grid.Row="0" Margin="0,0,0,8">
+                            <TextBlock Text="Case Library" FontSize="20" FontWeight="SemiBold"
+                                       Foreground="{StaticResource InkBrush}" DockPanel.Dock="Left" Margin="0,0,12,0" />
+                            <TextBlock Text="Browse approved, skipped, rejected, and favorited cases from local history."
+                                       Style="{StaticResource PageSubtitle}" VerticalAlignment="Center" />
+                        </DockPanel>
 
-                        <DockPanel Grid.Row="1" Margin="0,0,0,12">
-                            <Button DockPanel.Dock="Right" Content="Open Selected Case" Click="OpenLibraryCase_Click" Margin="8,0,0,0" />
+                        <DockPanel Grid.Row="1" Margin="0,0,0,8">
+                            <Button DockPanel.Dock="Right" Content="Open Selected Case" Click="OpenLibraryCase_Click"
+                                    Padding="10,5" Margin="8,0,0,0" />
                             <WrapPanel>
                                 <TextBox x:Name="LibrarySearchBox" Width="260" Margin="0,0,8,0" />
                                 <ComboBox x:Name="LibraryDecisionFilter" Width="130" Margin="0,0,8,0" />
-                                <Button Content="Search" Click="RefreshLibrary_Click" />
-                                <Button Content="Refresh" Click="RefreshLibrary_Click" />
+                                <Button Content="Search" Click="RefreshLibrary_Click" Padding="10,5" />
+                                <Button Content="Refresh" Click="RefreshLibrary_Click" Padding="10,5" />
                             </WrapPanel>
                         </DockPanel>
 
-                        <Border Grid.Row="2" Style="{StaticResource Card}">
+                        <Border Grid.Row="2" Style="{StaticResource Card}" Padding="10">
                             <DataGrid x:Name="LibraryGrid"
                                       AutoGenerateColumns="False"
                                       IsReadOnly="True"
@@ -221,140 +374,6 @@
                                     <DataGridTextColumn Header="Path" Binding="{Binding CasePath}" Width="260" />
                                 </DataGrid.Columns>
                             </DataGrid>
-                        </Border>
-                    </Grid>
-                </TabItem>
-
-                <TabItem Header="Core Review">
-                    <Grid Margin="0,16,0,0">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" />
-                        </Grid.RowDefinitions>
-                        <StackPanel Grid.Row="0">
-                            <TextBlock Text="Core Review" Style="{StaticResource PageTitle}" />
-                            <TextBlock Text="Generate CORE review lectures from here. The Cases tab is not used for this workflow."
-                                       Style="{StaticResource PageSubtitle}" Margin="0,4,0,12" />
-                        </StackPanel>
-
-                        <Border Grid.Row="1" Style="{StaticResource Card}">
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
-
-                                <DockPanel Grid.Row="0" Margin="0,0,0,14">
-                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="18,0,0,0">
-                                        <Button x:Name="GenerateCoreReviewButton" Content="Generate Core Review PowerPoint"
-                                                Style="{StaticResource PrimaryButton}" Click="GenerateCoreReviewPowerPoint_Click" />
-                                        <Button x:Name="CoreReviewCancelButton" Content="Cancel" Click="Cancel_Click" IsEnabled="False" />
-                                    </StackPanel>
-                                    <StackPanel>
-                                        <TextBlock Text="Core Review PowerPoint" FontSize="18" FontWeight="SemiBold" />
-                                        <TextBlock Text="Plan a CORE review lecture, choose question sources, and import study material from one place. NIS and physics count toward the total."
-                                                   Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,4,0,0" />
-                                    </StackPanel>
-                                </DockPanel>
-
-                                <Grid Grid.Row="1">
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                    </Grid.RowDefinitions>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="1*" />
-                                        <ColumnDefinition Width="1*" />
-                                    </Grid.ColumnDefinitions>
-
-                                    <Grid Grid.Row="0" Grid.Column="0" Margin="0,0,18,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="128" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <Grid.RowDefinitions>
-                                            <RowDefinition Height="Auto" />
-                                            <RowDefinition Height="Auto" />
-                                            <RowDefinition Height="Auto" />
-                                            <RowDefinition Height="Auto" />
-                                            <RowDefinition Height="Auto" />
-                                            <RowDefinition Height="Auto" />
-                                        </Grid.RowDefinitions>
-
-                                        <TextBlock Grid.ColumnSpan="2" Text="Lecture Plan" FontWeight="SemiBold" Margin="0,0,0,10" />
-                                        <TextBlock Grid.Row="1" Text="Title" FontWeight="SemiBold" />
-                                        <TextBox x:Name="CoreReviewTitleBox" Grid.Row="1" Grid.Column="1" Margin="0,0,0,8" />
-                                        <TextBlock Grid.Row="2" Text="Total items" FontWeight="SemiBold" />
-                                        <TextBox x:Name="CoreReviewCaseCountBox" Grid.Row="2" Grid.Column="1" Text="50" Width="90" HorizontalAlignment="Left" Margin="0,0,0,8" />
-                                        <TextBlock Grid.Row="3" Text="Domain" FontWeight="SemiBold" />
-                                        <ComboBox x:Name="BoardDomainCombo" Grid.Row="3" Grid.Column="1" Margin="0,0,0,8" />
-                                        <TextBlock Grid.Row="4" Text="Selection" FontWeight="SemiBold" />
-                                        <ComboBox x:Name="CoreReviewCaseMixCombo" Grid.Row="4" Grid.Column="1" MaxWidth="260" HorizontalAlignment="Stretch" Margin="0,0,0,8" />
-                                        <TextBlock Grid.Row="5" Text="Modality mix" FontWeight="SemiBold" />
-                                        <ComboBox x:Name="CoreReviewModalityMixCombo" Grid.Row="5" Grid.Column="1" MaxWidth="260" HorizontalAlignment="Stretch" />
-                                    </Grid>
-
-                                    <Grid Grid.Row="0" Grid.Column="1">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="132" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <Grid.RowDefinitions>
-                                            <RowDefinition Height="Auto" />
-                                            <RowDefinition Height="Auto" />
-                                            <RowDefinition Height="Auto" />
-                                            <RowDefinition Height="Auto" />
-                                            <RowDefinition Height="Auto" />
-                                            <RowDefinition Height="Auto" />
-                                        </Grid.RowDefinitions>
-
-                                        <TextBlock Grid.ColumnSpan="2" Text="Output &amp; Questions" FontWeight="SemiBold" Margin="0,0,0,10" />
-                                        <TextBlock Grid.Row="1" Text="Question source" FontWeight="SemiBold" />
-                                        <ComboBox x:Name="CoreReviewQuestionSourceCombo" Grid.Row="1" Grid.Column="1" MaxWidth="300" HorizontalAlignment="Stretch" Margin="0,0,0,8" SelectionChanged="CoreReviewQuestionSourceCombo_SelectionChanged" />
-                                        <TextBlock x:Name="CoreReviewQuestionBankLabel" Grid.Row="2" Text="Question bank" FontWeight="SemiBold" />
-                                        <DockPanel x:Name="CoreReviewQuestionBankPanel" Grid.Row="2" Grid.Column="1" LastChildFill="True" Margin="0,0,0,8">
-                                            <Button DockPanel.Dock="Right" Content="Browse" Click="BrowseCoreReviewQuestionBank_Click" Margin="8,0,0,0" />
-                                            <TextBox x:Name="CoreReviewQuestionBankBox" />
-                                        </DockPanel>
-                                        <TextBlock Grid.Row="3" Text="Theme" FontWeight="SemiBold" />
-                                        <ComboBox x:Name="CoreReviewThemeCombo" Grid.Row="3" Grid.Column="1" MaxWidth="260" HorizontalAlignment="Stretch" Margin="0,0,0,8" />
-                                        <TextBlock Grid.Row="4" Text="Output .pptx" FontWeight="SemiBold" />
-                                        <DockPanel Grid.Row="4" Grid.Column="1" LastChildFill="True" Margin="0,0,0,8">
-                                            <Button DockPanel.Dock="Right" Content="Browse" Click="BrowseCoreReviewOutput_Click" Margin="8,0,0,0" />
-                                            <TextBox x:Name="CoreReviewOutputBox" />
-                                        </DockPanel>
-                                        <UniformGrid Grid.Row="5" Grid.Column="1" Columns="2">
-                                            <CheckBox x:Name="CoreReviewAutoOpenCheck" Content="Open PowerPoint" IsChecked="True" Margin="0,0,10,6" />
-                                            <CheckBox x:Name="CoreReviewClinicalHistoryCheck" Content="Show age/sex" IsChecked="True" Margin="0,0,0,6" />
-                                            <CheckBox x:Name="CoreReviewOnlyNewRandomCheck"
-                                                      Content="Only new random cases"
-                                                      IsChecked="True"
-                                                      ToolTip="On by default. Core Review searches skip cases already used in previous random PowerPoints instead of backfilling with older cases."
-                                                      Margin="0,0,10,0" />
-                                            <CheckBox x:Name="CoreReviewOllamaCheck" Content="Ollama review" Margin="0,0,0,0" />
-                                        </UniformGrid>
-                                    </Grid>
-
-                                    <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Margin="0,16,0,0">
-                                        <TextBlock Text="Sources &amp; Review" FontWeight="SemiBold" Margin="0,0,0,10" />
-                                        <TextBlock Text="Imported PDFs, notes, JSON files, and extracted assets stay local under library\board-review."
-                                                   Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,10" />
-                                        <WrapPanel Margin="0,0,0,12">
-                                            <Button Content="Import Sources" Style="{StaticResource PrimaryButton}" Click="ImportPdfs_Click" />
-                                            <Button Content="Open Folder" Click="OpenBoardFolder_Click" />
-                                        </WrapPanel>
-                                        <TextBlock x:Name="BoardStatusText" TextWrapping="Wrap" Margin="0,0,0,12" />
-                                        <TextBlock Text="Ollama model" FontWeight="SemiBold" />
-                                        <DockPanel Margin="0,4,0,10">
-                                            <Button DockPanel.Dock="Right" Content="Refresh" Click="RefreshOllama_Click" Margin="8,0,0,0" />
-                                            <ComboBox x:Name="CoreReviewOllamaModelCombo" IsEditable="True" />
-                                        </DockPanel>
-                                        <TextBlock Text="Cases are searched from Radiopaedia using separate Core Review planning logic, then reviewed before export."
-                                                   Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
-                                    </StackPanel>
-                                </Grid>
-                            </Grid>
                         </Border>
                     </Grid>
                 </TabItem>

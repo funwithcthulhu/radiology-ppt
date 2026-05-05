@@ -49,9 +49,9 @@ flowchart LR
 
 `csharp/RadiologyPpt.App` contains the desktop app:
 
-- tab navigation
+- sidebar navigation
 - case request grid
-- Library tab
+- Library view
 - Core Review PowerPoint-generation and source-import UI
 - PowerPoint settings and presets
 - review-window actions
@@ -297,7 +297,7 @@ Shortcut:
 Installer:
 
 ```powershell
-.\build-windows-installer.ps1 -Version 0.1.0
+.\build-windows-installer.ps1 -Version 0.2.2
 ```
 
 The installer package is built from a self-contained Windows publish plus `src\`, `node_modules\`, `runtime\node.exe`, license/readme files, and the app icon. The installed app finds backend resources beside the executable, but writes state/cache/output data under `%LOCALAPPDATA%\RadiopaediaCasePowerPointBuilder`.

@@ -7,7 +7,7 @@ If Windows marks the app as not responding, the backend is usually waiting on Ra
 Try:
 
 1. Wait 10-20 seconds if Radiopaedia is actively loading.
-2. Use `Cancel Current Task` on the PowerPoint tab for prepare/render/import work.
+2. Use `Cancel` in the active view for prepare/render/import work.
 3. Use `Cancel Action` in the review window for reroll, re-pick, replace, or Ollama scoring.
 4. Check the Activity tab for the last logged step.
 
@@ -44,9 +44,9 @@ Actions:
 
 - Skip weak cases during review so random mode avoids them later.
 - Reroll unwanted cases instead of approving them.
-- Keep `Only use new random cases` enabled on the PowerPoint tab if you prefer fewer cases over reused random cases.
+- Keep `Only use new random cases` enabled if you prefer fewer cases over reused random cases.
 - Use broader filters if a narrow category has only a small pool.
-- Use the Library tab to see whether a category is cycling through familiar cases.
+- Use Library to see whether a category is cycling through familiar cases.
 - Do not delete the state database unless you intentionally want to reset history.
 
 Random mode starts with live Radiopaedia search. Later runs may still improve because the app can use `case_index` as a fallback after live search cannot fill the request.
@@ -114,7 +114,7 @@ Ollama is optional and intentionally deferred to review.
 Recommended use:
 
 1. Enable `Use Ollama image review` only if you want local model help.
-2. Choose a local model in the PowerPoint tab.
+2. Choose a local model in Cases or Core Review.
 3. Generate normally.
 4. In review, click `Ollama Score Case` only for selected cases.
 

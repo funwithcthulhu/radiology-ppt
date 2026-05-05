@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using System.Windows;
+using System.Windows.Media;
 using Microsoft.Win32;
 
 namespace RadiologyPpt.App;
@@ -26,6 +27,7 @@ public partial class MainWindow : Window
     private int _progressCandidatePoolSize;
     private int _progressFetchedCandidateCount;
     private bool _progressCoreReviewMode;
+    private bool _navigationReady;
 
     public ObservableCollection<CaseRequestRow> Requests => _viewModel.Requests;
 
@@ -61,6 +63,8 @@ public partial class MainWindow : Window
         AppendLog($"State database: {_storage.DatabasePath}");
         RefreshDiagnostics();
         _healthMonitor.Start();
+        _navigationReady = true;
+        SelectTab(MainTab.Cases);
     }
 
     private void Window_SourceInitialized(object? sender, EventArgs e)
@@ -160,16 +164,20 @@ public partial class MainWindow : Window
     }
 
     private void CasesNav_Click(object sender, RoutedEventArgs e) => SelectTab(MainTab.Cases);
-    private void LibraryNav_Click(object sender, RoutedEventArgs e)
-    {
-        SelectTab(MainTab.Library);
-        RefreshLibrary();
-    }
+    private void LibraryNav_Click(object sender, RoutedEventArgs e) => SelectTab(MainTab.Library);
     private void CoreBoardsNav_Click(object sender, RoutedEventArgs e) => SelectTab(MainTab.CoreBoards);
-    private void ActivityNav_Click(object sender, RoutedEventArgs e)
+    private void ActivityNav_Click(object sender, RoutedEventArgs e) => SelectTab(MainTab.Activity);
+
+    private void MainTabs_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
-        SelectTab(MainTab.Activity);
-        RefreshDiagnostics();
+        if (!ReferenceEquals(e.OriginalSource, MainTabs))
+        {
+            return;
+        }
+
+        var selectedTab = (MainTab)MainTabs.SelectedIndex;
+        UpdateNavigationState(selectedTab);
+        RefreshSelectedTab(selectedTab);
     }
 
     private void AddRow_Click(object sender, RoutedEventArgs e)
@@ -351,7 +359,7 @@ public partial class MainWindow : Window
         {
             SelectTab(MainTab.Activity);
             AppendLog($"Planning Core Review PowerPoint with {deckSettings.CaseCount} total review item(s)...");
-            AppendLog("Core Review generation ignores the Cases tab and fetches from its own CORE case plan.");
+            AppendLog("Core Review generation ignores the Cases view and fetches from its own CORE case plan.");
             var prepareSettings = settings with { UseOllamaReview = false };
             var prepared = await _jobs.RunAsync(
                 "Planning Core Review PowerPoint...",
@@ -1015,7 +1023,51 @@ public partial class MainWindow : Window
 
     private void SelectTab(MainTab tab)
     {
-        MainTabs.SelectedIndex = (int)tab;
+        var selectedIndex = (int)tab;
+        var changed = MainTabs.SelectedIndex != selectedIndex;
+        MainTabs.SelectedIndex = selectedIndex;
+        UpdateNavigationState(tab);
+        if (!changed)
+        {
+            RefreshSelectedTab(tab);
+        }
+    }
+
+    private void RefreshSelectedTab(MainTab tab)
+    {
+        if (!_navigationReady)
+        {
+            return;
+        }
+
+        switch (tab)
+        {
+            case MainTab.Library:
+                RefreshLibrary();
+                break;
+            case MainTab.Activity:
+                RefreshDiagnostics();
+                break;
+        }
+    }
+
+    private void UpdateNavigationState(MainTab tab)
+    {
+        SetNavigationButtonState(CasesNavButton, tab == MainTab.Cases);
+        SetNavigationButtonState(CoreReviewNavButton, tab == MainTab.CoreBoards);
+        SetNavigationButtonState(LibraryNavButton, tab == MainTab.Library);
+        SetNavigationButtonState(ActivityNavButton, tab == MainTab.Activity);
+    }
+
+    private static void SetNavigationButtonState(System.Windows.Controls.Button button, bool selected)
+    {
+        button.Background = selected
+            ? new SolidColorBrush(Color.FromRgb(0xBF, 0xE6, 0xFF))
+            : new SolidColorBrush(Color.FromRgb(0xDD, 0xDD, 0xDD));
+        button.BorderBrush = selected
+            ? new SolidColorBrush(Color.FromRgb(0x70, 0xC7, 0xF2))
+            : new SolidColorBrush(Color.FromRgb(0xA6, 0xA6, 0xA6));
+        button.Foreground = Brushes.Black;
     }
 
     private static void SetCheckBox(
@@ -1075,6 +1127,7 @@ public partial class MainWindow : Window
 
         CoreReviewQuestionBankLabel.Visibility = usesCustomBank ? Visibility.Visible : Visibility.Collapsed;
         CoreReviewQuestionBankPanel.Visibility = usesCustomBank ? Visibility.Visible : Visibility.Collapsed;
+        CoreReviewQuestionBankGroup.Visibility = usesCustomBank ? Visibility.Visible : Visibility.Collapsed;
         CoreReviewQuestionBankBox.IsEnabled = usesCustomBank;
     }
 

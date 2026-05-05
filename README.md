@@ -27,9 +27,9 @@ The case intro slide avoids giving away the diagnosis when possible. If clean pa
 - Random selection that avoids recent, skipped, and rejected cases when possible.
 - Review before export, with controls to keep, favorite, skip, reroll, re-pick, replace, remove, or manually choose images.
 - Image-selection rationale in the review window and generated manifest.
-- Local Library tab for reviewed cases and favorites.
+- Local Library view for reviewed cases and favorites.
 - PowerPoint presets including `Fast Preview`, `Ollama Assisted`, `Core Review Teaching`, and `Dark Conference`.
-- Separate Core Review generator for long CORE-style lectures without using the Cases tab.
+- Separate Core Review generator for long CORE-style lectures without using the Cases view.
 - Optional Ollama vision scoring during review.
 - Random mode searches live Radiopaedia first and avoids cases selected in previous random runs by default.
 - Local SQLite cache for Radiopaedia metadata, image candidates, random history, review decisions, and backend diagnostics.
@@ -84,14 +84,13 @@ Source-checkout builds expect the packaged executable to stay inside this reposi
 5. Review cases and images.
 6. Export the approved cases.
 
-There is no success popup after export. Use the left status area, Activity tab, `Open Last PowerPoint`, or `Open Outputs Folder`.
+There is no success popup after export. Use the left status area, Activity, `Open Last PowerPoint`, or `Open Outputs Folder`.
 
-## Tabs
+## Navigation
 
 - `Cases`: request grid for diagnoses, random pulls, or Radiopaedia URLs.
-- `Library`: local history of reviewed cases with decision, image count, score, and case path.
 - `Core Review`: generate CORE-style review PowerPoints and import PDFs, notes, or JSON study material for review questions.
-- `PowerPoint`: title, output path, images per case, style, theme, Ollama model, presets, generation, and output shortcuts.
+- `Library`: local history of reviewed cases with decision, image count, score, and case path.
 - `Activity`: diagnostics, backend logs, SQLite/cache counts, state folder access, cleanup, and maintenance.
 
 The app keeps main and review windows within the visible Windows work area on launch, including high-DPI/scaled displays.
@@ -166,7 +165,7 @@ Build and refresh the desktop app:
 Build the Windows installer:
 
 ```powershell
-.\build-windows-installer.ps1 -Version 0.1.0
+.\build-windows-installer.ps1 -Version 0.2.2
 ```
 
 GitHub Actions runs Node tests and the WPF Release build on Windows.

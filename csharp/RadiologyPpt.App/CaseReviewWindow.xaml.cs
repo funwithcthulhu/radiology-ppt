@@ -225,7 +225,7 @@ public partial class CaseReviewWindow : Window
     {
         if (!_settings.UseOllamaReview)
         {
-            MessageBox.Show(this, "Enable Ollama image review on the PowerPoint tab first.", Title, MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(this, "Enable Ollama image review in Cases or Core Review first.", Title, MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 

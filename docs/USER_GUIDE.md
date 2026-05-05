@@ -25,9 +25,9 @@ For normal use, install from GitHub Releases:
 
 The installer is per-user, does not require administrator elevation, and bundles the desktop app, backend resources, Node runtime, and app dependencies.
 
-## Cases Tab
+## Cases
 
-![Cases tab overview](images/cases-tab.svg)
+![Cases overview](images/cases-tab.svg)
 
 Use one row per request.
 
@@ -56,9 +56,9 @@ Notes:
 - The local prepared-case index is used only as a fallback when live search cannot fill the request.
 - Narrow filters may have a small case pool; if reroll cannot find an alternate, broaden filters or skip the case.
 
-## Library Tab
+## Library
 
-The Library tab is local review history.
+The Library view is local review history.
 
 You can:
 
@@ -69,7 +69,7 @@ You can:
 
 The Library is built from your local SQLite state. It is not synced to Radiopaedia or GitHub.
 
-## Core Review Tab
+## Core Review
 
 Core Review has two jobs: build CORE-style case review lectures, and import local source material for standalone review questions.
 
@@ -91,7 +91,7 @@ To add local question sources:
 
 - import local PDFs, notes, or JSON files
 - open the local study folder
-- choose the imported library as the `Review question source` on the PowerPoint tab
+- choose the imported library as the `Question source` in Core Review
 
 Imported source files and extracted assets stay under:
 
@@ -101,16 +101,16 @@ library\board-review\
 
 This folder is ignored by Git. Do not import copyrighted or private material unless you have the right to use it locally. Imported sources affect standalone NIS/physics questions, not Radiopaedia case selection.
 
-## PowerPoint Tab
+## Case Conference Settings
 
-![PowerPoint tab overview](images/powerpoint-tab.svg)
+![Case conference settings overview](images/powerpoint-tab.svg)
 
 Options:
 
 - `Title`: optional. If blank, the app creates a title automatically.
 - `Images per case`: target image count for case-conference slides. Core Review uses one image per case by default so longer reviews are easier to fill.
 - `PowerPoint style`: `Case Conference` or `Core Review`.
-- `Review question source`: in `Core Review`, choose the bundled free bank, the imported Core Review library, or a custom question-bank JSON file.
+- `Question source`: in `Core Review`, choose the bundled free bank, the imported Core Review library, or a custom question-bank JSON file.
 - `Question bank JSON`: optional path used when `Review question source` is set to the custom JSON option.
 - `Theme`: visual style for slides.
 - `Output .pptx`: optional explicit output path. If blank, the app writes to `outputs\`.
@@ -184,7 +184,7 @@ Keyboard shortcuts:
 - `Delete`: remove unchecked images
 - `Esc`: cancel current action, or close review if no action is running
 
-## Activity Tab
+## Activity
 
 Use Activity for performance and error diagnosis.
 
