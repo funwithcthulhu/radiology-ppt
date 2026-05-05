@@ -4,7 +4,7 @@ import { normalizePhrase, normalizedDifficulty } from "./request-parser.mjs";
 const RADIOLOGY_TEACHING_PATTERN =
   /\b(?:ct|mri|mr\b|x-?ray|radiograph|ultrasound|sonograph|fluoro|pet|spect|nuclear|mammograph|angiograph|t1|t2|flair|dwi|adc|diffusion|enhanc|attenuat|density|signal|hyperintense|hypointense|calcif|restricted|rim|mass|lesion|tract|fistula|abscess|opening|sphincter|secondary|branch|extension|compartment|origin|margin|edema|fat|fluid|cystic|solid|obstruction|perforation|ischemia|hemorrhage|infarct|thrombosis|filling defect|classification|staging|report|differential|mimic|complication)\b/i;
 const LOW_VALUE_TEACHING_PATTERN =
-  /\b(?:surgically proved|pathologically proved|biopsy proved|histologically proved|this case is best reviewed|focus on the|teaching example|selected images?|patient presented|clinical history|diagnosed with)\b/i;
+  /\b(?:surgically proved|pathologically proved|biopsy proved|histologically proved|this case is best reviewed|focus on the|teaching example|selected images?|patient presented|clinical history|diagnosed with|improved|improving|worsened|worsening|unchanged|interval|follow-?up|post(?:operative|op)?|post resection|status post|after resection|prior resection|treated with|underwent|re-demonstrat(?:ed|es)|again seen)\b/i;
 
 const CORE_REVIEW_PEARL_GROUPS = [
   {
@@ -61,6 +61,14 @@ const CORE_REVIEW_PEARL_GROUPS = [
       "CORE discriminator: restricted diffusion with low ADC confirms acute infarct; match the pattern to an arterial territory or embolic distribution.",
       "On CT/CTA, report hemorrhage exclusion, large-vessel occlusion, ASPECTS/early ischemic change, and salvageable tissue when perfusion is available.",
       "Mimics include seizure-related diffusion change, hypoglycemia, encephalitis, migraine, and demyelination.",
+    ],
+  },
+  {
+    patterns: [/\bsubdural\b/i, /\bsubdural hematoma\b/i, /\bsubdural haematoma\b/i, /\bextra-axial hemorrhage\b/i],
+    points: [
+      "CT CORE discriminator: subdural hematoma is crescentic extra-axial blood that can cross sutures but is limited by dural reflections.",
+      "Report acute versus chronic density, maximal thickness, midline shift, herniation, and sulcal or ventricular effacement because these drive urgency.",
+      "Key mimics include epidural hematoma, subdural hygroma, prominent CSF spaces from atrophy, and empyema when diffusion restriction or infection is present.",
     ],
   },
   {

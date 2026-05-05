@@ -188,6 +188,27 @@ test("core review teaching points do not pad with generic non-radiology filler",
   assert.deepEqual(points, []);
 });
 
+test("core review teaching points reject case-course text and use subdural pearls", () => {
+  const points = buildTeachingPoints({
+    request: {
+      coreReviewPlan: { domain: "neuro", anatomyPrompt: "head" },
+      studyHint: "CT head",
+    },
+    description: "Improved mass effect in the orbit post resection of mass.",
+    findings: "Subdural collection along the cerebral convexity with mild mass effect.",
+    diagnosis: "Subdural hematoma",
+    caseTitle: "Subdural hematoma",
+    modalitySummary: "CT head",
+    images: [{}],
+  });
+
+  assert.equal(points.length, 3);
+  assert.match(points.join(" "), /crescentic extra-axial blood/);
+  assert.match(points.join(" "), /midline shift/);
+  assert.match(points.join(" "), /epidural hematoma/);
+  assert.equal(points.some((point) => /Improved mass effect|post resection/i.test(point)), false);
+});
+
 test("uses the local case index when live random search is disabled", async () => {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "radiology-indexed-random-"));
   process.env.RADIOLOGY_PPT_DATABASE_PATH = path.join(tempDir, "state.sqlite");
