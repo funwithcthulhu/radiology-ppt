@@ -10,12 +10,16 @@
         WindowStartupLocation="CenterScreen"
         SourceInitialized="Window_SourceInitialized">
     <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="240" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
-        <Border Grid.Column="0" Background="#0B1F35">
+        <Border Grid.Row="0" Grid.Column="0" Background="#0B1F35">
             <DockPanel Margin="18,24,18,18">
                 <StackPanel DockPanel.Dock="Top">
                     <Border Width="58" Height="48" CornerRadius="10" Background="#173A63" HorizontalAlignment="Left">
@@ -42,13 +46,8 @@
             </DockPanel>
         </Border>
 
-        <Grid Grid.Column="1" Margin="28,24,28,16">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="*" />
-                <RowDefinition Height="Auto" />
-            </Grid.RowDefinitions>
-
-            <TabControl x:Name="MainTabs" Grid.Row="0">
+        <Grid Grid.Row="0" Grid.Column="1" Margin="28,24,28,16">
+            <TabControl x:Name="MainTabs">
                 <TabItem Header="Cases">
                     <Grid Margin="0,16,0,0">
                         <Grid.RowDefinitions>
@@ -340,10 +339,41 @@
                 </TabItem>
             </TabControl>
 
-            <DockPanel Grid.Row="1" Margin="0,12,0,0">
-                <ProgressBar x:Name="Progress" Width="190" Height="8" IsIndeterminate="True" Visibility="Collapsed" />
-                <TextBlock Text="{Binding StatusText}" Margin="12,0,0,0" VerticalAlignment="Center" FontWeight="SemiBold" />
-            </DockPanel>
         </Grid>
+        <Border x:Name="ProgressPanel"
+                Grid.Row="1"
+                Grid.ColumnSpan="2"
+                Background="#0B1F35"
+                BorderBrush="#173A63"
+                BorderThickness="0,1,0,0"
+                Padding="18,8,18,10"
+                Visibility="Collapsed">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="10" />
+                </Grid.RowDefinitions>
+                <DockPanel Margin="0,0,0,6">
+                    <TextBlock x:Name="ProgressPercentText"
+                               DockPanel.Dock="Right"
+                               Text="0%"
+                               Foreground="#DBEAFE"
+                               FontWeight="SemiBold"
+                               Margin="16,0,0,0"
+                               VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding StatusText}"
+                               Foreground="#DBEAFE"
+                               FontWeight="SemiBold"
+                               TextTrimming="CharacterEllipsis"
+                               VerticalAlignment="Center" />
+                </DockPanel>
+                <ProgressBar x:Name="Progress"
+                             Grid.Row="1"
+                             Minimum="0"
+                             Maximum="100"
+                             Value="0"
+                             IsIndeterminate="False" />
+            </Grid>
+        </Border>
     </Grid>
 </Window>

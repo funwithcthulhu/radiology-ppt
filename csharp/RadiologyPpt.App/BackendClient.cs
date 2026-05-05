@@ -37,6 +37,8 @@ public sealed class BackendClient
     public string BoardReviewPdfCorpusPath => Path.Combine(BoardReviewDir, "pdf-corpus.json");
     public string BoardReviewTextCorpusPath => Path.Combine(BoardReviewDir, "corpus.json");
 
+    public event EventHandler<BackendProgressEvent>? ProgressReceived;
+
     public async Task<JsonObject> PrepareAsync(IEnumerable<JsonObject> entries, GenerationSettings settings, Action<string> log, CancellationToken cancellationToken)
     {
         return await RunServiceAsync("prepare", BackendPayloads.Prepare(entries, settings), log, cancellationToken);
@@ -401,8 +403,10 @@ public sealed class BackendClient
 
         if (type.Equals("event", StringComparison.OrdinalIgnoreCase))
         {
-            if (TryFormatServiceEvent(message["payload"] as JsonObject, out var displayMessage))
+            if (TryParseServiceEvent(message["payload"] as JsonObject, out var progressEvent))
             {
+                NotifyProgressReceived(progressEvent);
+                var displayMessage = FormatServiceEvent(progressEvent);
                 pending.Log(displayMessage);
             }
             return;
@@ -450,9 +454,21 @@ public sealed class BackendClient
         }
     }
 
-    private static bool TryFormatServiceEvent(JsonObject? payload, out string displayMessage)
+    private void NotifyProgressReceived(BackendProgressEvent progressEvent)
     {
-        displayMessage = "";
+        try
+        {
+            ProgressReceived?.Invoke(this, progressEvent);
+        }
+        catch
+        {
+            // Progress display should never break the backend request.
+        }
+    }
+
+    private static bool TryParseServiceEvent(JsonObject? payload, out BackendProgressEvent progressEvent)
+    {
+        progressEvent = BackendProgressEvent.Empty;
         if (payload is null)
         {
             return false;
@@ -464,10 +480,21 @@ public sealed class BackendClient
         {
             return false;
         }
-        displayMessage = type.Equals("warning", StringComparison.OrdinalIgnoreCase)
-            ? $"Warning: {message}"
-            : message;
+
+        var detail = payload["detail"]?.DeepClone() as JsonObject ?? new JsonObject();
+        var createdAtText = TextValue(payload, "createdAt");
+        var createdAt = DateTimeOffset.TryParse(createdAtText, out var parsedCreatedAt)
+            ? parsedCreatedAt
+            : DateTimeOffset.Now;
+        progressEvent = new BackendProgressEvent(type, message, detail, createdAt);
         return true;
+    }
+
+    private static string FormatServiceEvent(BackendProgressEvent progressEvent)
+    {
+        return progressEvent.Type.Equals("warning", StringComparison.OrdinalIgnoreCase)
+            ? $"Warning: {progressEvent.Message}"
+            : progressEvent.Message;
     }
 
     private static bool TryParseBackendEvent(string line, out string displayMessage)
@@ -566,4 +593,13 @@ public sealed class BackendClient
 
         public Action<string> Log { get; } = log;
     }
+}
+
+public sealed record BackendProgressEvent(
+    string Type,
+    string Message,
+    JsonObject Detail,
+    DateTimeOffset CreatedAt)
+{
+    public static BackendProgressEvent Empty { get; } = new("", "", new JsonObject(), DateTimeOffset.MinValue);
 }

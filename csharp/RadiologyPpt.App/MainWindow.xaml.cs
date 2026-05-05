@@ -18,6 +18,11 @@ public partial class MainWindow : Window
     private readonly MainWindowViewModel _viewModel = new();
     private readonly BackendHealthMonitor _healthMonitor;
     private string _lastPowerPointPath = "";
+    private double _progressValue;
+    private int _progressPreparedCount;
+    private int _progressTargetCount;
+    private int _progressCandidateEnd;
+    private int _progressCandidatePoolSize;
 
     public ObservableCollection<CaseRequestRow> Requests => _viewModel.Requests;
 
@@ -39,6 +44,7 @@ public partial class MainWindow : Window
         _storage = new AppStorage(_backend.StateDir, _backend.AppRoot);
         _healthMonitor = new BackendHealthMonitor(_backend, AppendLog);
         _healthMonitor.StatusChanged += BackendHealth_StatusChanged;
+        _backend.ProgressReceived += Backend_ProgressReceived;
         DataContext = _viewModel;
         InitializeOptionControls();
         InitializeStorage();
@@ -667,7 +673,7 @@ public partial class MainWindow : Window
         GenerateButton.IsEnabled = !busy;
         GenerateCoreReviewButton.IsEnabled = !busy;
         CancelButton.IsEnabled = busy;
-        Progress.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
+        ProgressPanel.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void OnJobChanged(AppJobSnapshot job)
@@ -676,13 +682,16 @@ public partial class MainWindow : Window
         {
             if (job.Status == AppJobStatus.Running)
             {
+                BeginProgress(job.Name);
                 SetBusy(true);
                 StatusText = job.Name;
                 _storage.RecordEvent("info", $"Started: {job.Name}", job.Id);
                 return;
             }
 
+            UpdateProgress(job.Status == AppJobStatus.Completed ? 100 : _progressValue, StatusText);
             SetBusy(false);
+            ResetProgressState();
             StatusText = job.Status switch
             {
                 AppJobStatus.Completed => "Ready",
@@ -692,6 +701,159 @@ public partial class MainWindow : Window
             };
             _storage.RecordEvent(job.Status == AppJobStatus.Failed ? "error" : "info", $"{job.Status}: {job.Name}", job.Id);
         });
+    }
+
+    private void BeginProgress(string jobName)
+    {
+        ResetProgressState();
+        UpdateProgress(2, jobName, allowDecrease: true);
+    }
+
+    private void ResetProgressState()
+    {
+        _progressValue = 0;
+        _progressPreparedCount = 0;
+        _progressTargetCount = 0;
+        _progressCandidateEnd = 0;
+        _progressCandidatePoolSize = 0;
+        Progress.Value = 0;
+        ProgressPercentText.Text = "0%";
+    }
+
+    private void Backend_ProgressReceived(object? sender, BackendProgressEvent progressEvent)
+    {
+        Dispatcher.BeginInvoke(() => ApplyBackendProgress(progressEvent));
+    }
+
+    private void ApplyBackendProgress(BackendProgressEvent progressEvent)
+    {
+        if (!_jobs.IsRunning || ProgressPanel.Visibility != Visibility.Visible)
+        {
+            return;
+        }
+
+        var message = progressEvent.Message;
+        var detail = progressEvent.Detail;
+        if (message.Equals("Planning Core Review case requests", StringComparison.OrdinalIgnoreCase))
+        {
+            UpdateProgress(5, message);
+            return;
+        }
+
+        if (message.Equals("Starting Core Review case preparation", StringComparison.OrdinalIgnoreCase))
+        {
+            _progressTargetCount = ReadInt(detail, "requestedCaseCount");
+            _progressCandidatePoolSize = ReadInt(detail, "plannedCaseCount");
+            UpdateProgress(10, FormatProgressMessage(message));
+            return;
+        }
+
+        if (message.Equals("Preparing Core Review candidate batch", StringComparison.OrdinalIgnoreCase))
+        {
+            _progressTargetCount = Math.Max(_progressTargetCount, ReadInt(detail, "targetCaseCount"));
+            _progressPreparedCount = Math.Max(_progressPreparedCount, ReadInt(detail, "preparedCaseCount"));
+            _progressCandidateEnd = Math.Max(_progressCandidateEnd, ReadInt(detail, "candidateEnd"));
+            _progressCandidatePoolSize = Math.Max(_progressCandidatePoolSize, ReadInt(detail, "candidatePoolSize"));
+            UpdateProgress(ComputeCasePreparationProgress(), FormatProgressMessage(message));
+            return;
+        }
+
+        if (message.Equals("Preparing case previews", StringComparison.OrdinalIgnoreCase))
+        {
+            _progressTargetCount = ReadInt(detail, "requestCount");
+            UpdateProgress(18, FormatProgressMessage(message));
+            return;
+        }
+
+        if (message.Equals("Prepared case", StringComparison.OrdinalIgnoreCase))
+        {
+            _progressPreparedCount += 1;
+            UpdateProgress(ComputeCasePreparationProgress(), FormatProgressMessage(message));
+            return;
+        }
+
+        if (message.Equals("Starting PowerPoint render", StringComparison.OrdinalIgnoreCase) ||
+            message.Equals("PowerPoint render", StringComparison.OrdinalIgnoreCase))
+        {
+            UpdateProgress(20, FormatProgressMessage(message));
+            return;
+        }
+
+        if (message.StartsWith("Completed PowerPoint render", StringComparison.OrdinalIgnoreCase))
+        {
+            UpdateProgress(92, FormatProgressMessage(message));
+            return;
+        }
+
+        if (message.Equals("PowerPoint render complete", StringComparison.OrdinalIgnoreCase))
+        {
+            UpdateProgress(100, FormatProgressMessage(message));
+            return;
+        }
+
+        if (message.StartsWith("Completed ", StringComparison.OrdinalIgnoreCase))
+        {
+            UpdateProgress(Math.Max(_progressValue, 85), FormatProgressMessage(message));
+            return;
+        }
+
+        UpdateProgress(_progressValue, FormatProgressMessage(message));
+    }
+
+    private double ComputeCasePreparationProgress()
+    {
+        var targetRatio = _progressTargetCount > 0
+            ? Math.Min(1, _progressPreparedCount / (double)_progressTargetCount)
+            : 0;
+        var scanRatio = _progressCandidatePoolSize > 0
+            ? Math.Min(1, _progressCandidateEnd / (double)_progressCandidatePoolSize)
+            : 0;
+        var ratio = Math.Max(targetRatio, scanRatio * 0.45);
+        var value = 10 + (ratio * 82);
+        if (_progressTargetCount > 0 && _progressPreparedCount >= _progressTargetCount)
+        {
+            value = 92;
+        }
+        return value;
+    }
+
+    private void UpdateProgress(double value, string message, bool allowDecrease = false)
+    {
+        var nextValue = Math.Max(0, Math.Min(100, value));
+        if (!allowDecrease)
+        {
+            nextValue = Math.Max(_progressValue, nextValue);
+        }
+
+        _progressValue = nextValue;
+        Progress.Value = nextValue;
+        ProgressPercentText.Text = $"{nextValue:0}%";
+        if (!string.IsNullOrWhiteSpace(message))
+        {
+            StatusText = message;
+        }
+    }
+
+    private static string FormatProgressMessage(string message)
+    {
+        return string.IsNullOrWhiteSpace(message) ? "Working..." : message;
+    }
+
+    private static int ReadInt(JsonObject detail, string name)
+    {
+        if (detail[name] is not { } value)
+        {
+            return 0;
+        }
+
+        try
+        {
+            return value.GetValue<int>();
+        }
+        catch
+        {
+            return int.TryParse(value.ToString(), out var parsed) ? parsed : 0;
+        }
     }
 
     private void AppendLog(string message)
@@ -852,11 +1014,18 @@ public partial class MainWindow : Window
 
     private void BackendHealth_StatusChanged(object? sender, string message)
     {
-        Dispatcher.BeginInvoke(() => StatusText = message);
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (!_jobs.IsRunning)
+            {
+                StatusText = message;
+            }
+        });
     }
 
     protected override async void OnClosed(EventArgs e)
     {
+        _backend.ProgressReceived -= Backend_ProgressReceived;
         await _healthMonitor.StopAsync();
         _healthMonitor.Dispose();
         base.OnClosed(e);
