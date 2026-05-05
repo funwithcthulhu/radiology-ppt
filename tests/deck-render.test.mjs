@@ -323,14 +323,19 @@ test("core review mode renders mixed case exercises and standalone review prompt
 
   const pptx = await fs.readFile(outputPath);
   const allSlideText = readAllSlideText(pptx);
+  const firstSlideText = decodeXmlText(readZipEntryText(pptx, "ppt/slides/slide1.xml"));
 
+  assert.match(firstSlideText, /What is the diagnosis\?/);
+  assert.doesNotMatch(firstSlideText, /\bA\./);
   assert.match(allSlideText, /Structure \/ Finding/);
   assert.match(allSlideText, /Pin the abnormality\./);
   assert.match(allSlideText, /What is the most likely diagnosis\?/);
+  assert.match(allSlideText, /What is the diagnosis\?/);
   assert.match(allSlideText, /Pin: Supraspinatus tendon\./);
   assert.match(allSlideText, /Which communication step is best for an unexpected life-threatening finding\?/);
   assert.match(allSlideText, /After two half-lives, what percentage of the original activity remains\?/);
   assert.match(allSlideText, /Core Review Notes/);
+  assert.doesNotMatch(allSlideText, /Open response\. State the diagnosis before advancing\./);
   assert.doesNotMatch(allSlideText, /What structure or finding is indicated by the marker\?/);
 
   const presentationXml = readZipEntryText(pptx, "ppt/presentation.xml");

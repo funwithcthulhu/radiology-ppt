@@ -27,11 +27,14 @@ const DECK_MODES = {
   coreReview: "core-review",
 };
 const CORE_REVIEW_CASE_EXERCISE_SEQUENCE = [
-  "structure_card",
+  "diagnosis_open",
   "pin_abnormality",
   "diagnosis_mcq",
   "pin_anatomy",
   "diagnosis_open",
+  "structure_card",
+  "diagnosis_open",
+  "diagnosis_mcq",
 ];
 const DIAGNOSIS_KEY_FILLER_PATTERN =
   /\b(?:acute|chronic|adult|pediatric|paediatric|children|childhood|classic|typical|atypical|case|disease)\b/g;
@@ -1670,6 +1673,53 @@ async function addCoreReviewDiagnosisQuestionSlide(
     );
   }
 
+  if (!options.length) {
+    await addImageGallery(
+      slide,
+      caseData.images || [],
+      { left: 72, top: 96, width: 1136, height: 456 },
+      { emptyMessage: "No selected images for this case." },
+    );
+
+    addShape(
+      slide,
+      "roundRect",
+      { left: 96, top: 578, width: 1088, height: 74 },
+      theme.colors.panel,
+      theme.colors.border,
+      1.1,
+    );
+    addText(
+      slide,
+      question.stem,
+      { left: 126, top: 596, width: 680, height: 34 },
+      theme,
+      {
+        fontSize: 30,
+        color: theme.colors.ink,
+        face: theme.fonts.title,
+        bold: true,
+      },
+    );
+    addText(
+      slide,
+      "Answer verbally before advancing.",
+      { left: 842, top: 607, width: 294, height: 18 },
+      theme,
+      {
+        fontSize: 11,
+        color: theme.colors.slate,
+        face: theme.fonts.mono,
+        align: "right",
+        autoFit: null,
+      },
+    );
+
+    addFooter(slide, caseData.footerText, theme, { dark: true });
+    addSpeakerNotes(slide, caseData, caseNumber, [`Diagnosis answer: ${question.correctText}`]);
+    return;
+  }
+
   await addImageGallery(
     slide,
     caseData.images || [],
@@ -1698,31 +1748,17 @@ async function addCoreReviewDiagnosisQuestionSlide(
     },
   );
 
-  if (options.length) {
-    addText(
-      slide,
-      options.map((option) => `${option.id}. ${option.text}`).join("\n"),
-      { left: 90, top: 522, width: 920, height: 104 },
-      theme,
-      {
-        fontSize: 20,
-        color: theme.colors.ink,
-        face: theme.fonts.body,
-      },
-    );
-  } else {
-    addText(
-      slide,
-      "Open response. State the diagnosis before advancing.",
-      { left: 90, top: 526, width: 1020, height: 44 },
-      theme,
-      {
-        fontSize: 20,
-        color: theme.colors.accentDark,
-        face: theme.fonts.body,
-      },
-    );
-  }
+  addText(
+    slide,
+    options.map((option) => `${option.id}. ${option.text}`).join("\n"),
+    { left: 90, top: 522, width: 920, height: 104 },
+    theme,
+    {
+      fontSize: 20,
+      color: theme.colors.ink,
+      face: theme.fonts.body,
+    },
+  );
 
   addText(
     slide,
