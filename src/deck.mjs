@@ -32,7 +32,7 @@ const CORE_REVIEW_CASE_EXERCISE_SEQUENCE = [
   "diagnosis_mcq",
   "pin_anatomy",
   "diagnosis_open",
-  "structure_card",
+  "diagnosis_open",
   "diagnosis_open",
   "diagnosis_mcq",
 ];
@@ -1568,7 +1568,7 @@ function isLikelyAbnormalityPinTarget(answerText, caseData) {
 function coreReviewExerciseType(caseData, caseNumber, anatomyQuestion) {
   const hasImage = Boolean(firstCaseImage(caseData));
   const preferred = CORE_REVIEW_CASE_EXERCISE_SEQUENCE[(caseNumber - 1) % CORE_REVIEW_CASE_EXERCISE_SEQUENCE.length];
-  if (!hasImage && ["structure_card", "pin_abnormality", "pin_anatomy"].includes(preferred)) {
+  if (!hasImage && ["pin_abnormality", "pin_anatomy"].includes(preferred)) {
     return "diagnosis_open";
   }
   if (preferred === "pin_abnormality" && !anatomyQuestion?.hotspot) {
@@ -2454,22 +2454,6 @@ async function addCoreReviewCaseExerciseSlides({
 }) {
   const anatomyQuestion = buildCaseAnatomyQuestion(caseData);
   const exerciseType = coreReviewExerciseType(caseData, caseNumber, anatomyQuestion);
-
-  if (exerciseType === "structure_card") {
-    const cardPrompt = buildCoreReviewStructureFindingPrompt(caseData, anatomyQuestion, exerciseType);
-    if (cardPrompt) {
-      await addCoreReviewAnatomyAnswerSlide(
-        addSlide(),
-        caseData,
-        caseNumber,
-        deckTitle,
-        theme,
-        cardPrompt,
-        { title: cardPrompt.answerTitle },
-      );
-      return;
-    }
-  }
 
   if (exerciseType === "pin_abnormality" || exerciseType === "pin_anatomy") {
     const pinPrompt = buildCoreReviewStructureFindingPrompt(caseData, anatomyQuestion, exerciseType);

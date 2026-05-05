@@ -443,6 +443,94 @@ test("core review avoids pin-abnormality prompts without localized annotations",
   assert.match(allSlideText, /What is the diagnosis\?/);
 });
 
+test("core review does not render answer-only structure cards as case exercises", async () => {
+  const { buildDeck } = await import("../src/deck.mjs");
+  const sharp = (await import("sharp")).default;
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "radiology-deck-core-answer-card-"));
+  const imagePath = path.join(tempDir, "renal.png");
+  const outputPath = path.join(tempDir, "answer-card.pptx");
+
+  await sharp({
+    create: {
+      width: 640,
+      height: 420,
+      channels: 3,
+      background: "#202020",
+    },
+  }).png().toFile(imagePath);
+
+  const baseCase = {
+    caseUrl: "https://radiopaedia.org/cases/example",
+    footerText: "Radiopaedia • rID-test",
+    images: [{ localPath: imagePath, label: "CT" }],
+  };
+
+  await buildDeck({
+    cases: [
+      {
+        ...baseCase,
+        rawInput: "chiari i malformation",
+        diagnosisQuery: "chiari i malformation",
+        caseTitle: "chiari i malformation",
+      },
+      {
+        ...baseCase,
+        rawInput: "pulmonary embolism",
+        diagnosisQuery: "pulmonary embolism",
+        caseTitle: "pulmonary embolism",
+      },
+      {
+        ...baseCase,
+        rawInput: "appendicitis",
+        diagnosisQuery: "appendicitis",
+        caseTitle: "appendicitis",
+      },
+      {
+        ...baseCase,
+        rawInput: "supraspinatus tear",
+        diagnosisQuery: "supraspinatus tear",
+        caseTitle: "supraspinatus tear",
+        images: [
+          {
+            localPath: imagePath,
+            label: "MRI shoulder",
+            focusPoints: [{ x: 320, y: 210, label: "supraspinatus tendon" }],
+            frameWidth: 640,
+            frameHeight: 420,
+          },
+        ],
+      },
+      {
+        ...baseCase,
+        rawInput: "subdural hematoma",
+        diagnosisQuery: "subdural hematoma",
+        caseTitle: "subdural hematoma",
+      },
+      {
+        ...baseCase,
+        rawInput: "renal cell carcinoma",
+        diagnosisQuery: "renal cell carcinoma",
+        caseTitle: "renal cell carcinoma",
+        coreReviewPlan: { domain: "gu", anatomyPrompt: "kidney" },
+      },
+    ],
+    deckTitle: "Answer Card Regression",
+    outputPath,
+    scratchDir: path.join(tempDir, "scratch"),
+    deckMode: "core-review",
+  });
+
+  const pptx = await fs.readFile(outputPath);
+  const slideTexts = readSlideTexts(pptx);
+  const case6QuestionText = slideTexts.find((text) => /Case 6 .* Diagnosis Question/.test(text)) || "";
+  const case6AnswerCardText = slideTexts.find((text) =>
+    /Case 6/.test(text) && /Structure \/ Finding/.test(text) && /Renal cell carcinoma/i.test(text),
+  );
+
+  assert.match(case6QuestionText, /What is the diagnosis\?/);
+  assert.equal(case6AnswerCardText, undefined, "case 6 should not start as an answer-only structure/finding card");
+});
+
 test("core review does not reveal pathology labels in pin anatomy prompts", async () => {
   const { buildDeck } = await import("../src/deck.mjs");
   const sharp = (await import("sharp")).default;
