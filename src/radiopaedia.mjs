@@ -19,7 +19,10 @@ export {
   searchCasePath,
 } from "./radiopaedia-search.mjs";
 
-export async function fetchRadiopaediaCase(input, { cacheDir, imagesPerCase = 3, maxFallbackAttempts = null }) {
+export async function fetchRadiopaediaCase(
+  input,
+  { cacheDir, imagesPerCase = 3, maxFallbackAttempts = null, candidateLimit = 6 },
+) {
   const request = parseCaseRequest(input);
   const fallbackCandidates = Array.isArray(request.fallbackCandidates) ? request.fallbackCandidates : [];
   const excludedPaths = new Set((request.excludeCasePaths ?? []).map((value) => comparableCasePath(value)).filter(Boolean));
@@ -36,7 +39,7 @@ export async function fetchRadiopaediaCase(input, { cacheDir, imagesPerCase = 3,
   }
 
   if (!candidateQueue.length) {
-    const probe = await inspectRadiopaediaCaseCandidates(request, { limit: 6 });
+    const probe = await inspectRadiopaediaCaseCandidates(request, { limit: candidateLimit });
     for (const candidate of probe.candidates) {
       if (!excludedPaths.has(comparableCasePath(candidate.casePath))) {
         candidateQueue.push(candidate.casePath);

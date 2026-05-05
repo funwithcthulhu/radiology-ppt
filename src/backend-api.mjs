@@ -40,12 +40,18 @@ const RANDOM_PREPARE_REPLACEMENT_ATTEMPTS = boundedInteger(
   0,
   40,
 );
-const CORE_REVIEW_PREPARE_BATCH_SIZE = boundedInteger(process.env.RADIOLOGY_PPT_CORE_REVIEW_PREPARE_BATCH_SIZE, 12, 1, 30);
+const CORE_REVIEW_PREPARE_BATCH_SIZE = boundedInteger(process.env.RADIOLOGY_PPT_CORE_REVIEW_PREPARE_BATCH_SIZE, 6, 1, 30);
 const CORE_REVIEW_CANDIDATE_MULTIPLIER = boundedInteger(
   process.env.RADIOLOGY_PPT_CORE_REVIEW_CANDIDATE_MULTIPLIER,
-  3,
+  5,
   1,
-  6,
+  8,
+);
+const CORE_REVIEW_CASE_CANDIDATE_LIMIT = boundedInteger(
+  process.env.RADIOLOGY_PPT_CORE_REVIEW_CASE_CANDIDATE_LIMIT,
+  8,
+  3,
+  20,
 );
 const CORE_REVIEW_DEFAULT_QUESTION_BANK_PATH = path.join(
   RESOURCE_ROOT,
@@ -182,7 +188,7 @@ export async function prepareCoreReviewDeck(args) {
   const requestedCaseCount = boundedInteger(args.caseCount || args.count, 50, 1, 150);
   const candidateCaseCount = Math.min(
     300,
-    Math.max(requestedCaseCount, requestedCaseCount * CORE_REVIEW_CANDIDATE_MULTIPLIER, requestedCaseCount + 20),
+    Math.max(requestedCaseCount, requestedCaseCount * CORE_REVIEW_CANDIDATE_MULTIPLIER, requestedCaseCount + 60),
   );
   const plan = await buildCoreReviewCasePlan({
     ...args,
@@ -201,6 +207,7 @@ export async function prepareCoreReviewDeck(args) {
     {
       ...args,
       onlyNewRandomCases: args.onlyNewRandomCases !== false,
+      caseCandidateLimit: args.caseCandidateLimit || CORE_REVIEW_CASE_CANDIDATE_LIMIT,
     },
     requestedCaseCount,
   );
@@ -218,7 +225,13 @@ async function prepareCoreReviewCaseItems(entries, args, requestedCaseCount) {
   const usedCasePaths = new Set();
 
   for (let index = 0; index < entries.length && items.length < requestedCaseCount; index += CORE_REVIEW_PREPARE_BATCH_SIZE) {
-    const batch = entries.slice(index, index + CORE_REVIEW_PREPARE_BATCH_SIZE);
+    const batch = entries.slice(index, index + CORE_REVIEW_PREPARE_BATCH_SIZE).map((entry) =>
+      parseCaseRequest({
+        ...entry,
+        caseCandidateLimit: entry.caseCandidateLimit || args.caseCandidateLimit || CORE_REVIEW_CASE_CANDIDATE_LIMIT,
+        excludeCasePaths: dedupe([...(entry.excludeCasePaths || []), ...usedCasePaths]),
+      }),
+    );
     attemptedEntries.push(...batch);
     emitProgress("Preparing Core Review candidate batch", {
       targetCaseCount: requestedCaseCount,
@@ -420,6 +433,7 @@ async function prepareEntry(entry, args, cacheDir) {
         cacheDir,
         imagesPerCase: entry.requestedImagesPerCase || args.imagesPerCase,
         maxFallbackAttempts: isRandomPreparedRequest(entry) ? RANDOM_PREPARE_FALLBACK_ATTEMPTS : null,
+        candidateLimit: entry.caseCandidateLimit || args.caseCandidateLimit || 6,
       }),
     );
     await recordCaseIndex({

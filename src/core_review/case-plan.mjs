@@ -529,7 +529,7 @@ export async function buildCoreReviewCasePlan(args = {}) {
   }
 
   const options = {
-    imagesPerCase: boundedInteger(args.imagesPerCase, 3, 1, 8),
+    imagesPerCase: boundedInteger(args.imagesPerCase, 1, 1, 8),
     useClinicalHistory: Boolean(args.useClinicalHistory),
     useOllamaAssist: Boolean(args.useOllamaAssist),
     ollamaModel: collapseWhitespace(args.ollamaModel || ""),

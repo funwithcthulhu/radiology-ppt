@@ -606,6 +606,7 @@ public partial class MainWindow : Window
         return settings with
         {
             Title = title,
+            ImagesPerCase = 1,
             OutputPath = string.IsNullOrWhiteSpace(outputPath) ? settings.OutputPath : outputPath,
             PowerPointStyle = "core-review",
             IncludeTeachingPoints = true

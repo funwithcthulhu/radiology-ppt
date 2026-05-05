@@ -190,6 +190,18 @@ test("can over-plan Core Review candidates while preserving the requested count"
   assert.match(plan.summary, /50 requested case\(s\), 120 candidate request\(s\)/);
 });
 
+test("defaults CORE review cases to one requested image", async () => {
+  const plan = await buildCoreReviewCasePlan({
+    caseCount: 4,
+    candidateCaseCount: 4,
+    caseMix: "blueprint",
+    modalityMix: "mixed",
+    seed: "core-plan-one-image-default",
+  });
+
+  assert.equal(plan.entries.every((entry) => entry.requestedImagesPerCase === 1), true);
+});
+
 test("can focus CORE review case plans by domain", async () => {
   const plan = await buildCoreReviewCasePlan({
     caseCount: 12,

@@ -85,6 +85,7 @@ To build a Core Review lecture:
 
 This path does not use the `Cases` tab. It starts from separate Core Review planning logic, searches Radiopaedia, and lets you approve the actual cases.
 For larger reviews, the app plans extra candidate requests behind the scenes and keeps preparing until it reaches your requested case count or exhausts the candidate pool. Modality choices are treated as preferences in this workflow so a useful case is not dropped just because Radiopaedia lacks the exact preferred modality.
+Core Review asks for one image per case by default, which helps long reviews fill more reliably. NIS, physics, and RISC questions are added as standalone question slides and do not need case images.
 
 To add local question sources:
 
@@ -107,7 +108,7 @@ This folder is ignored by Git. Do not import copyrighted or private material unl
 Options:
 
 - `Title`: optional. If blank, the app creates a title automatically.
-- `Images per case`: target image count. Review can keep fewer when a case only has a few useful images.
+- `Images per case`: target image count for case-conference slides. Core Review uses one image per case by default so longer reviews are easier to fill.
 - `PowerPoint style`: `Case Conference` or `Core Review`.
 - `Review question source`: in `Core Review`, choose the bundled free bank, the imported Core Review library, or a custom question-bank JSON file.
 - `Question bank JSON`: optional path used when `Review question source` is set to the custom JSON option.

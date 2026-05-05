@@ -725,7 +725,7 @@ function buildSearchQueries(request) {
   return dedupe(queries.map((query) => collapseWhitespace(query)).filter(Boolean));
 }
 
-export async function inspectRadiopaediaCaseCandidates(input, { limit = 5 } = {}) {
+export async function inspectRadiopaediaCaseCandidates(input, { limit = 5, fetchSearchText = fetchText } = {}) {
   const request = parseCaseRequest(input);
   const excludedPaths = new Set((request.excludeCasePaths ?? []).map((value) => comparableCasePath(value)).filter(Boolean));
   if (request.selectedCasePath) {
@@ -759,20 +759,42 @@ export async function inspectRadiopaediaCaseCandidates(input, { limit = 5 } = {}
   const candidateMap = new Map();
 
   for (const query of buildSearchQueries(request)) {
-    const searchUrl = buildCaseSearchUrl({ query, systems: request.searchSystems || [] });
-    const html = await fetchText(searchUrl);
-    const results = parseSearchResultCandidates(html, request, Math.max(limit * 2, 6));
+    const searchSystemAttempts = (request.searchSystems || []).length
+      ? [request.searchSystems || [], []]
+      : [[]];
 
-    for (const candidate of results) {
-      if (excludedPaths.has(comparableCasePath(candidate.casePath))) {
+    for (const systems of searchSystemAttempts) {
+      const searchUrl = buildCaseSearchUrl({ query, systems });
+      let html = "";
+      try {
+        html = await fetchSearchText(searchUrl);
+      } catch (error) {
+        emitWarning("Radiopaedia case search failed; continuing with broader candidate search", {
+          query,
+          systems,
+          message: error.message,
+        });
         continue;
       }
-      const existing = candidateMap.get(candidate.casePath);
-      if (!existing || candidate.score > existing.score) {
-        candidateMap.set(candidate.casePath, {
-          ...candidate,
-          matchedQuery: query,
-        });
+
+      const results = parseSearchResultCandidates(html, request, Math.max(limit * 2, 6));
+
+      for (const candidate of results) {
+        if (excludedPaths.has(comparableCasePath(candidate.casePath))) {
+          continue;
+        }
+        const existing = candidateMap.get(candidate.casePath);
+        if (!existing || candidate.score > existing.score) {
+          candidateMap.set(candidate.casePath, {
+            ...candidate,
+            matchedQuery: query,
+          });
+        }
+      }
+
+      const provisional = [...candidateMap.values()].sort((left, right) => right.score - left.score);
+      if (provisional.length >= limit && provisional[0]?.score >= 0.84) {
+        break;
       }
     }
 

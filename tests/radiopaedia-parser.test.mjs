@@ -87,6 +87,32 @@ test("matches excluded manual case paths even when query strings differ", async 
   assert.deepEqual(result.candidates, []);
 });
 
+test("falls back to broader case search when filtered Radiopaedia search fails", async () => {
+  const html = await fs.readFile(path.resolve("tests", "fixtures", "radiopaedia-search-results.html"), "utf8");
+  const fetchedUrls = [];
+  const result = await inspectRadiopaediaCaseCandidates(
+    {
+      requestMode: "specific",
+      diagnosis: "multiple sclerosis",
+      searchSystems: ["Central Nervous System"],
+    },
+    {
+      limit: 2,
+      fetchSearchText: async (url) => {
+        fetchedUrls.push(url);
+        if (new URL(url).searchParams.getAll("system[]").length) {
+          throw new Error("HTTP 403");
+        }
+        return html;
+      },
+    },
+  );
+
+  assert.equal(new URL(fetchedUrls[0]).searchParams.getAll("system[]").length, 1);
+  assert.equal(new URL(fetchedUrls[1]).searchParams.getAll("system[]").length, 0);
+  assert.equal(result.candidates[0].casePath, "/cases/multiple-sclerosis-42");
+});
+
 test("builds complete teaching-point sentences without ellipses", () => {
   const points = buildTeachingPoints({
     request: {},

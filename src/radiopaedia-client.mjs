@@ -19,10 +19,11 @@ const REQUEST_HEADERS = {
   "user-agent": "Mozilla/5.0",
 };
 const TEXT_CACHE = new Map();
-const HTTP_CONCURRENCY = boundedInteger(process.env.RADIOLOGY_PPT_HTTP_CONCURRENCY, 4, 1, 12);
+const HTTP_CONCURRENCY = boundedInteger(process.env.RADIOLOGY_PPT_HTTP_CONCURRENCY, 2, 1, 12);
 const HTTP_CONNECT_TIMEOUT_SECONDS = boundedInteger(process.env.RADIOLOGY_PPT_HTTP_CONNECT_TIMEOUT_SECONDS, 10, 2, 60);
 const HTTP_TEXT_TIMEOUT_SECONDS = boundedInteger(process.env.RADIOLOGY_PPT_HTTP_TEXT_TIMEOUT_SECONDS, 45, 5, 300);
 const HTTP_IMAGE_TIMEOUT_SECONDS = boundedInteger(process.env.RADIOLOGY_PPT_HTTP_IMAGE_TIMEOUT_SECONDS, 75, 10, 600);
+const HTTP_RETRY_ATTEMPTS = boundedInteger(process.env.RADIOLOGY_PPT_HTTP_RETRY_ATTEMPTS, 3, 1, 8);
 let activeHttpRequests = 0;
 const httpQueue = [];
 
@@ -101,10 +102,15 @@ async function curlWithRetries(args, options, attempt = 1) {
   try {
     return await withHttpSlot(() => execFileAsync("curl.exe", args, options));
   } catch (error) {
-    if (attempt >= 3) {
+    const errorText = String(error.stderr || error.message || "");
+    if (/\b403\b/.test(errorText)) {
       throw error;
     }
-    await sleep(400 * attempt);
+    if (attempt >= HTTP_RETRY_ATTEMPTS) {
+      throw error;
+    }
+    const isRateLimited = /\b429\b/.test(errorText);
+    await sleep((isRateLimited ? 1500 : 400) * attempt);
     return curlWithRetries(args, options, attempt + 1);
   }
 }
