@@ -678,11 +678,79 @@ test("core review does not reveal pathology labels in pin anatomy prompts", asyn
 
   const pptx = await fs.readFile(outputPath);
   const allSlideText = readAllSlideText(pptx);
-  const case4QuestionText = readSlideTexts(pptx).find((text) => /Case 4 .* Diagnosis Question/.test(text)) || "";
+  const case4QuestionText = readSlideTexts(pptx).find((text) => /Case 4 .* Pin Abnormality/.test(text)) || "";
 
-  assert.match(case4QuestionText, /What is the diagnosis\?/);
+  assert.match(case4QuestionText, /Pin the abnormality\./);
   assert.doesNotMatch(allSlideText, /Pin: subdural collection/i);
   assert.doesNotMatch(allSlideText, /Case 4 .* Pin Anatomy/);
+});
+
+test("core review broad regional anatomy prompts ask to pin the abnormality", async () => {
+  const { buildDeck } = await import("../src/deck.mjs");
+  const sharp = (await import("sharp")).default;
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "radiology-deck-core-broad-pin-"));
+  const imagePath = path.join(tempDir, "chest.png");
+  const outputPath = path.join(tempDir, "broad-pin.pptx");
+
+  await sharp({
+    create: {
+      width: 640,
+      height: 420,
+      channels: 3,
+      background: "#202020",
+    },
+  }).png().toFile(imagePath);
+
+  const baseCase = {
+    caseUrl: "https://radiopaedia.org/cases/example",
+    footerText: "Radiopaedia • rID-test",
+    images: [{ localPath: imagePath, label: "Chest radiograph" }],
+  };
+
+  await buildDeck({
+    cases: [
+      {
+        ...baseCase,
+        rawInput: "appendicitis, ct abdomen pelvis",
+        diagnosisQuery: "appendicitis",
+        caseTitle: "appendicitis",
+      },
+      {
+        ...baseCase,
+        rawInput: "pulmonary embolism, cta chest",
+        diagnosisQuery: "pulmonary embolism",
+        caseTitle: "pulmonary embolism",
+      },
+      {
+        ...baseCase,
+        rawInput: "renal cell carcinoma, ct abdomen",
+        diagnosisQuery: "renal cell carcinoma",
+        caseTitle: "renal cell carcinoma",
+      },
+      {
+        ...baseCase,
+        rawInput: "lung cancer left lower lobe retrocardiac, chest radiograph",
+        diagnosisQuery: "lung cancer left lower lobe retrocardiac",
+        studyHint: "Chest radiograph",
+        caseTitle: "lung cancer left lower lobe retrocardiac",
+        coreReviewPlan: { domain: "thoracic", anatomyPrompt: "chest" },
+      },
+    ],
+    deckTitle: "Broad Pin Regression",
+    outputPath,
+    scratchDir: path.join(tempDir, "scratch"),
+    deckMode: "core-review",
+    theme: "conference-dark",
+  });
+
+  const pptx = await fs.readFile(outputPath);
+  const allSlideText = readAllSlideText(pptx);
+  const case4QuestionText = readSlideTexts(pptx).find((text) => /Case 4 .* Pin Abnormality/.test(text)) || "";
+
+  assert.match(case4QuestionText, /Pin the abnormality\./);
+  assert.doesNotMatch(allSlideText, /Pin: chest\./i);
+  assert.doesNotMatch(allSlideText, /Case 4 .* Pin Anatomy/);
+  assert.doesNotMatch(allSlideText, /Marked region: chest/i);
 });
 
 test("core review diagnosis choices use clean sentence-case display labels", async () => {

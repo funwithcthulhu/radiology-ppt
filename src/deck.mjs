@@ -58,6 +58,33 @@ const DIAGNOSIS_DISPLAY_ACRONYMS = [
 ];
 const PIN_TARGET_ABNORMALITY_PATTERN =
   /\b(?:abscess|aneurysm|avulsion|carcinoma|collection|contusion|dissection|embol(?:us|i|ism)|fistula|fracture|hematoma|haematoma|hemorrhage|haemorrhage|hernia|infarct|ischemia|ischaemia|lesion|lymphoma|malformation|mass|metastasis|necrosis|neoplasm|nodule|pneumothorax|rupture|stone|tear|thrombus|thrombosis|torsion|tumou?r)\b/i;
+const BROAD_ANATOMY_PIN_TARGETS = new Set([
+  "abdomen",
+  "abdomen pelvis",
+  "ankle",
+  "arm",
+  "brain",
+  "breast",
+  "cervical spine",
+  "chest",
+  "elbow",
+  "face",
+  "foot",
+  "hand",
+  "hands",
+  "head",
+  "hip",
+  "knee",
+  "leg",
+  "lumbar spine",
+  "neck",
+  "pelvis",
+  "pelvic",
+  "shoulder",
+  "spine",
+  "thoracic spine",
+  "wrist",
+]);
 const DIAGNOSIS_MODALITY_HINTS = [
   { label: "MRI", patterns: [/\bmri\b/i, /\bmr\b/i, /\bmagnetic resonance\b/i] },
   { label: "CT", patterns: [/\bct\b/i, /\bcomputed tomography\b/i] },
@@ -1601,10 +1628,15 @@ function isLikelyAbnormalityPinTarget(answerText, caseData) {
   return Boolean(labelKey && diagnosisKey && diagnosisKeysLookEquivalent(labelKey, diagnosisKey));
 }
 
+function isBroadAnatomyPinTarget(answerText) {
+  const key = normalizeDiagnosisKey(answerText);
+  return Boolean(key && BROAD_ANATOMY_PIN_TARGETS.has(key));
+}
+
 function coreReviewExerciseType(caseData, caseNumber, anatomyQuestion) {
   const hasImage = Boolean(firstCaseImage(caseData));
   const preferred = CORE_REVIEW_CASE_EXERCISE_SEQUENCE[(caseNumber - 1) % CORE_REVIEW_CASE_EXERCISE_SEQUENCE.length];
-  if (!hasImage && ["pin_abnormality", "pin_anatomy"].includes(preferred)) {
+  if (!hasImage && ["pin_abnormality", "pin_anatomy", "pin_abnormality_verbal"].includes(preferred)) {
     return "diagnosis_open";
   }
   if (preferred === "pin_abnormality" && !anatomyQuestion?.hotspot) {
@@ -1612,9 +1644,17 @@ function coreReviewExerciseType(caseData, caseNumber, anatomyQuestion) {
   }
   if (
     preferred === "pin_anatomy"
-    && (!anatomyQuestion?.answerText || isLikelyAbnormalityPinTarget(anatomyQuestion.answerText, caseData))
+    && !anatomyQuestion?.answerText
   ) {
     return "diagnosis_open";
+  }
+  if (preferred === "pin_anatomy") {
+    if (isLikelyAbnormalityPinTarget(anatomyQuestion.answerText, caseData)) {
+      return anatomyQuestion?.hotspot ? "pin_abnormality" : "pin_abnormality_verbal";
+    }
+    if (isBroadAnatomyPinTarget(anatomyQuestion.answerText)) {
+      return "pin_abnormality_verbal";
+    }
   }
   return preferred;
 }
@@ -1632,16 +1672,16 @@ function buildCoreReviewStructureFindingPrompt(caseData, anatomyQuestion, exerci
   const regionText = buildVerbalAnatomyAnswer(caseData);
   const specificAnatomy = normalizeText(anatomyQuestion?.answerText || regionText);
   const isPinAnatomy = exerciseType === "pin_anatomy";
-  const isPinAbnormality = exerciseType === "pin_abnormality";
-  if (isPinAnatomy && isLikelyAbnormalityPinTarget(specificAnatomy, caseData)) {
+  const isPinAbnormality = exerciseType === "pin_abnormality" || exerciseType === "pin_abnormality_verbal";
+  if (isPinAnatomy && (isLikelyAbnormalityPinTarget(specificAnatomy, caseData) || isBroadAnatomyPinTarget(specificAnatomy))) {
     return null;
   }
-  if (isPinAbnormality && !anatomyQuestion?.hotspot) {
+  if (exerciseType === "pin_abnormality" && !anatomyQuestion?.hotspot) {
     return null;
   }
 
   const abnormalityAnswer = caseDiagnosisAnswer(caseData) || specificAnatomy || "Abnormality";
-  const answerDetail = isPinAbnormality && specificAnatomy && specificAnatomy !== abnormalityAnswer
+  const answerDetail = isPinAbnormality && anatomyQuestion?.hotspot && specificAnatomy && specificAnatomy !== abnormalityAnswer
     ? `Marked region: ${specificAnatomy}`
     : "";
   const stem = isPinAnatomy
@@ -2594,7 +2634,7 @@ async function addCoreReviewCaseExerciseSlides({
   const anatomyQuestion = buildCaseAnatomyQuestion(caseData);
   const exerciseType = coreReviewExerciseType(caseData, caseNumber, anatomyQuestion);
 
-  if (exerciseType === "pin_abnormality" || exerciseType === "pin_anatomy") {
+  if (exerciseType === "pin_abnormality" || exerciseType === "pin_abnormality_verbal" || exerciseType === "pin_anatomy") {
     const pinPrompt = buildCoreReviewStructureFindingPrompt(caseData, anatomyQuestion, exerciseType);
     if (pinPrompt) {
       await addCoreReviewAnatomyQuestionSlide(
