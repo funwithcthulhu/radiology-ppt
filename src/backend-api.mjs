@@ -343,6 +343,7 @@ export async function renderPowerPoint(payload, args) {
       scratchDir,
       deckMode,
       coreReviewQuestions,
+      coreReviewCaseBankPath: args.caseBankPath || "",
       theme: args.theme || "classic",
       includeTeachingPoints: Boolean(args.includeTeachingPoints),
     }),

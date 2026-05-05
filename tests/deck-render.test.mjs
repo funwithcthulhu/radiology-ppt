@@ -330,6 +330,82 @@ test("core review mode renders diagnosis, anatomy, and standalone review prompts
   }
 });
 
+test("core review diagnosis choices prefer plausible same-region distractors", async () => {
+  const { buildDeck } = await import("../src/deck.mjs");
+  const sharp = (await import("sharp")).default;
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "radiology-deck-core-distractors-"));
+  const imagePath = path.join(tempDir, "pelvis.png");
+  const outputPath = path.join(tempDir, "plausible-distractors.pptx");
+
+  await sharp({
+    create: {
+      width: 640,
+      height: 420,
+      channels: 3,
+      background: "#202020",
+    },
+  }).png().toFile(imagePath);
+
+  const baseCase = {
+    caseUrl: "https://radiopaedia.org/cases/example",
+    author: "Test Author",
+    licenseName: "CC BY-NC-SA 3.0",
+    images: [{ localPath: imagePath, label: "MRI" }],
+  };
+
+  await buildDeck({
+    cases: [
+      {
+        ...baseCase,
+        rawInput: "perianal fistula, mri pelvis",
+        diagnosisQuery: "Perianal fistula",
+        studyHint: "MRI pelvis",
+        caseTitle: "Perianal fistula",
+        modalitySummary: "MRI pelvis",
+        systems: ["Gastrointestinal", "Urogenital"],
+        coreReviewPlan: { domain: "mr", anatomyPrompt: "pelvis" },
+      },
+      {
+        ...baseCase,
+        rawInput: "pulmonary embolism, cta chest",
+        diagnosisQuery: "pulmonary embolism",
+        studyHint: "CTA chest",
+        caseTitle: "pulmonary embolism",
+        coreReviewPlan: { domain: "thoracic", anatomyPrompt: "chest" },
+      },
+      {
+        ...baseCase,
+        rawInput: "rotator cuff tear, mri shoulder",
+        diagnosisQuery: "Rotator cuff tear",
+        studyHint: "MRI shoulder",
+        caseTitle: "Rotator cuff tear",
+        coreReviewPlan: { domain: "msk", anatomyPrompt: "shoulder" },
+      },
+      {
+        ...baseCase,
+        rawInput: "obstructing ureteric stone, ct abdomen pelvis",
+        diagnosisQuery: "obstructing ureteric stone",
+        studyHint: "CT abdomen pelvis",
+        caseTitle: "obstructing ureteric stone",
+        coreReviewPlan: { domain: "gu", anatomyPrompt: "urinary tract" },
+      },
+    ],
+    deckTitle: "Core Review Distractor Regression",
+    outputPath,
+    scratchDir: path.join(tempDir, "scratch"),
+    deckMode: "core-review",
+  });
+
+  const pptx = await fs.readFile(outputPath);
+  const diagnosisSlideText = decodeXmlText(readZipEntryText(pptx, "ppt/slides/slide2.xml"));
+  assert.match(diagnosisSlideText, /Perianal fistula/);
+  assert.match(
+    diagnosisSlideText,
+    /Perianal abscess|Hidradenitis suppurativa|Pilonidal sinus disease|Low rectal carcinoma/,
+  );
+  assert.doesNotMatch(diagnosisSlideText, /pulmonary embolism|Rotator cuff tear|obstructing ureteric stone/i);
+});
+
 function readZipEntryText(buffer, entryName) {
   const entry = readZipEntry(buffer, entryName);
   return entry.toString("utf8");

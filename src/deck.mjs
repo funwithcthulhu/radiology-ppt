@@ -3,6 +3,7 @@ import path from "node:path";
 import JSZip from "jszip";
 import pptxgen from "pptxgenjs";
 import sharp from "sharp";
+import { loadCoreReviewCaseBank } from "./core_review/case-plan.mjs";
 import { collapseWhitespace, dedupe } from "./utils.mjs";
 
 const SHAPE_TYPES = new pptxgen().ShapeType;
@@ -25,6 +26,148 @@ const DECK_MODES = {
   caseConference: "case-conference",
   coreReview: "core-review",
 };
+const DIAGNOSIS_KEY_FILLER_PATTERN =
+  /\b(?:acute|chronic|adult|pediatric|paediatric|children|childhood|classic|typical|atypical|case|disease)\b/g;
+const DIAGNOSIS_MODALITY_HINTS = [
+  { label: "MRI", patterns: [/\bmri\b/i, /\bmr\b/i, /\bmagnetic resonance\b/i] },
+  { label: "CT", patterns: [/\bct\b/i, /\bcomputed tomography\b/i] },
+  { label: "X-ray", patterns: [/\bx-?ray\b/i, /\bradiograph(?:y|ic)?\b/i, /\bcxr\b/i] },
+  { label: "Ultrasound", patterns: [/\bultrasound\b/i, /\bsonograph(?:y|ic)?\b/i, /\bus\b/i] },
+  { label: "Fluoroscopy", patterns: [/\bfluoro(?:scopy)?\b/i] },
+  { label: "Angiography", patterns: [/\bangiograph(?:y|ic)?\b/i, /\bangio\b/i] },
+  { label: "Nuclear Medicine", patterns: [/\bnuclear medicine\b/i, /\bnuc med\b/i, /\bscintigraph(?:y|ic)?\b/i, /\bpet\b/i, /\bspect\b/i, /\bhida\b/i] },
+  { label: "Mammography", patterns: [/\bmammograph(?:y|ic)?\b/i, /\bmammo\b/i] },
+];
+const DIAGNOSIS_DIFFERENTIAL_GROUPS = [
+  {
+    id: "perianal-pelvis",
+    patterns: [/\bperianal\b/i, /\bfistula(?:-in-ano)?\b/i, /\banal fistula\b/i],
+    terms: ["perianal", "anal", "rectal", "ischioanal", "intersphincteric", "pelvis", "pelvic"],
+    domains: ["gi", "gu", "mr"],
+    systems: ["Gastrointestinal", "Urogenital", "Gynaecology"],
+    distractors: ["Perianal abscess", "Hidradenitis suppurativa", "Pilonidal sinus disease", "Low rectal carcinoma"],
+  },
+  {
+    id: "renal-colic",
+    patterns: [/\bureter(?:ic|al)? stone\b/i, /\burolithiasis\b/i, /\bobstructing.*stone\b/i, /\bhydronephrosis\b/i],
+    terms: ["ureter", "urinary", "kidney", "renal", "flank", "hydronephrosis"],
+    domains: ["gu", "ct", "ultrasound", "nuclear"],
+    systems: ["Urogenital"],
+    distractors: ["Ureteral stricture", "Pyelonephritis", "Papillary necrosis", "Upper tract urothelial carcinoma"],
+  },
+  {
+    id: "shoulder-soft-tissue",
+    patterns: [/\brotator cuff\b/i, /\bsupraspinatus\b/i, /\bsubscapularis\b/i, /\bshoulder\b/i],
+    terms: ["shoulder", "rotator", "cuff", "supraspinatus", "subacromial"],
+    domains: ["msk", "mr", "ultrasound"],
+    systems: ["Musculoskeletal"],
+    distractors: ["Adhesive capsulitis", "Calcific tendinopathy", "Labral tear", "Subacromial-subdeltoid bursitis"],
+  },
+  {
+    id: "pulmonary-vascular",
+    patterns: [/\bpulmonary embol/i, /\bpulmonary arteries?\b/i, /\bcta chest\b/i],
+    terms: ["pulmonary", "artery", "chest", "vascular", "embol"],
+    domains: ["thoracic", "cardiovascular", "ct"],
+    systems: ["Chest", "Vascular", "Cardiac"],
+    distractors: ["Pulmonary arterial hypertension", "Aortic dissection", "Pulmonary vein thrombosis", "Septic pulmonary emboli"],
+  },
+  {
+    id: "cpa-iac",
+    patterns: [/\bvestibular schwannoma\b/i, /\bacoustic neuroma\b/i, /\binternal auditory canal\b/i, /\bcpa\b/i],
+    terms: ["cpa", "internal auditory canal", "iac", "cerebellopontine", "posterior fossa"],
+    domains: ["neuro", "mr"],
+    systems: ["Central Nervous System", "Head & Neck"],
+    distractors: ["Cerebellopontine angle meningioma", "Epidermoid cyst", "Facial nerve schwannoma", "Arachnoid cyst"],
+  },
+  {
+    id: "hindbrain-csf",
+    patterns: [/\bchiari\b/i, /\bcerebellar tonsil/i, /\bforamen magnum\b/i],
+    terms: ["posterior fossa", "foramen magnum", "cerebellar", "tonsil", "hindbrain"],
+    domains: ["neuro", "pediatric", "mr"],
+    systems: ["Central Nervous System", "Spine"],
+    distractors: ["Intracranial hypotension", "Dandy-Walker malformation", "Basilar invagination", "Normal tonsillar ectopia"],
+  },
+  {
+    id: "intracranial-mass",
+    patterns: [/\bglioblastoma\b/i, /\bmeningioma\b/i, /\bpituitary macroadenoma\b/i, /\bbrain mass\b/i],
+    terms: ["brain", "intracranial", "sella", "tumor", "mass"],
+    domains: ["neuro", "mr", "ct"],
+    systems: ["Central Nervous System"],
+    distractors: ["Solitary metastasis", "Primary CNS lymphoma", "Tumefactive demyelination", "High-grade glioma"],
+  },
+  {
+    id: "bowel-inflammatory",
+    patterns: [/\bcrohn\b/i, /\bulcerative colitis\b/i, /\bcolitis\b/i, /\benteritis\b/i],
+    terms: ["bowel", "colon", "ileum", "colitis", "enteritis"],
+    domains: ["gi", "ct", "mr"],
+    systems: ["Gastrointestinal"],
+    distractors: ["Infectious colitis", "Ischemic colitis", "Ulcerative colitis", "Crohn disease"],
+  },
+  {
+    id: "right-lower-quadrant",
+    patterns: [/\bappendicitis\b/i, /\bright lower quadrant\b/i, /\brlq\b/i],
+    terms: ["appendix", "right lower quadrant", "cecum", "terminal ileum"],
+    domains: ["gi", "pediatric", "ct", "ultrasound"],
+    systems: ["Gastrointestinal", "Paediatrics"],
+    distractors: ["Terminal ileitis", "Epiploic appendagitis", "Cecal diverticulitis", "Mesenteric adenitis"],
+  },
+  {
+    id: "biliary",
+    patterns: [/\bcholecystitis\b/i, /\bcholedocholithiasis\b/i, /\bgallstones?\b/i, /\bbile duct\b/i],
+    terms: ["gallbladder", "biliary", "bile duct", "liver", "right upper quadrant"],
+    domains: ["gi", "ultrasound", "nuclear", "mr"],
+    systems: ["Hepatobiliary", "Gastrointestinal"],
+    distractors: ["Biliary colic", "Acute cholangitis", "Gallbladder carcinoma", "Hepatitis"],
+  },
+  {
+    id: "adnexal-pelvis",
+    patterns: [/\bovarian torsion\b/i, /\badnexa/i, /\bectopic pregnancy\b/i, /\buter/i, /\bplacenta\b/i],
+    terms: ["ovary", "adnexa", "uterus", "pelvis", "pregnancy", "placenta"],
+    domains: ["gu", "ultrasound", "mr", "pediatric"],
+    systems: ["Gynaecology", "Obstetrics", "Urogenital"],
+    distractors: ["Hemorrhagic ovarian cyst", "Tubo-ovarian abscess", "Degenerating fibroid", "Ectopic pregnancy"],
+  },
+  {
+    id: "renal-mass",
+    patterns: [/\brenal cell carcinoma\b/i, /\bangiomyolipoma\b/i, /\brenal mass\b/i, /\bwilms\b/i],
+    terms: ["kidney", "renal", "mass", "neoplasm"],
+    domains: ["gu", "pediatric", "ct", "mr", "ultrasound"],
+    systems: ["Urogenital", "Paediatrics"],
+    distractors: ["Lipid-poor angiomyolipoma", "Oncocytoma", "Renal lymphoma", "Renal abscess"],
+  },
+  {
+    id: "bone-tumor",
+    patterns: [/\bosteosarcoma\b/i, /\bewing\b/i, /\bgiant cell tumor\b/i, /\bbone metastases\b/i],
+    terms: ["bone", "osseous", "metaphysis", "diaphysis", "skeleton", "tumor"],
+    domains: ["msk", "pediatric", "nuclear", "mr"],
+    systems: ["Musculoskeletal", "Paediatrics", "Oncology"],
+    distractors: ["Osteomyelitis", "Langerhans cell histiocytosis", "Chondrosarcoma", "Stress fracture"],
+  },
+  {
+    id: "knee-internal-derangement",
+    patterns: [/\bacl\b/i, /\bmeniscal\b/i, /\bknee\b/i],
+    terms: ["knee", "meniscus", "acl", "ligament"],
+    domains: ["msk", "mr"],
+    systems: ["Musculoskeletal"],
+    distractors: ["PCL tear", "Bucket-handle meniscal tear", "Osteochondral injury", "Collateral ligament sprain"],
+  },
+  {
+    id: "pediatric-bowel",
+    patterns: [/\bintussusception\b/i, /\bmalrotation\b/i, /\bmidgut volvulus\b/i, /\bpyloric stenosis\b/i],
+    terms: ["pediatric", "paediatric", "bowel", "neonatal", "abdomen", "upper gi"],
+    domains: ["pediatric", "gi", "ultrasound", "radiography_fluoroscopy"],
+    systems: ["Paediatrics", "Gastrointestinal"],
+    distractors: ["Malrotation with midgut volvulus", "Pyloric stenosis", "Intussusception", "Necrotizing enterocolitis"],
+  },
+  {
+    id: "breast-mass",
+    patterns: [/\bbreast\b/i, /\bfibroadenoma\b/i, /\bductal carcinoma\b/i, /\bradial scar\b/i],
+    terms: ["breast", "mammography", "mass", "calcifications"],
+    domains: ["breast"],
+    systems: ["Breast"],
+    distractors: ["Fibroadenoma", "Invasive ductal carcinoma", "Fat necrosis", "Intraductal papilloma"],
+  },
+];
 
 const THEMES = {
   classic: {
@@ -1001,19 +1144,245 @@ function caseDescriptor(caseData) {
   return safeCaseIntro(caseData) || normalizeText(caseData.modalitySummary);
 }
 
-function buildDiagnosisQuestion(caseData, allCases, caseNumber) {
-  const correctText = normalizeText(caseData.caseTitle || caseData.diagnosisQuery);
-  const distractorPool = dedupe(
-    allCases
-      .flatMap((candidate) => [candidate.caseTitle, candidate.diagnosisQuery])
-      .map(normalizeText)
-      .filter(Boolean),
-  ).filter((text) => text.toLowerCase() !== correctText.toLowerCase());
+function normalizeDiagnosisKey(value) {
+  return normalizeText(value)
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, " ")
+    .replace(DIAGNOSIS_KEY_FILLER_PATTERN, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
-  const distractors = shuffle(
-    distractorPool,
-    `${caseData.casePath || caseData.caseTitle || caseNumber}|diagnosis-distractors`,
-  ).slice(0, 3);
+function diagnosisKeysLookEquivalent(left, right) {
+  if (!left || !right) {
+    return false;
+  }
+  if (left === right) {
+    return true;
+  }
+  const shorter = left.length < right.length ? left : right;
+  const longer = left.length < right.length ? right : left;
+  return shorter.length >= 9 && longer.includes(shorter);
+}
+
+function arrayText(value) {
+  if (Array.isArray(value)) {
+    return value.map(normalizeText).filter(Boolean);
+  }
+  const text = normalizeText(value);
+  return text ? text.split(/[;,]/).map(normalizeText).filter(Boolean) : [];
+}
+
+function detectDiagnosisModalities(...values) {
+  const sourceText = values.flatMap(arrayText).join(" ");
+  return DIAGNOSIS_MODALITY_HINTS
+    .filter((hint) => hint.patterns.some((pattern) => pattern.test(sourceText)))
+    .map((hint) => hint.label.toLowerCase());
+}
+
+function matchingDifferentialGroups(text) {
+  return DIAGNOSIS_DIFFERENTIAL_GROUPS.filter((group) =>
+    group.patterns.some((pattern) => pattern.test(text)),
+  );
+}
+
+function collectProfileTextParts(item) {
+  return [
+    item?.caseTitle,
+    item?.diagnosisQuery,
+    item?.diagnosis,
+    item?.rawInput,
+    item?.studyHint,
+    item?.modalitySummary,
+    item?.anatomy,
+    item?.topicFocus,
+    item?.coreReviewPlan?.domain,
+    item?.coreReviewPlan?.anatomyPrompt,
+    ...(Array.isArray(item?.systems) ? item.systems : []),
+    ...(Array.isArray(item?.modalities) ? item.modalities : []),
+  ].filter(Boolean);
+}
+
+function diagnosisProfile(item, forcedGroupIds = []) {
+  const textParts = collectProfileTextParts(item);
+  const text = textParts.map(normalizeText).join(" ");
+  const groups = new Map(matchingDifferentialGroups(text).map((group) => [group.id, group]));
+  for (const groupId of forcedGroupIds) {
+    const group = DIAGNOSIS_DIFFERENTIAL_GROUPS.find((candidate) => candidate.id === groupId);
+    if (group) {
+      groups.set(group.id, group);
+    }
+  }
+  const domain = normalizeText(item?.coreReviewPlan?.domain || item?.domain).toLowerCase();
+  const systems = arrayText(item?.systems).map((value) => value.toLowerCase());
+  const anatomy = normalizeText(item?.coreReviewPlan?.anatomyPrompt || item?.anatomy || "").toLowerCase();
+  const groupTerms = [...groups.values()].flatMap((group) => group.terms || []);
+  const groupDomains = [...groups.values()].flatMap((group) => group.domains || []);
+  const groupSystems = [...groups.values()].flatMap((group) => group.systems || []);
+
+  return {
+    text: text.toLowerCase(),
+    domain,
+    domains: dedupe([domain, ...groupDomains].filter(Boolean).map((value) => value.toLowerCase())),
+    systems: dedupe([...systems, ...groupSystems.map((value) => value.toLowerCase())]),
+    modalities: dedupe(detectDiagnosisModalities(text, item?.modalities || [])),
+    anatomy,
+    terms: dedupe(
+      [
+        ...groupTerms,
+        ...anatomy.split(/\s+/),
+      ]
+        .map((value) => normalizeText(value).toLowerCase())
+        .filter((value) => value.length >= 3),
+    ),
+    topicFocus: normalizeText(item?.topicFocus).toLowerCase(),
+    groupIds: [...groups.keys()],
+  };
+}
+
+function diagnosisCandidateFromCase(candidate, source, bias = 0) {
+  const text = normalizeText(candidate?.caseTitle || candidate?.diagnosisQuery || candidate?.diagnosis);
+  if (!text) {
+    return null;
+  }
+  return {
+    text,
+    source,
+    bias,
+    profile: diagnosisProfile(candidate),
+  };
+}
+
+function diagnosisCandidateFromDifferential(text, group) {
+  return {
+    text,
+    source: "curated-differential",
+    bias: 180,
+    profile: diagnosisProfile(
+      {
+        diagnosis: text,
+        domain: group.domains?.[0] || "",
+        systems: group.systems || [],
+        anatomy: group.terms?.join(" ") || "",
+      },
+      [group.id],
+    ),
+  };
+}
+
+function intersects(left = [], right = []) {
+  const rightSet = new Set(right);
+  return left.some((value) => rightSet.has(value));
+}
+
+function textTokenOverlap(left, right) {
+  const leftTokens = new Set(normalizeDiagnosisKey(left).split(/\s+/).filter((token) => token.length >= 4));
+  const rightTokens = normalizeDiagnosisKey(right).split(/\s+/).filter((token) => token.length >= 4);
+  return rightTokens.filter((token) => leftTokens.has(token)).length;
+}
+
+function diagnosisCandidateScore(candidate, targetProfile, targetText) {
+  let score = candidate.bias || 0;
+  const profile = candidate.profile;
+
+  if (intersects(profile.groupIds, targetProfile.groupIds)) {
+    score += 110;
+  }
+  if (intersects(profile.terms, targetProfile.terms)) {
+    score += 50;
+  }
+  if (profile.domain && targetProfile.domains.includes(profile.domain)) {
+    score += 35;
+  } else if (profile.domain && targetProfile.domain && profile.domain !== targetProfile.domain) {
+    score -= 18;
+  }
+  if (intersects(profile.domains, targetProfile.domains)) {
+    score += 22;
+  }
+  if (intersects(profile.systems, targetProfile.systems)) {
+    score += 28;
+  }
+  if (intersects(profile.modalities, targetProfile.modalities)) {
+    score += 12;
+  }
+  if (profile.topicFocus && profile.topicFocus === targetProfile.topicFocus) {
+    score += 12;
+  }
+  score += Math.min(18, textTokenOverlap(candidate.text, targetText) * 6);
+
+  if (candidate.source === "selected-case" && score < 55) {
+    score -= 80;
+  }
+
+  return score;
+}
+
+function rankedDiagnosisDistractors(caseData, allCases, caseBankCases, correctText, caseNumber) {
+  const targetProfile = diagnosisProfile(caseData);
+  const correctKey = normalizeDiagnosisKey(correctText);
+  const candidates = [];
+
+  for (const group of matchingDifferentialGroups(collectProfileTextParts(caseData).join(" "))) {
+    for (const text of group.distractors || []) {
+      candidates.push(diagnosisCandidateFromDifferential(text, group));
+    }
+  }
+
+  for (const candidate of allCases || []) {
+    const normalized = diagnosisCandidateFromCase(candidate, "selected-case", 12);
+    if (normalized) {
+      candidates.push(normalized);
+    }
+  }
+
+  for (const candidate of caseBankCases || []) {
+    const normalized = diagnosisCandidateFromCase(candidate, "core-bank", 0);
+    if (normalized) {
+      candidates.push(normalized);
+    }
+  }
+
+  const bestByKey = new Map();
+  for (const candidate of candidates) {
+    const key = normalizeDiagnosisKey(candidate.text);
+    if (!key || diagnosisKeysLookEquivalent(key, correctKey)) {
+      continue;
+    }
+    const score = diagnosisCandidateScore(candidate, targetProfile, correctText);
+    const current = bestByKey.get(key);
+    if (!current || score > current.score) {
+      bestByKey.set(key, { ...candidate, score });
+    }
+  }
+
+  return shuffle(
+    [...bestByKey.values()],
+    `${caseData.casePath || caseData.caseTitle || caseNumber}|diagnosis-candidate-ties`,
+  ).sort((left, right) => right.score - left.score);
+}
+
+function selectDiagnosisDistractors(caseData, allCases, caseBankCases, correctText, caseNumber) {
+  const ranked = rankedDiagnosisDistractors(caseData, allCases, caseBankCases, correctText, caseNumber);
+  const plausible = ranked.filter((candidate) => candidate.score >= 55);
+  const selected = plausible.slice(0, 3);
+  if (selected.length < 3) {
+    for (const candidate of ranked) {
+      if (selected.some((item) => normalizeDiagnosisKey(item.text) === normalizeDiagnosisKey(candidate.text))) {
+        continue;
+      }
+      selected.push(candidate);
+      if (selected.length >= 3) {
+        break;
+      }
+    }
+  }
+  return selected.slice(0, 3).map((candidate) => candidate.text);
+}
+
+function buildDiagnosisQuestion(caseData, allCases, caseNumber, caseBankCases = []) {
+  const correctText = normalizeText(caseData.caseTitle || caseData.diagnosisQuery);
+  const distractors = selectDiagnosisDistractors(caseData, allCases, caseBankCases, correctText, caseNumber);
   const optionTexts = distractors.length
     ? shuffle(
         [correctText, ...distractors],
@@ -1205,11 +1574,19 @@ function addStandaloneSpeakerNotes(slide, question, questionNumber) {
   );
 }
 
-async function addCoreReviewDiagnosisQuestionSlide(slide, caseData, caseNumber, deckTitle, theme, allCases) {
+async function addCoreReviewDiagnosisQuestionSlide(
+  slide,
+  caseData,
+  caseNumber,
+  deckTitle,
+  theme,
+  allCases,
+  caseBankCases,
+) {
   slide.background = { color: cleanColor(theme.colors.imageBg) };
   addTopBar(slide, deckTitle, theme, { dark: true });
   const descriptor = caseDescriptor(caseData);
-  const question = buildDiagnosisQuestion(caseData, allCases, caseNumber);
+  const question = buildDiagnosisQuestion(caseData, allCases, caseNumber, caseBankCases);
   const options = questionOptions(question);
 
   addText(
@@ -1805,6 +2182,21 @@ async function normalizePowerPointPackage(filePath) {
   await fs.writeFile(filePath, normalizedBuffer);
 }
 
+async function resolveCoreReviewCaseBankCases(coreReviewCaseBank, coreReviewCaseBankPath) {
+  if (Array.isArray(coreReviewCaseBank)) {
+    return coreReviewCaseBank;
+  }
+  if (Array.isArray(coreReviewCaseBank?.cases)) {
+    return coreReviewCaseBank.cases;
+  }
+  try {
+    const bank = await loadCoreReviewCaseBank(coreReviewCaseBankPath || "");
+    return Array.isArray(bank?.cases) ? bank.cases : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function buildDeck({
   cases,
   deckTitle,
@@ -1812,6 +2204,8 @@ export async function buildDeck({
   scratchDir,
   deckMode = DECK_MODES.caseConference,
   coreReviewQuestions = [],
+  coreReviewCaseBank = null,
+  coreReviewCaseBankPath = "",
   theme = "classic",
   includeTeachingPoints = false,
 }) {
@@ -1830,6 +2224,10 @@ export async function buildDeck({
   const activeDeckMode = resolveDeckMode(deckMode);
   const shouldIncludeTeachingPoints = includeTeachingPoints || activeDeckMode === DECK_MODES.coreReview;
   const teachingSlideTitle = activeDeckMode === DECK_MODES.coreReview ? "Core Review Notes" : "Teaching Points";
+  const coreReviewCaseBankCases =
+    activeDeckMode === DECK_MODES.coreReview
+      ? await resolveCoreReviewCaseBankCases(coreReviewCaseBank, coreReviewCaseBankPath)
+      : [];
   const standaloneQuestionGroups =
     activeDeckMode === DECK_MODES.coreReview
       ? standaloneQuestionsByCase(cases, Array.isArray(coreReviewQuestions) ? coreReviewQuestions : [])
@@ -1849,7 +2247,15 @@ export async function buildDeck({
       const anatomyQuestion = buildCaseAnatomyQuestion(caseData);
 
       addCaseSlide(addSlide(), caseData, caseNumber, deckTitle, activeTheme);
-      await addCoreReviewDiagnosisQuestionSlide(addSlide(), caseData, caseNumber, deckTitle, activeTheme, cases);
+      await addCoreReviewDiagnosisQuestionSlide(
+        addSlide(),
+        caseData,
+        caseNumber,
+        deckTitle,
+        activeTheme,
+        cases,
+        coreReviewCaseBankCases,
+      );
       if (anatomyQuestion) {
         await addCoreReviewAnatomyQuestionSlide(
           addSlide(),
