@@ -757,6 +757,88 @@ test("core review diagnosis choices prefer plausible same-region distractors", a
   assert.doesNotMatch(diagnosisSlideText, /pulmonary embolism|Rotator cuff tear|obstructing ureteric stone/i);
 });
 
+test("core review wrist diagnosis choices do not fall back to shoulder or hip distractors", async () => {
+  const { buildDeck } = await import("../src/deck.mjs");
+  const sharp = (await import("sharp")).default;
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "radiology-deck-core-wrist-distractors-"));
+  const imagePath = path.join(tempDir, "wrist.png");
+  const outputPath = path.join(tempDir, "wrist-distractors.pptx");
+
+  await sharp({
+    create: {
+      width: 640,
+      height: 420,
+      channels: 3,
+      background: "#202020",
+    },
+  }).png().toFile(imagePath);
+
+  const baseCase = {
+    caseUrl: "https://radiopaedia.org/cases/example",
+    author: "Test Author",
+    licenseName: "CC BY-NC-SA 3.0",
+    images: [{ localPath: imagePath, label: "X-ray" }],
+  };
+
+  await buildDeck({
+    cases: [
+      {
+        ...baseCase,
+        rawInput: "pulmonary embolism, cta chest",
+        diagnosisQuery: "pulmonary embolism",
+        studyHint: "CTA chest",
+        caseTitle: "pulmonary embolism",
+        coreReviewPlan: { domain: "thoracic", anatomyPrompt: "chest" },
+      },
+      {
+        ...baseCase,
+        rawInput: "rotator cuff tear, mri shoulder",
+        diagnosisQuery: "Rotator cuff tear",
+        studyHint: "MRI shoulder",
+        caseTitle: "Rotator cuff tear",
+        coreReviewPlan: { domain: "msk", anatomyPrompt: "shoulder" },
+      },
+      {
+        ...baseCase,
+        rawInput: "scaphoid fracture, wrist radiograph",
+        diagnosisQuery: "Scaphoid fracture",
+        studyHint: "Wrist radiograph",
+        caseTitle: "Scaphoid fracture",
+        coreReviewPlan: { domain: "msk", anatomyPrompt: "wrist" },
+      },
+      {
+        ...baseCase,
+        rawInput: "avascular necrosis - hip, mri hip",
+        diagnosisQuery: "avascular necrosis - hip",
+        studyHint: "MRI hip",
+        caseTitle: "avascular necrosis - hip",
+        coreReviewPlan: { domain: "msk", anatomyPrompt: "hip" },
+      },
+    ],
+    deckTitle: "Wrist Distractor Regression",
+    outputPath,
+    scratchDir: path.join(tempDir, "scratch"),
+    deckMode: "core-review",
+    coreReviewCaseBank: [
+      { caseTitle: "rotator cuff tear", domain: "msk", anatomy: "shoulder" },
+      { caseTitle: "avascular necrosis - hip", domain: "msk", anatomy: "hip" },
+      { caseTitle: "rheumatoid arthritis", domain: "msk", anatomy: "hands" },
+    ],
+  });
+
+  const pptx = await fs.readFile(outputPath);
+  const diagnosisSlideText = readSlideTexts(pptx).find((text) =>
+    /What is the most likely diagnosis\?/.test(text) && /Scaphoid fracture/.test(text),
+  );
+
+  assert.ok(diagnosisSlideText, "scaphoid fracture should receive the diagnosis MCQ slot");
+  assert.match(
+    diagnosisSlideText,
+    /Lunate dislocation|Perilunate dislocation|Scapholunate ligament injury|Kienbock disease|Distal radius fracture/,
+  );
+  assert.doesNotMatch(diagnosisSlideText, /Rotator cuff tear|Avascular necrosis|Transient osteoporosis|Slipped capital/i);
+});
+
 function readZipEntryText(buffer, entryName) {
   const entry = readZipEntry(buffer, entryName);
   return entry.toString("utf8");

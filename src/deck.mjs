@@ -190,6 +190,14 @@ const DIAGNOSIS_DIFFERENTIAL_GROUPS = [
     distractors: ["Subchondral insufficiency fracture", "Transient osteoporosis of the hip", "Slipped capital femoral epiphysis", "Femoral neck stress fracture"],
   },
   {
+    id: "wrist-hand",
+    patterns: [/\bscaphoid\b/i, /\bwrist\b/i, /\bcarpal\b/i, /\blunate\b/i, /\bperilunate\b/i, /\bscapholunate\b/i, /\bkienb(?:o|\u00f6)ck\b/i],
+    terms: ["wrist", "hand", "carpal", "scaphoid", "lunate", "perilunate", "scapholunate", "distal radius"],
+    domains: ["msk", "mr", "ct", "radiography_fluoroscopy"],
+    systems: ["Musculoskeletal"],
+    distractors: ["Lunate dislocation", "Perilunate dislocation", "Scapholunate ligament injury", "Kienbock disease", "Distal radius fracture"],
+  },
+  {
     id: "pediatric-bowel",
     patterns: [/\bintussusception\b/i, /\bmalrotation\b/i, /\bmidgut volvulus\b/i, /\bpyloric stenosis\b/i],
     terms: ["pediatric", "paediatric", "bowel", "neonatal", "abdomen", "upper gi"],
@@ -205,6 +213,19 @@ const DIAGNOSIS_DIFFERENTIAL_GROUPS = [
     systems: ["Breast"],
     distractors: ["Fibroadenoma", "Invasive ductal carcinoma", "Fat necrosis", "Intraductal papilloma"],
   },
+];
+const DIAGNOSIS_ANATOMY_REGION_HINTS = [
+  { id: "shoulder", patterns: [/\bshoulder\b/i, /\brotator cuff\b/i, /\bsupraspinatus\b/i, /\bsubscapularis\b/i, /\blabrum\b/i] },
+  { id: "elbow", patterns: [/\belbow\b/i, /\bradial head\b/i, /\bolecranon\b/i] },
+  { id: "wrist-hand", patterns: [/\bwrist\b/i, /\bhand(?:s)?\b/i, /\bcarpal\b/i, /\bmetacarpal\b/i, /\bscaphoid\b/i, /\blunate\b/i, /\bperilunate\b/i, /\bscapholunate\b/i, /\bkienb(?:o|\u00f6)ck\b/i] },
+  { id: "hip", patterns: [/\bhip\b/i, /\bfemoral head\b/i, /\bavascular necrosis\b/i, /\bscfe\b/i, /\bslipped capital femoral epiphysis\b/i, /\bacetabulum\b/i] },
+  { id: "knee", patterns: [/\bknee\b/i, /\bmenisc(?:us|al)\b/i, /\bacl\b/i, /\bpcl\b/i, /\bpatella\b/i] },
+  { id: "ankle-foot", patterns: [/\bankle\b/i, /\bfoot\b/i, /\bcalcaneus\b/i, /\btalus\b/i, /\bmetatarsal\b/i] },
+  { id: "spine", patterns: [/\bspine\b/i, /\bcervical\b/i, /\bthoracic\b/i, /\blumbar\b/i, /\bsacrum\b/i, /\bvertebr/i] },
+  { id: "pelvis", patterns: [/\bpelvis\b/i, /\bpelvic\b/i, /\bsacroiliac\b/i, /\bperianal\b/i, /\brectal\b/i] },
+  { id: "chest", patterns: [/\bchest\b/i, /\bpulmonary\b/i, /\blung\b/i, /\bpleura\b/i, /\bmediastin/i] },
+  { id: "brain", patterns: [/\bbrain\b/i, /\bintracranial\b/i, /\bcerebell/i, /\bposterior fossa\b/i, /\bcpa\b/i, /\biac\b/i] },
+  { id: "kidney-urinary", patterns: [/\bkidney\b/i, /\brenal\b/i, /\bureter\b/i, /\burinary\b/i, /\bhydronephrosis\b/i] },
 ];
 
 const THEMES = {
@@ -1246,6 +1267,13 @@ function detectDiagnosisModalities(...values) {
     .map((hint) => hint.label.toLowerCase());
 }
 
+function detectDiagnosisAnatomyRegions(...values) {
+  const sourceText = values.flatMap(arrayText).join(" ");
+  return DIAGNOSIS_ANATOMY_REGION_HINTS
+    .filter((hint) => hint.patterns.some((pattern) => pattern.test(sourceText)))
+    .map((hint) => hint.id);
+}
+
 function matchingDifferentialGroups(text) {
   return DIAGNOSIS_DIFFERENTIAL_GROUPS.filter((group) =>
     group.patterns.some((pattern) => pattern.test(text)),
@@ -1285,6 +1313,8 @@ function diagnosisProfile(item, forcedGroupIds = []) {
   const groupTerms = [...groups.values()].flatMap((group) => group.terms || []);
   const groupDomains = [...groups.values()].flatMap((group) => group.domains || []);
   const groupSystems = [...groups.values()].flatMap((group) => group.systems || []);
+  const topicFocus = normalizeText(item?.topicFocus).toLowerCase();
+  const anatomyRegions = dedupe(detectDiagnosisAnatomyRegions(text, anatomy, groupTerms, topicFocus));
 
   return {
     text: text.toLowerCase(),
@@ -1293,6 +1323,7 @@ function diagnosisProfile(item, forcedGroupIds = []) {
     systems: dedupe([...systems, ...groupSystems.map((value) => value.toLowerCase())]),
     modalities: dedupe(detectDiagnosisModalities(text, item?.modalities || [])),
     anatomy,
+    anatomyRegions,
     terms: dedupe(
       [
         ...groupTerms,
@@ -1301,7 +1332,7 @@ function diagnosisProfile(item, forcedGroupIds = []) {
         .map((value) => normalizeText(value).toLowerCase())
         .filter((value) => value.length >= 3),
     ),
-    topicFocus: normalizeText(item?.topicFocus).toLowerCase(),
+    topicFocus,
     groupIds: [...groups.keys()],
   };
 }
@@ -1353,6 +1384,11 @@ function diagnosisCandidateScore(candidate, targetProfile, targetText) {
 
   if (intersects(profile.groupIds, targetProfile.groupIds)) {
     score += 110;
+  }
+  if (intersects(profile.anatomyRegions, targetProfile.anatomyRegions)) {
+    score += 85;
+  } else if (profile.anatomyRegions?.length && targetProfile.anatomyRegions?.length) {
+    score -= 90;
   }
   if (intersects(profile.terms, targetProfile.terms)) {
     score += 50;
