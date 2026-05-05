@@ -2243,9 +2243,18 @@ function removePowerPointCreationIdExtensions(xml) {
   return xml.replace(POWERPOINT_CREATION_ID_EXT_PATTERN, "");
 }
 
+function removeDanglingContentTypeOverrides(xml, entryNames) {
+  return xml.replace(/<Override\b[^>]*\bPartName="\/([^"]+)"[^>]*\/>/g, (match, partName) => {
+    return entryNames.has(partName) ? match : "";
+  });
+}
+
 async function normalizePowerPointPackage(filePath) {
   const buffer = await fs.readFile(filePath);
   const zip = await JSZip.loadAsync(buffer);
+  const entryNames = new Set(Object.entries(zip.files)
+    .filter(([, entry]) => !entry.dir)
+    .map(([entryName]) => entryName));
   let changed = false;
 
   for (const [entryName, entry] of Object.entries(zip.files)) {
@@ -2254,6 +2263,7 @@ async function normalizePowerPointPackage(filePath) {
     }
 
     const shouldNormalize =
+      entryName === "[Content_Types].xml" ||
       entryName === "ppt/presentation.xml" ||
       OPENXML_POSITIONABLE_ENTRY_PATTERN.test(entryName);
 
@@ -2263,6 +2273,9 @@ async function normalizePowerPointPackage(filePath) {
 
     const xml = await entry.async("string");
     let normalized = xml;
+    if (entryName === "[Content_Types].xml") {
+      normalized = removeDanglingContentTypeOverrides(normalized, entryNames);
+    }
     if (entryName === "ppt/presentation.xml") {
       normalized = normalizePresentationXmlOrder(normalized);
     }

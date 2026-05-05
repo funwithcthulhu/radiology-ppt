@@ -371,6 +371,13 @@ test("core review mode renders mixed case exercises and standalone review prompt
       `${entry} should not contain fractional OpenXML coordinates`,
     );
   }
+
+  const packageEntries = new Set(listZipEntries(pptx));
+  const contentTypesXml = readZipEntryText(pptx, "[Content_Types].xml");
+  const danglingContentTypeOverrides = [...contentTypesXml.matchAll(/<Override\b[^>]*\bPartName="\/([^"]+)"/g)]
+    .map((match) => match[1])
+    .filter((partName) => !packageEntries.has(partName));
+  assert.deepEqual(danglingContentTypeOverrides, [], "content type overrides should only reference packaged parts");
 });
 
 test("core review diagnosis choices prefer plausible same-region distractors", async () => {
