@@ -1484,10 +1484,17 @@ function coreReviewExerciseType(caseData, caseNumber, anatomyQuestion) {
   if (!hasImage && ["structure_card", "pin_abnormality", "pin_anatomy"].includes(preferred)) {
     return "diagnosis_open";
   }
+  if (preferred === "pin_abnormality" && !anatomyQuestion?.hotspot) {
+    return "diagnosis_open";
+  }
   if (preferred === "pin_anatomy" && !anatomyQuestion?.answerText) {
-    return hasImage ? "pin_abnormality" : "diagnosis_open";
+    return "diagnosis_open";
   }
   return preferred;
+}
+
+function caseDiagnosisAnswer(caseData) {
+  return normalizeText(caseData?.caseTitle || caseData?.diagnosisQuery || "");
 }
 
 function buildCoreReviewStructureFindingPrompt(caseData, anatomyQuestion, exerciseType) {
@@ -1500,13 +1507,22 @@ function buildCoreReviewStructureFindingPrompt(caseData, anatomyQuestion, exerci
   const specificAnatomy = normalizeText(anatomyQuestion?.answerText || regionText);
   const isPinAnatomy = exerciseType === "pin_anatomy";
   const isPinAbnormality = exerciseType === "pin_abnormality";
+  if (isPinAbnormality && !anatomyQuestion?.hotspot) {
+    return null;
+  }
+
+  const abnormalityAnswer = caseDiagnosisAnswer(caseData) || specificAnatomy || "Abnormality";
+  const answerDetail = isPinAbnormality && specificAnatomy && specificAnatomy !== abnormalityAnswer
+    ? `Marked region: ${specificAnatomy}`
+    : "";
   const stem = isPinAnatomy
     ? `Pin: ${specificAnatomy || "the specified anatomy"}.`
     : "Pin the abnormality.";
 
   return {
     stem,
-    answerText: isPinAnatomy ? specificAnatomy : (regionText || "Abnormality"),
+    answerText: isPinAnatomy ? specificAnatomy : abnormalityAnswer,
+    answerDetail,
     image,
     hotspot: anatomyQuestion?.hotspot || null,
     showPromptMarker: false,
@@ -1884,20 +1900,20 @@ async function addCoreReviewAnatomyAnswerSlide(
   addText(
     slide,
     title,
-    { left: 82, top: 140, width: 460, height: 58 },
+    { left: 82, top: 140, width: 560, height: 96 },
     theme,
     {
-      fontSize: 42,
+      fontSize: title.length > 18 ? 38 : 42,
       color: theme.colors.ink,
       face: theme.fonts.title,
       bold: true,
-      autoFit: null,
+      autoFit: "shrinkText",
     },
   );
   addText(
     slide,
     anatomyQuestion.answerText,
-    { left: 82, top: 216, width: 540, height: 168 },
+    { left: 82, top: 258, width: 540, height: 92 },
     theme,
     {
       fontSize: 30,
@@ -1906,17 +1922,36 @@ async function addCoreReviewAnatomyAnswerSlide(
       bold: true,
     },
   );
-  addText(
-    slide,
-    caseData.caseTitle,
-    { left: 82, top: 392, width: 540, height: 64 },
-    theme,
-    {
-      fontSize: 22,
-      color: theme.colors.ink,
-      face: theme.fonts.body,
-    },
-  );
+  const answerDetail = normalizeText(anatomyQuestion.answerDetail || "");
+  const caseTitle = normalizeText(caseData.caseTitle);
+  const duplicateCaseTitle = caseTitle
+    && caseTitle.toLocaleLowerCase() === normalizeText(anatomyQuestion.answerText).toLocaleLowerCase();
+  if (answerDetail) {
+    addText(
+      slide,
+      answerDetail,
+      { left: 82, top: 360, width: 540, height: 42 },
+      theme,
+      {
+        fontSize: 18,
+        color: theme.colors.ink,
+        face: theme.fonts.body,
+      },
+    );
+  }
+  if (caseTitle && !duplicateCaseTitle) {
+    addText(
+      slide,
+      caseTitle,
+      { left: 82, top: answerDetail ? 422 : 392, width: 540, height: 64 },
+      theme,
+      {
+        fontSize: 22,
+        color: theme.colors.ink,
+        face: theme.fonts.body,
+      },
+    );
+  }
 
   await addImageGallery(
     slide,

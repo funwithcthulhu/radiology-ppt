@@ -247,7 +247,15 @@ test("core review mode renders mixed case exercises and standalone review prompt
         caseIntro: "The patient is a 52-year-old male.",
         revealSummary: "Enhancing mass expands the internal auditory canal and CPA cistern.",
         footerText: "Radiopaedia • rID-11",
-        images: [{ localPath: imagePath, label: "MRI • Axial postcontrast" }],
+        images: [
+          {
+            localPath: imagePath,
+            label: "MRI • Axial postcontrast",
+            focusPoints: [{ x: 320, y: 210, kind: "arrow", label: "CPA-IAC mass" }],
+            frameWidth: 640,
+            frameHeight: 420,
+          },
+        ],
         teachingPoints: ["CPA masses should be localized relative to the IAC and cisternal component."],
       },
       {
@@ -329,6 +337,9 @@ test("core review mode renders mixed case exercises and standalone review prompt
   assert.doesNotMatch(firstSlideText, /\bA\./);
   assert.match(allSlideText, /Structure \/ Finding/);
   assert.match(allSlideText, /Pin the abnormality\./);
+  const abnormalityAnswerSlideText = readSlideTexts(pptx).find((text) => /Abnormality \/ Finding/.test(text)) || "";
+  assert.match(abnormalityAnswerSlideText, /Vestibular schwannoma/);
+  assert.match(abnormalityAnswerSlideText, /Marked region: CPA-IAC mass/);
   assert.match(allSlideText, /What is the most likely diagnosis\?/);
   assert.match(allSlideText, /What is the diagnosis\?/);
   assert.match(allSlideText, /Pin: Supraspinatus tendon\./);
@@ -378,6 +389,58 @@ test("core review mode renders mixed case exercises and standalone review prompt
     .map((match) => match[1])
     .filter((partName) => !packageEntries.has(partName));
   assert.deepEqual(danglingContentTypeOverrides, [], "content type overrides should only reference packaged parts");
+});
+
+test("core review avoids pin-abnormality prompts without localized annotations", async () => {
+  const { buildDeck } = await import("../src/deck.mjs");
+  const sharp = (await import("sharp")).default;
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "radiology-deck-core-unannotated-pin-"));
+  const imagePath = path.join(tempDir, "unannotated.png");
+  const outputPath = path.join(tempDir, "unannotated-pin.pptx");
+
+  await sharp({
+    create: {
+      width: 640,
+      height: 420,
+      channels: 3,
+      background: "#202020",
+    },
+  }).png().toFile(imagePath);
+
+  await buildDeck({
+    cases: [
+      {
+        rawInput: "pulmonary embolism, cta chest",
+        diagnosisQuery: "pulmonary embolism",
+        studyHint: "cta chest",
+        caseTitle: "pulmonary embolism",
+        caseUrl: "https://radiopaedia.org/cases/pulmonary-embolism",
+        footerText: "Radiopaedia • rID-20",
+        images: [{ localPath: imagePath, label: "CTA chest" }],
+      },
+      {
+        rawInput: "rotator cuff tear, mri shoulder",
+        diagnosisQuery: "rotator cuff tear",
+        studyHint: "mri shoulder",
+        caseTitle: "rotator cuff tear",
+        caseUrl: "https://radiopaedia.org/cases/rotator-cuff-tear",
+        footerText: "Radiopaedia • rID-21",
+        images: [{ localPath: imagePath, label: "MRI shoulder" }],
+        coreReviewPlan: { domain: "msk", anatomyPrompt: "shoulder" },
+      },
+    ],
+    deckTitle: "Unannotated Pin Regression",
+    outputPath,
+    scratchDir: path.join(tempDir, "scratch"),
+    deckMode: "core-review",
+  });
+
+  const pptx = await fs.readFile(outputPath);
+  const allSlideText = readAllSlideText(pptx);
+
+  assert.doesNotMatch(allSlideText, /Pin the abnormality\./);
+  assert.doesNotMatch(allSlideText, /Abnormality \/ Finding/);
+  assert.match(allSlideText, /What is the diagnosis\?/);
 });
 
 test("core review diagnosis choices prefer plausible same-region distractors", async () => {
