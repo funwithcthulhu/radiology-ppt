@@ -21,8 +21,11 @@ public partial class MainWindow : Window
     private double _progressValue;
     private int _progressPreparedCount;
     private int _progressTargetCount;
+    private int _progressCandidateStart;
     private int _progressCandidateEnd;
     private int _progressCandidatePoolSize;
+    private int _progressFetchedCandidateCount;
+    private bool _progressCoreReviewMode;
 
     public ObservableCollection<CaseRequestRow> Requests => _viewModel.Requests;
 
@@ -714,8 +717,11 @@ public partial class MainWindow : Window
         _progressValue = 0;
         _progressPreparedCount = 0;
         _progressTargetCount = 0;
+        _progressCandidateStart = 0;
         _progressCandidateEnd = 0;
         _progressCandidatePoolSize = 0;
+        _progressFetchedCandidateCount = 0;
+        _progressCoreReviewMode = false;
         Progress.Value = 0;
         ProgressPercentText.Text = "0%";
     }
@@ -734,9 +740,28 @@ public partial class MainWindow : Window
 
         var message = progressEvent.Message;
         var detail = progressEvent.Detail;
+        if (message.Equals("Normalizing case requests", StringComparison.OrdinalIgnoreCase))
+        {
+            UpdateProgress(_progressCoreReviewMode ? ComputeCasePreparationProgress() : 5, FormatProgressMessage(message));
+            return;
+        }
+
+        if (message.Equals("case request expansion", StringComparison.OrdinalIgnoreCase))
+        {
+            UpdateProgress(_progressCoreReviewMode ? ComputeCasePreparationProgress() : 8, FormatProgressMessage(message));
+            return;
+        }
+
+        if (message.StartsWith("Completed case request expansion", StringComparison.OrdinalIgnoreCase))
+        {
+            UpdateProgress(_progressCoreReviewMode ? ComputeCasePreparationProgress() : 14, FormatProgressMessage(message));
+            return;
+        }
+
         if (message.Equals("Planning Core Review case requests", StringComparison.OrdinalIgnoreCase))
         {
-            UpdateProgress(5, message);
+            _progressCoreReviewMode = true;
+            UpdateProgress(4, message);
             return;
         }
 
@@ -744,7 +769,7 @@ public partial class MainWindow : Window
         {
             _progressTargetCount = ReadInt(detail, "requestedCaseCount");
             _progressCandidatePoolSize = ReadInt(detail, "plannedCaseCount");
-            UpdateProgress(10, FormatProgressMessage(message));
+            UpdateProgress(8, FormatProgressMessage(message));
             return;
         }
 
@@ -752,36 +777,86 @@ public partial class MainWindow : Window
         {
             _progressTargetCount = Math.Max(_progressTargetCount, ReadInt(detail, "targetCaseCount"));
             _progressPreparedCount = Math.Max(_progressPreparedCount, ReadInt(detail, "preparedCaseCount"));
+            _progressCandidateStart = Math.Max(1, ReadInt(detail, "candidateStart"));
             _progressCandidateEnd = Math.Max(_progressCandidateEnd, ReadInt(detail, "candidateEnd"));
             _progressCandidatePoolSize = Math.Max(_progressCandidatePoolSize, ReadInt(detail, "candidatePoolSize"));
+            _progressFetchedCandidateCount = 0;
             UpdateProgress(ComputeCasePreparationProgress(), FormatProgressMessage(message));
+            return;
+        }
+
+        if (message.Equals("Core Review case preparation complete", StringComparison.OrdinalIgnoreCase))
+        {
+            _progressPreparedCount = Math.Max(_progressPreparedCount, ReadInt(detail, "preparedCaseCount"));
+            _progressTargetCount = Math.Max(_progressTargetCount, ReadInt(detail, "requestedCaseCount"));
+            UpdateProgress(90, FormatProgressMessage(message));
             return;
         }
 
         if (message.Equals("Preparing case previews", StringComparison.OrdinalIgnoreCase))
         {
-            _progressTargetCount = ReadInt(detail, "requestCount");
-            UpdateProgress(18, FormatProgressMessage(message));
+            if (!_progressCoreReviewMode)
+            {
+                _progressTargetCount = ReadInt(detail, "requestCount");
+            }
+            UpdateProgress(_progressCoreReviewMode ? ComputeCasePreparationProgress() : 18, FormatProgressMessage(message));
             return;
         }
 
         if (message.Equals("Prepared case", StringComparison.OrdinalIgnoreCase))
         {
-            _progressPreparedCount += 1;
+            if (_progressCoreReviewMode)
+            {
+                _progressFetchedCandidateCount += 1;
+            }
+            else
+            {
+                _progressPreparedCount += 1;
+            }
             UpdateProgress(ComputeCasePreparationProgress(), FormatProgressMessage(message));
+            return;
+        }
+
+        if (message.Equals("case preview preparation", StringComparison.OrdinalIgnoreCase))
+        {
+            UpdateProgress(Math.Max(_progressValue, 20), FormatProgressMessage(message));
+            return;
+        }
+
+        if (message.StartsWith("Completed case preparation", StringComparison.OrdinalIgnoreCase))
+        {
+            UpdateProgress(ComputeCasePreparationProgress(), FormatProgressMessage(message));
+            return;
+        }
+
+        if (message.StartsWith("Completed case preview preparation", StringComparison.OrdinalIgnoreCase))
+        {
+            UpdateProgress(_progressCoreReviewMode ? ComputeCasePreparationProgress() : 86, FormatProgressMessage(message));
+            return;
+        }
+
+        if (message.Equals("duplicate random case check", StringComparison.OrdinalIgnoreCase))
+        {
+            UpdateProgress(_progressCoreReviewMode ? ComputeCasePreparationProgress() : 88, FormatProgressMessage(message));
+            return;
+        }
+
+        if (message.StartsWith("Completed duplicate random case check", StringComparison.OrdinalIgnoreCase))
+        {
+            UpdateProgress(_progressCoreReviewMode ? ComputeCasePreparationProgress() : 90, FormatProgressMessage(message));
             return;
         }
 
         if (message.Equals("Starting PowerPoint render", StringComparison.OrdinalIgnoreCase) ||
             message.Equals("PowerPoint render", StringComparison.OrdinalIgnoreCase))
         {
-            UpdateProgress(20, FormatProgressMessage(message));
+            UpdateProgress(message.Equals("Starting PowerPoint render", StringComparison.OrdinalIgnoreCase) ? 8 : 12, FormatProgressMessage(message));
             return;
         }
 
         if (message.StartsWith("Completed PowerPoint render", StringComparison.OrdinalIgnoreCase))
         {
-            UpdateProgress(92, FormatProgressMessage(message));
+            UpdateProgress(95, FormatProgressMessage(message));
             return;
         }
 
@@ -793,7 +868,7 @@ public partial class MainWindow : Window
 
         if (message.StartsWith("Completed ", StringComparison.OrdinalIgnoreCase))
         {
-            UpdateProgress(Math.Max(_progressValue, 85), FormatProgressMessage(message));
+            UpdateProgress(_progressValue, FormatProgressMessage(message));
             return;
         }
 
@@ -802,19 +877,35 @@ public partial class MainWindow : Window
 
     private double ComputeCasePreparationProgress()
     {
+        if (_progressCoreReviewMode)
+        {
+            return ComputeCoreReviewPreparationProgress();
+        }
+
         var targetRatio = _progressTargetCount > 0
             ? Math.Min(1, _progressPreparedCount / (double)_progressTargetCount)
             : 0;
-        var scanRatio = _progressCandidatePoolSize > 0
-            ? Math.Min(1, _progressCandidateEnd / (double)_progressCandidatePoolSize)
-            : 0;
-        var ratio = Math.Max(targetRatio, scanRatio * 0.45);
-        var value = 10 + (ratio * 82);
+        var value = 18 + (targetRatio * 66);
         if (_progressTargetCount > 0 && _progressPreparedCount >= _progressTargetCount)
         {
-            value = 92;
+            value = 86;
         }
         return value;
+    }
+
+    private double ComputeCoreReviewPreparationProgress()
+    {
+        var acceptedRatio = _progressTargetCount > 0
+            ? Math.Min(1, _progressPreparedCount / (double)_progressTargetCount)
+            : 0;
+        var candidatePosition = _progressCandidateStart > 0
+            ? Math.Max(0, (_progressCandidateStart - 1) + _progressFetchedCandidateCount)
+            : _progressCandidateEnd;
+        var scanRatio = _progressCandidatePoolSize > 0
+            ? Math.Min(1, candidatePosition / (double)_progressCandidatePoolSize)
+            : 0;
+        var ratio = Math.Max(acceptedRatio, scanRatio * 0.72);
+        return 8 + (ratio * 78);
     }
 
     private void UpdateProgress(double value, string message, bool allowDecrease = false)

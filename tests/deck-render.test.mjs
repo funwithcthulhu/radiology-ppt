@@ -112,6 +112,60 @@ test("preserves image aspect ratio on image slides", async () => {
   assert.ok(ratio > 3.8 && ratio < 4.2, `expected a 4:1 image ratio, got ${ratio}`);
 });
 
+test("normalizes embedded media extensions to match image bytes", async () => {
+  const { buildDeck } = await import("../src/deck.mjs");
+  const sharp = (await import("sharp")).default;
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "radiology-deck-media-ext-"));
+  const imagePath = path.join(tempDir, "radiopaedia-served-png.jpeg");
+  const outputPath = path.join(tempDir, "media-extension.pptx");
+
+  await sharp({
+    create: {
+      width: 480,
+      height: 360,
+      channels: 3,
+      background: "#202020",
+    },
+  }).png().toFile(imagePath);
+
+  await buildDeck({
+    cases: [
+      {
+        rawInput: "media mismatch",
+        diagnosisQuery: "Media mismatch",
+        caseTitle: "Media extension mismatch",
+        caseUrl: "https://radiopaedia.org/cases/example",
+        author: "Test Author",
+        licenseName: "CC BY-NC-SA 3.0",
+        rid: "rID-000001",
+        revealSummary: "Diagnosis sourced from the linked Radiopaedia case.",
+        footerText: "Radiopaedia • rID-000001 • Test Author • CC BY-NC-SA 3.0",
+        images: [{ localPath: imagePath, label: "PNG body delivered from a JPEG URL" }],
+        teachingPoints: ["PowerPoint media part extensions should match the actual embedded image bytes."],
+      },
+    ],
+    deckTitle: "Media Extension Regression",
+    outputPath,
+    scratchDir: path.join(tempDir, "scratch"),
+  });
+
+  const pptx = await fs.readFile(outputPath);
+  const mediaEntries = listZipEntries(pptx).filter((entry) => /^ppt\/media\/[^/]+$/.test(entry));
+  assert.ok(mediaEntries.some((entry) => entry.endsWith(".png")), "PNG image should be embedded with a .png part name");
+
+  for (const entry of mediaEntries) {
+    const bytes = readZipEntry(pptx, entry);
+    const isPng = bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+    const isJpeg = bytes[0] === 0xff && bytes[1] === 0xd8;
+    if (isPng) {
+      assert.match(entry, /\.png$/i, `${entry} contains PNG bytes but is not named .png`);
+    }
+    if (isJpeg) {
+      assert.match(entry, /\.jpe?g$/i, `${entry} contains JPEG bytes but is not named .jpg/.jpeg`);
+    }
+  }
+});
+
 test("case intro slide hides unsafe finding text", async () => {
   const { buildDeck } = await import("../src/deck.mjs");
   const sharp = (await import("sharp")).default;

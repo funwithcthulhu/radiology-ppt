@@ -19,13 +19,15 @@ const REQUEST_HEADERS = {
   "user-agent": "Mozilla/5.0",
 };
 const TEXT_CACHE = new Map();
-const HTTP_CONCURRENCY = boundedInteger(process.env.RADIOLOGY_PPT_HTTP_CONCURRENCY, 2, 1, 12);
+const HTTP_CONCURRENCY = boundedInteger(process.env.RADIOLOGY_PPT_HTTP_CONCURRENCY, 1, 1, 12);
 const HTTP_CONNECT_TIMEOUT_SECONDS = boundedInteger(process.env.RADIOLOGY_PPT_HTTP_CONNECT_TIMEOUT_SECONDS, 10, 2, 60);
 const HTTP_TEXT_TIMEOUT_SECONDS = boundedInteger(process.env.RADIOLOGY_PPT_HTTP_TEXT_TIMEOUT_SECONDS, 45, 5, 300);
 const HTTP_IMAGE_TIMEOUT_SECONDS = boundedInteger(process.env.RADIOLOGY_PPT_HTTP_IMAGE_TIMEOUT_SECONDS, 75, 10, 600);
 const HTTP_RETRY_ATTEMPTS = boundedInteger(process.env.RADIOLOGY_PPT_HTTP_RETRY_ATTEMPTS, 3, 1, 8);
+const HTTP_MIN_DELAY_MS = boundedInteger(process.env.RADIOLOGY_PPT_HTTP_MIN_DELAY_MS, 250, 0, 5000);
 let activeHttpRequests = 0;
 const httpQueue = [];
+let lastHttpRequestAt = 0;
 
 function boundedInteger(rawValue, defaultValue, minimum, maximum) {
   const parsed = Number.parseInt(rawValue ?? "", 10);
@@ -98,19 +100,32 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function waitForHttpPacing() {
+  if (HTTP_MIN_DELAY_MS <= 0) {
+    return;
+  }
+
+  const elapsed = Date.now() - lastHttpRequestAt;
+  if (elapsed < HTTP_MIN_DELAY_MS) {
+    await sleep(HTTP_MIN_DELAY_MS - elapsed);
+  }
+  lastHttpRequestAt = Date.now();
+}
+
 async function curlWithRetries(args, options, attempt = 1) {
   try {
-    return await withHttpSlot(() => execFileAsync("curl.exe", args, options));
+    return await withHttpSlot(async () => {
+      await waitForHttpPacing();
+      return execFileAsync("curl.exe", args, options);
+    });
   } catch (error) {
     const errorText = String(error.stderr || error.message || "");
-    if (/\b403\b/.test(errorText)) {
-      throw error;
-    }
     if (attempt >= HTTP_RETRY_ATTEMPTS) {
       throw error;
     }
     const isRateLimited = /\b429\b/.test(errorText);
-    await sleep((isRateLimited ? 1500 : 400) * attempt);
+    const isForbidden = /\b403\b/.test(errorText);
+    await sleep((isRateLimited || isForbidden ? 1500 : 400) * attempt);
     return curlWithRetries(args, options, attempt + 1);
   }
 }

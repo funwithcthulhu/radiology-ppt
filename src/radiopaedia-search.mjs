@@ -358,6 +358,20 @@ function indexedCaseToCandidate(row) {
   };
 }
 
+async function collectIndexedCaseCandidatePool(request, limit, excludePaths) {
+  const modality = request.preferredModalities?.[0] || preferredModalitiesFromHint(request.studyHint || "")[0] || "";
+  const rows = await readIndexedRandomCases({
+    limit: Math.max(limit, 12),
+    excludeCasePaths: [...excludePaths],
+    modality,
+    system: (request.searchSystems || []).length === 1 ? request.searchSystems[0] : "",
+    query: request.diagnosis || request.rawInput,
+    minSelectedImages: Math.min(Math.max(request.requestedImagesPerCase || 1, 1), 2),
+  });
+
+  return rows.map(indexedCaseToCandidate);
+}
+
 async function collectIndexedRandomCasePool(request, excludePaths) {
   const systems = request.randomSpec?.systems || [];
   const systemMode = request.randomSpec?.systemMode || "all";
@@ -757,6 +771,7 @@ export async function inspectRadiopaediaCaseCandidates(input, { limit = 5, fetch
     };
   }
   const candidateMap = new Map();
+  const searchFailures = [];
 
   for (const query of buildSearchQueries(request)) {
     const searchSystemAttempts = (request.searchSystems || []).length
@@ -769,7 +784,7 @@ export async function inspectRadiopaediaCaseCandidates(input, { limit = 5, fetch
       try {
         html = await fetchSearchText(searchUrl);
       } catch (error) {
-        emitWarning("Radiopaedia case search failed; continuing with broader candidate search", {
+        searchFailures.push({
           query,
           systems,
           message: error.message,
@@ -802,6 +817,29 @@ export async function inspectRadiopaediaCaseCandidates(input, { limit = 5, fetch
     if (provisional.length >= limit && provisional[0]?.score >= 0.84) {
       break;
     }
+  }
+
+  if (!candidateMap.size) {
+    for (const candidate of await collectIndexedCaseCandidatePool(request, limit, excludedPaths)) {
+      if (!excludedPaths.has(comparableCasePath(candidate.casePath))) {
+        candidateMap.set(candidate.casePath, {
+          ...candidate,
+          score: Math.max(0.82, candidateScore(request, candidate.title, candidate.snippet)),
+          matchedQuery: "case-index",
+        });
+      }
+      if (candidateMap.size >= limit) {
+        break;
+      }
+    }
+  }
+
+  if (!candidateMap.size && searchFailures.length) {
+    emitWarning("Radiopaedia case search failed for request", {
+      request: request.rawInput,
+      attempts: searchFailures.length,
+      sampleFailures: searchFailures.slice(0, 3),
+    });
   }
 
   const candidates = [...candidateMap.values()]

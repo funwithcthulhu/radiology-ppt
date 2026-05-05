@@ -43,9 +43,9 @@ const RANDOM_PREPARE_REPLACEMENT_ATTEMPTS = boundedInteger(
 const CORE_REVIEW_PREPARE_BATCH_SIZE = boundedInteger(process.env.RADIOLOGY_PPT_CORE_REVIEW_PREPARE_BATCH_SIZE, 6, 1, 30);
 const CORE_REVIEW_CANDIDATE_MULTIPLIER = boundedInteger(
   process.env.RADIOLOGY_PPT_CORE_REVIEW_CANDIDATE_MULTIPLIER,
-  5,
-  1,
   8,
+  1,
+  12,
 );
 const CORE_REVIEW_CASE_CANDIDATE_LIMIT = boundedInteger(
   process.env.RADIOLOGY_PPT_CORE_REVIEW_CASE_CANDIDATE_LIMIT,
@@ -53,6 +53,7 @@ const CORE_REVIEW_CASE_CANDIDATE_LIMIT = boundedInteger(
   3,
   20,
 );
+const CASE_PREPARE_CONCURRENCY = boundedInteger(process.env.RADIOLOGY_PPT_CASE_PREPARE_CONCURRENCY, 2, 1, 6);
 const CORE_REVIEW_DEFAULT_QUESTION_BANK_PATH = path.join(
   RESOURCE_ROOT,
   "src",
@@ -155,8 +156,9 @@ export async function prepareCaseItems(rawEntries, args, { readRandomHistory = t
   emitProgress("Preparing case previews", { requestCount: entries.length });
 
   const cacheDir = path.join(APP_ROOT, "cache");
+  const prepareConcurrency = boundedInteger(args.casePrepareConcurrency, CASE_PREPARE_CONCURRENCY, 1, 6);
   const preparedResults = await withBackendStage("case preview preparation", { requestCount: entries.length }, () =>
-    mapWithConcurrency(entries, 3, (entry) => prepareEntry(entry, args, cacheDir)),
+    mapWithConcurrency(entries, prepareConcurrency, (entry) => prepareEntry(entry, args, cacheDir)),
   );
   const uniqueResults = await withBackendStage("duplicate random case check", { requestCount: preparedResults.length }, () =>
     replaceDuplicateRandomPreparedResults(preparedResults, entries, args, cacheDir),
@@ -188,7 +190,7 @@ export async function prepareCoreReviewDeck(args) {
   const requestedCaseCount = boundedInteger(args.caseCount || args.count, 50, 1, 150);
   const candidateCaseCount = Math.min(
     300,
-    Math.max(requestedCaseCount, requestedCaseCount * CORE_REVIEW_CANDIDATE_MULTIPLIER, requestedCaseCount + 60),
+    Math.max(requestedCaseCount, requestedCaseCount * CORE_REVIEW_CANDIDATE_MULTIPLIER, requestedCaseCount + 120),
   );
   const plan = await buildCoreReviewCasePlan({
     ...args,
@@ -208,9 +210,15 @@ export async function prepareCoreReviewDeck(args) {
       ...args,
       onlyNewRandomCases: args.onlyNewRandomCases !== false,
       caseCandidateLimit: args.caseCandidateLimit || CORE_REVIEW_CASE_CANDIDATE_LIMIT,
+      casePrepareConcurrency: args.casePrepareConcurrency || 1,
     },
     requestedCaseCount,
   );
+  emitProgress("Core Review case preparation complete", {
+    requestedCaseCount,
+    preparedCaseCount: prepared.items.length,
+    candidatePoolSize: plan.entries.length,
+  });
   scheduleFallbackCasePrefetch(prepared.items);
   return {
     plan,
@@ -221,6 +229,7 @@ export async function prepareCoreReviewDeck(args) {
 async function prepareCoreReviewCaseItems(entries, args, requestedCaseCount) {
   const items = [];
   const failures = [];
+  const candidateFailures = [];
   const attemptedEntries = [];
   const usedCasePaths = new Set();
 
@@ -245,7 +254,7 @@ async function prepareCoreReviewCaseItems(entries, args, requestedCaseCount) {
       readRandomHistory: true,
       writeRandomHistory: false,
     });
-    failures.push(...prepared.failures);
+    candidateFailures.push(...prepared.failures);
 
     for (const item of prepared.items) {
       const casePath = normalizedCasePath(item.caseData?.casePath || item.request?.selectedCasePath || "");
@@ -276,7 +285,7 @@ async function prepareCoreReviewCaseItems(entries, args, requestedCaseCount) {
       candidatePoolSize: entries.length,
     });
     failures.push(
-      `Core Review prepared ${items.length} of ${requestedCaseCount} requested case(s) after trying ${attemptedEntries.length} candidate request(s). Try Any Modality, a broader domain, or a smaller case count if this repeats.`,
+      `Core Review prepared ${items.length} of ${requestedCaseCount} requested case(s) after trying ${attemptedEntries.length} candidate request(s). ${candidateFailures.slice(0, 3).join(" ")}`,
     );
   }
 
@@ -428,15 +437,20 @@ async function mapWithConcurrency(items, limit, mapper) {
 }
 
 async function prepareEntry(entry, args, cacheDir) {
+  const isCoreReviewCandidate = Boolean(entry.coreReviewPlan);
   try {
-    const caseData = await withBackendStage("case preparation", { request: entry.rawInput }, () =>
+    const fetchCase = () =>
       fetchRadiopaediaCase(entry, {
         cacheDir,
         imagesPerCase: entry.requestedImagesPerCase || args.imagesPerCase,
         maxFallbackAttempts: isRandomPreparedRequest(entry) ? RANDOM_PREPARE_FALLBACK_ATTEMPTS : null,
         candidateLimit: entry.caseCandidateLimit || args.caseCandidateLimit || 6,
-      }),
-    );
+        acceptFirstUsable: isCoreReviewCandidate,
+      });
+    const caseData = await withBackendStage("case preparation", { request: entry.rawInput }, fetchCase, {
+      errorType: isCoreReviewCandidate ? "progress" : "stage-error",
+      errorVerb: isCoreReviewCandidate ? "Skipped" : "Failed",
+    });
     await recordCaseIndex({
       caseData,
       request: entry,
@@ -445,7 +459,11 @@ async function prepareEntry(entry, args, cacheDir) {
     emitProgress("Prepared case", { request: entry.rawInput, caseTitle: caseData.caseTitle });
     return { item: { request: entry, caseData }, failure: null };
   } catch (error) {
-    emitWarning("Case preparation failed", { request: entry.rawInput, error: error.message });
+    if (isCoreReviewCandidate) {
+      emitProgress("Skipped Core Review candidate", { request: entry.rawInput, reason: error.message });
+    } else {
+      emitWarning("Case preparation failed", { request: entry.rawInput, error: error.message });
+    }
     return {
       item: null,
       failure: `Unable to prepare case for "${entry.rawInput}": ${error.message}`,

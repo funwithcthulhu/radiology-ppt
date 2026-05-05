@@ -134,11 +134,18 @@ export async function fetchRadiopaediaCaseByPath(
   validateCasePage({ request, caseTitle, rid, studyIds, description });
 
   const studies = [];
+  const studyErrors = [];
+  let consecutiveStudyFailures = 0;
   for (const studyId of studyIds.slice(0, 8)) {
     try {
       studies.push(await fetchStudy(studyId, caseUrl));
+      consecutiveStudyFailures = 0;
     } catch (error) {
-      console.warn(`Warning: unable to load study ${studyId} for ${caseTitle}: ${error.message}`);
+      studyErrors.push({ studyId, message: error.message });
+      consecutiveStudyFailures += 1;
+      if (!studies.length && consecutiveStudyFailures >= 2) {
+        break;
+      }
     }
   }
 
@@ -183,6 +190,14 @@ export async function fetchRadiopaediaCaseByPath(
       studyId: null,
       seriesId: null,
       modality: orderedStudies[0]?.modality ?? null,
+      isKeyImage: true,
+      isCurrent: true,
+      relevantScore: 180,
+      audit: {
+        provider: "radiopaedia",
+        candidateSource: "page-preview-image",
+        reasons: studyErrors.length ? ["Radiopaedia study metadata was unavailable"] : ["Radiopaedia page preview image"],
+      },
     });
   }
 

@@ -21,7 +21,13 @@ export {
 
 export async function fetchRadiopaediaCase(
   input,
-  { cacheDir, imagesPerCase = 3, maxFallbackAttempts = null, candidateLimit = 6 },
+  {
+    cacheDir,
+    imagesPerCase = 3,
+    maxFallbackAttempts = null,
+    candidateLimit = 6,
+    acceptFirstUsable = false,
+  },
 ) {
   const request = parseCaseRequest(input);
   const fallbackCandidates = Array.isArray(request.fallbackCandidates) ? request.fallbackCandidates : [];
@@ -89,7 +95,7 @@ export async function fetchRadiopaediaCase(
       if (!bestCase || caseData.quality.overallScore > bestCase.quality.overallScore) {
         bestCase = caseData;
       }
-      if (!caseData.quality.shouldReroll) {
+      if (acceptFirstUsable || !caseData.quality.shouldReroll) {
         return caseData;
       }
     } catch (error) {
@@ -107,7 +113,7 @@ export async function fetchRadiopaediaCase(
   }
 
   if (attemptErrors.length) {
-    const reasons = dedupe(attemptErrors.map((attempt) => attempt.message).filter(Boolean)).slice(0, 3);
+    const reasons = dedupe(attemptErrors.map((attempt) => summarizeCaseAttemptError(attempt.message)).filter(Boolean)).slice(0, 3);
     const reasonText = reasons.length ? ` ${reasons.join(" ")}` : "";
     throw new Error(
       `No suitable Radiopaedia case could be prepared for "${request.rawInput}" after trying ${attemptErrors.length} candidate${attemptErrors.length === 1 ? "" : "s"}.${reasonText}`,
@@ -115,4 +121,21 @@ export async function fetchRadiopaediaCase(
   }
 
   throw lastError || new Error(`No Radiopaedia case results found for "${request.rawInput}".`);
+}
+
+function summarizeCaseAttemptError(message = "") {
+  const text = String(message);
+  if (/\b403\b/.test(text)) {
+    return "Radiopaedia returned HTTP 403 for one or more candidate case pages; the app will try other candidates.";
+  }
+  if (/No usable images/i.test(text)) {
+    return "Candidate cases did not expose usable images.";
+  }
+  if (/No .* studies were found/i.test(text)) {
+    return "Candidate cases did not match the requested modality.";
+  }
+  if (/Could not validate/i.test(text)) {
+    return "Candidate pages could not be validated as public Radiopaedia cases.";
+  }
+  return text.replace(/\s+/g, " ").slice(0, 220);
 }

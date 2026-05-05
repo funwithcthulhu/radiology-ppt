@@ -22,6 +22,11 @@ const OPENXML_POSITIONABLE_ENTRY_PATTERN =
 const OPENXML_COORDINATE_ATTR_PATTERN = /\b(x|y|cx|cy)="(-?\d+\.\d+)"/g;
 const POWERPOINT_CREATION_ID_EXT_PATTERN =
   /<p:extLst>\s*<p:ext\b[^>]*\buri="\{BB962C8B-B14F-4D97-AF65-F5344CB8AC3E\}"[^>]*>\s*<p14:creationId\b[^>]*\/>\s*<\/p:ext>\s*<\/p:extLst>/g;
+const POWERPOINT_IMAGE_FORMAT_EXTENSIONS = new Map([
+  ["jpeg", ".jpg"],
+  ["png", ".png"],
+  ["gif", ".gif"],
+]);
 const DECK_MODES = {
   caseConference: "case-conference",
   coreReview: "core-review",
@@ -471,10 +476,39 @@ async function containedImageFrame(imagePath, position) {
   }
 }
 
+async function powerPointSafeImagePath(imagePath) {
+  let metadata;
+  try {
+    metadata = await sharp(imagePath).metadata();
+  } catch {
+    return imagePath;
+  }
+  const format = metadata.format;
+  const expectedExtension = POWERPOINT_IMAGE_FORMAT_EXTENSIONS.get(format);
+  const existingExtension = path.extname(imagePath).toLowerCase();
+
+  if (
+    expectedExtension &&
+    (existingExtension === expectedExtension || (format === "jpeg" && existingExtension === ".jpeg"))
+  ) {
+    return imagePath;
+  }
+
+  const targetExtension = expectedExtension || ".png";
+  const safePath = `${imagePath}.pptx${targetExtension}`;
+  if (expectedExtension) {
+    await fs.copyFile(imagePath, safePath);
+  } else {
+    await sharp(imagePath).png().toFile(safePath);
+  }
+  return safePath;
+}
+
 async function addImage(slide, imagePath, position, alt) {
-  const frame = await containedImageFrame(imagePath, position);
+  const safeImagePath = await powerPointSafeImagePath(imagePath);
+  const frame = await containedImageFrame(safeImagePath, position);
   slide.addImage({
-    path: imagePath,
+    path: safeImagePath,
     ...frame,
     altText: alt,
   });
