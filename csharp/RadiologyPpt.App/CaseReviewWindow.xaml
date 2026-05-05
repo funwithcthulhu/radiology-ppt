@@ -3,10 +3,10 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Review Prepared Cases"
         Icon="Assets/app-icon.ico"
-        Width="1220"
-        Height="760"
-        MinWidth="940"
-        MinHeight="600"
+        Width="1180"
+        Height="720"
+        MinWidth="900"
+        MinHeight="560"
         WindowStartupLocation="CenterOwner"
         SourceInitialized="Window_SourceInitialized"
         KeyDown="Window_KeyDown">
@@ -111,9 +111,9 @@
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
                     <DockPanel Grid.Row="0" Margin="0,0,0,12">
+                        <Button DockPanel.Dock="Right" Content="Use Selected Candidates" Style="{StaticResource PrimaryButton}" Click="UseSelectedCandidates_Click" Margin="12,0,0,0" />
                         <TextBlock Text="Choose exact candidate images from the same Radiopaedia case, then fetch those frames as the selected images."
                                    Style="{StaticResource PageSubtitle}" VerticalAlignment="Center" />
-                        <Button DockPanel.Dock="Right" Content="Use Selected Candidates" Style="{StaticResource PrimaryButton}" Click="UseSelectedCandidates_Click" />
                     </DockPanel>
                     <Border Grid.Row="1" Style="{StaticResource Card}">
                         <ScrollViewer VerticalScrollBarVisibility="Auto" PreviewMouseWheel="SlowImageScroll_PreviewMouseWheel">
@@ -148,8 +148,12 @@
             </TabItem>
         </TabControl>
 
-        <DockPanel Grid.Row="2" Margin="0,10,0,0" LastChildFill="False">
-            <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
+        <Grid Grid.Row="2" Margin="0,10,0,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <WrapPanel Grid.Row="0">
                 <Button x:Name="KeepNextButton" Content="Keep Case &amp; Next" Style="{StaticResource PrimaryButton}" Click="KeepNext_Click" />
                 <Button x:Name="FavoriteNextButton" Content="Favorite &amp; Next" Click="FavoriteNext_Click" />
                 <Button Content="Skip Case" Click="Skip_Click" />
@@ -158,11 +162,11 @@
                 <Button x:Name="OllamaScoreButton" Content="Ollama Score Case" Click="OllamaScore_Click" />
                 <Button x:Name="ReplaceUncheckedButton" Content="Replace Unchecked" Click="ReplaceUnchecked_Click" />
                 <Button Content="Remove Unchecked" Click="RemoveUnchecked_Click" />
-            </StackPanel>
-            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+            </WrapPanel>
+            <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,4,0,0">
                 <ProgressBar x:Name="BusyProgress" Width="160" Height="8" IsIndeterminate="True" Visibility="Collapsed" Margin="0,0,10,0" />
                 <Button x:Name="CancelActionButton" Content="Cancel Action" Click="CancelAction_Click" IsEnabled="False" />
             </StackPanel>
-        </DockPanel>
+        </Grid>
     </Grid>
 </Window>
