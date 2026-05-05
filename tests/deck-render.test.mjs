@@ -192,7 +192,7 @@ test("renders cases with no selected images instead of crashing", async () => {
   assert.match(imageSlideText, /No selected images for this case\./);
 });
 
-test("core review mode renders diagnosis, anatomy, and standalone review prompts", async () => {
+test("core review mode renders mixed case exercises and standalone review prompts", async () => {
   const { buildDeck } = await import("../src/deck.mjs");
   const sharp = (await import("sharp")).default;
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "radiology-deck-core-review-"));
@@ -250,6 +250,43 @@ test("core review mode renders diagnosis, anatomy, and standalone review prompts
         images: [{ localPath: imagePath, label: "MRI • Axial postcontrast" }],
         teachingPoints: ["CPA masses should be localized relative to the IAC and cisternal component."],
       },
+      {
+        rawInput: "acute ischemic stroke, mri brain",
+        diagnosisQuery: "acute ischemic stroke",
+        studyHint: "mri brain",
+        caseTitle: "acute ischemic stroke",
+        caseUrl: "https://radiopaedia.org/cases/acute-ischemic-stroke",
+        author: "Test Author",
+        licenseName: "CC BY-NC-SA 3.0",
+        rid: "rID-12",
+        patientData: { age: "69", gender: "female" },
+        revealSummary: "Diffusion restriction in a vascular territory is typical of acute infarct.",
+        footerText: "Radiopaedia • rID-12",
+        images: [{ localPath: imagePath, label: "MRI • DWI" }],
+        coreReviewPlan: { domain: "neuro", anatomyPrompt: "brain" },
+      },
+      {
+        rawInput: "rotator cuff tear, mri shoulder",
+        diagnosisQuery: "rotator cuff tear",
+        studyHint: "mri shoulder",
+        caseTitle: "rotator cuff tear",
+        caseUrl: "https://radiopaedia.org/cases/rotator-cuff-tear",
+        author: "Test Author",
+        licenseName: "CC BY-NC-SA 3.0",
+        rid: "rID-13",
+        revealSummary: "Full-thickness supraspinatus tendon tear with fluid signal defect.",
+        footerText: "Radiopaedia • rID-13",
+        images: [
+          {
+            localPath: imagePath,
+            label: "MRI • Coronal T2",
+            focusPoints: [{ x: 314, y: 210, kind: "arrow", label: "Supraspinatus tendon" }],
+            frameWidth: 640,
+            frameHeight: 420,
+          },
+        ],
+        coreReviewPlan: { domain: "msk", anatomyPrompt: "shoulder" },
+      },
     ],
     deckTitle: "Core Review Regression",
     outputPath,
@@ -287,13 +324,14 @@ test("core review mode renders diagnosis, anatomy, and standalone review prompts
   const pptx = await fs.readFile(outputPath);
   const allSlideText = readAllSlideText(pptx);
 
+  assert.match(allSlideText, /Structure \/ Finding/);
+  assert.match(allSlideText, /Pin the abnormality\./);
   assert.match(allSlideText, /What is the most likely diagnosis\?/);
-  assert.match(allSlideText, /What structure or finding is indicated by the marker\?/);
-  assert.match(allSlideText, /Verbal anatomy check: on this image, where would you place the pin\?/);
-  assert.match(allSlideText, /Cerebellar tonsil/);
+  assert.match(allSlideText, /Pin: Supraspinatus tendon\./);
   assert.match(allSlideText, /Which communication step is best for an unexpected life-threatening finding\?/);
   assert.match(allSlideText, /After two half-lives, what percentage of the original activity remains\?/);
   assert.match(allSlideText, /Core Review Notes/);
+  assert.doesNotMatch(allSlideText, /What structure or finding is indicated by the marker\?/);
 
   const presentationXml = readZipEntryText(pptx, "ppt/presentation.xml");
   const notesMasterIndex = presentationXml.indexOf("<p:notesMasterIdLst");
@@ -357,16 +395,6 @@ test("core review diagnosis choices prefer plausible same-region distractors", a
     cases: [
       {
         ...baseCase,
-        rawInput: "perianal fistula, mri pelvis",
-        diagnosisQuery: "Perianal fistula",
-        studyHint: "MRI pelvis",
-        caseTitle: "Perianal fistula",
-        modalitySummary: "MRI pelvis",
-        systems: ["Gastrointestinal", "Urogenital"],
-        coreReviewPlan: { domain: "mr", anatomyPrompt: "pelvis" },
-      },
-      {
-        ...baseCase,
         rawInput: "pulmonary embolism, cta chest",
         diagnosisQuery: "pulmonary embolism",
         studyHint: "CTA chest",
@@ -380,6 +408,16 @@ test("core review diagnosis choices prefer plausible same-region distractors", a
         studyHint: "MRI shoulder",
         caseTitle: "Rotator cuff tear",
         coreReviewPlan: { domain: "msk", anatomyPrompt: "shoulder" },
+      },
+      {
+        ...baseCase,
+        rawInput: "perianal fistula, mri pelvis",
+        diagnosisQuery: "Perianal fistula",
+        studyHint: "MRI pelvis",
+        caseTitle: "Perianal fistula",
+        modalitySummary: "MRI pelvis",
+        systems: ["Gastrointestinal", "Urogenital"],
+        coreReviewPlan: { domain: "mr", anatomyPrompt: "pelvis" },
       },
       {
         ...baseCase,
@@ -397,7 +435,10 @@ test("core review diagnosis choices prefer plausible same-region distractors", a
   });
 
   const pptx = await fs.readFile(outputPath);
-  const diagnosisSlideText = decodeXmlText(readZipEntryText(pptx, "ppt/slides/slide2.xml"));
+  const diagnosisSlideText = readSlideTexts(pptx).find((text) =>
+    /What is the most likely diagnosis\?/.test(text) && /Perianal fistula/.test(text),
+  );
+  assert.ok(diagnosisSlideText, "perianal fistula should receive the diagnosis MCQ slot in this regression");
   assert.match(diagnosisSlideText, /Perianal fistula/);
   assert.match(
     diagnosisSlideText,
@@ -412,11 +453,14 @@ function readZipEntryText(buffer, entryName) {
 }
 
 function readAllSlideText(buffer) {
+  return readSlideTexts(buffer).join("\n\n");
+}
+
+function readSlideTexts(buffer) {
   return listZipEntries(buffer)
     .filter((entry) => /^ppt\/slides\/slide\d+\.xml$/.test(entry))
     .sort((left, right) => slideNumber(left) - slideNumber(right))
-    .map((entry) => decodeXmlText(readZipEntryText(buffer, entry)))
-    .join("\n\n");
+    .map((entry) => decodeXmlText(readZipEntryText(buffer, entry)));
 }
 
 function slideNumber(entryName) {

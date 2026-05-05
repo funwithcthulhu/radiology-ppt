@@ -26,6 +26,13 @@ const DECK_MODES = {
   caseConference: "case-conference",
   coreReview: "core-review",
 };
+const CORE_REVIEW_CASE_EXERCISE_SEQUENCE = [
+  "structure_card",
+  "pin_abnormality",
+  "diagnosis_mcq",
+  "pin_anatomy",
+  "diagnosis_open",
+];
 const DIAGNOSIS_KEY_FILLER_PATTERN =
   /\b(?:acute|chronic|adult|pediatric|paediatric|children|childhood|classic|typical|atypical|case|disease)\b/g;
 const DIAGNOSIS_MODALITY_HINTS = [
@@ -1380,9 +1387,11 @@ function selectDiagnosisDistractors(caseData, allCases, caseBankCases, correctTe
   return selected.slice(0, 3).map((candidate) => candidate.text);
 }
 
-function buildDiagnosisQuestion(caseData, allCases, caseNumber, caseBankCases = []) {
+function buildDiagnosisQuestion(caseData, allCases, caseNumber, caseBankCases = [], { multipleChoice = true } = {}) {
   const correctText = normalizeText(caseData.caseTitle || caseData.diagnosisQuery);
-  const distractors = selectDiagnosisDistractors(caseData, allCases, caseBankCases, correctText, caseNumber);
+  const distractors = multipleChoice
+    ? selectDiagnosisDistractors(caseData, allCases, caseBankCases, correctText, caseNumber)
+    : [];
   const optionTexts = distractors.length
     ? shuffle(
         [correctText, ...distractors],
@@ -1401,6 +1410,10 @@ function buildDiagnosisQuestion(caseData, allCases, caseNumber, caseBankCases = 
     answerKey: options.find((option) => option.isCorrect)?.id || "",
     correctText,
   };
+}
+
+function firstCaseImage(caseData) {
+  return (caseData.images || []).find((image) => imageLocalPath(image)) || null;
 }
 
 function buildCaseAnatomyQuestion(caseData) {
@@ -1435,7 +1448,7 @@ function buildCaseAnatomyQuestion(caseData) {
     };
   }
 
-  const verbalImage = (caseData.images || []).find((image) => imageLocalPath(image));
+  const verbalImage = firstCaseImage(caseData);
   const verbalAnswer = buildVerbalAnatomyAnswer(caseData);
   if (!verbalImage || !verbalAnswer) {
     return null;
@@ -1460,6 +1473,43 @@ function buildVerbalAnatomyAnswer(caseData) {
     .replace(/\b(MRI|MR|CT|X-ray|radiograph|ultrasound|US|fluoroscopy|PET|mammography|angiography|nuclear medicine)\b/gi, "")
     .replace(/[,\-_/]+/g, " ");
   return collapseWhitespace(withoutModality);
+}
+
+function coreReviewExerciseType(caseData, caseNumber, anatomyQuestion) {
+  const hasImage = Boolean(firstCaseImage(caseData));
+  const preferred = CORE_REVIEW_CASE_EXERCISE_SEQUENCE[(caseNumber - 1) % CORE_REVIEW_CASE_EXERCISE_SEQUENCE.length];
+  if (!hasImage && ["structure_card", "pin_abnormality", "pin_anatomy"].includes(preferred)) {
+    return "diagnosis_open";
+  }
+  if (preferred === "pin_anatomy" && !anatomyQuestion?.answerText) {
+    return hasImage ? "pin_abnormality" : "diagnosis_open";
+  }
+  return preferred;
+}
+
+function buildCoreReviewStructureFindingPrompt(caseData, anatomyQuestion, exerciseType) {
+  const image = anatomyQuestion?.image || firstCaseImage(caseData);
+  if (!image) {
+    return null;
+  }
+
+  const regionText = buildVerbalAnatomyAnswer(caseData);
+  const specificAnatomy = normalizeText(anatomyQuestion?.answerText || regionText);
+  const isPinAnatomy = exerciseType === "pin_anatomy";
+  const isPinAbnormality = exerciseType === "pin_abnormality";
+  const stem = isPinAnatomy
+    ? `Pin: ${specificAnatomy || "the specified anatomy"}.`
+    : "Pin the abnormality.";
+
+  return {
+    stem,
+    answerText: isPinAnatomy ? specificAnatomy : (regionText || "Abnormality"),
+    image,
+    hotspot: anatomyQuestion?.hotspot || null,
+    showPromptMarker: false,
+    promptLabel: isPinAbnormality ? "Pin Abnormality" : "Pin Anatomy",
+    answerTitle: isPinAbnormality ? "Abnormality / Finding" : "Structure / Finding",
+  };
 }
 
 function questionImageObject(question) {
@@ -1582,11 +1632,12 @@ async function addCoreReviewDiagnosisQuestionSlide(
   theme,
   allCases,
   caseBankCases,
+  { multipleChoice = true } = {},
 ) {
   slide.background = { color: cleanColor(theme.colors.imageBg) };
   addTopBar(slide, deckTitle, theme, { dark: true });
   const descriptor = caseDescriptor(caseData);
-  const question = buildDiagnosisQuestion(caseData, allCases, caseNumber, caseBankCases);
+  const question = buildDiagnosisQuestion(caseData, allCases, caseNumber, caseBankCases, { multipleChoice });
   const options = questionOptions(question);
 
   addText(
@@ -1691,13 +1742,21 @@ async function addCoreReviewDiagnosisQuestionSlide(
   addSpeakerNotes(slide, caseData, caseNumber, [`Diagnosis answer: ${question.correctText}`]);
 }
 
-async function addCoreReviewAnatomyQuestionSlide(slide, caseData, caseNumber, deckTitle, theme, anatomyQuestion) {
+async function addCoreReviewAnatomyQuestionSlide(
+  slide,
+  caseData,
+  caseNumber,
+  deckTitle,
+  theme,
+  anatomyQuestion,
+  { showMarker = false } = {},
+) {
   slide.background = { color: cleanColor(theme.colors.imageBg) };
   addTopBar(slide, deckTitle, theme, { dark: true });
 
   addText(
     slide,
-    `Case ${caseNumber} • Structure / Finding Question`,
+    `Case ${caseNumber} • ${anatomyQuestion.promptLabel || "Structure / Finding Question"}`,
     { left: 44, top: 58, width: 460, height: 18 },
     theme,
     {
@@ -1713,12 +1772,14 @@ async function addCoreReviewAnatomyQuestionSlide(slide, caseData, caseNumber, de
     slide,
     [anatomyQuestion.image],
     { left: 92, top: 90, width: 1140, height: 420 },
-    {
-      marker: {
-        image: anatomyQuestion.image,
-        hotspot: anatomyQuestion.hotspot,
-      },
-    },
+    showMarker && anatomyQuestion.hotspot
+      ? {
+          marker: {
+            image: anatomyQuestion.image,
+            hotspot: anatomyQuestion.hotspot,
+          },
+        }
+      : {},
   );
 
   addShape(
@@ -1759,7 +1820,15 @@ async function addCoreReviewAnatomyQuestionSlide(slide, caseData, caseNumber, de
   addSpeakerNotes(slide, caseData, caseNumber, [`Structure/finding answer: ${anatomyQuestion.answerText}`]);
 }
 
-async function addCoreReviewAnatomyAnswerSlide(slide, caseData, caseNumber, deckTitle, theme, anatomyQuestion) {
+async function addCoreReviewAnatomyAnswerSlide(
+  slide,
+  caseData,
+  caseNumber,
+  deckTitle,
+  theme,
+  anatomyQuestion,
+  { title = "Structure / Finding" } = {},
+) {
   slide.background = { color: cleanColor(theme.colors.diagnosisBg) };
   addTopBar(slide, deckTitle, theme, { dark: theme === THEMES["conference-dark"] });
 
@@ -1778,7 +1847,7 @@ async function addCoreReviewAnatomyAnswerSlide(slide, caseData, caseNumber, deck
   );
   addText(
     slide,
-    "Structure / Finding",
+    title,
     { left: 82, top: 140, width: 460, height: 58 },
     theme,
     {
@@ -2197,6 +2266,72 @@ async function resolveCoreReviewCaseBankCases(coreReviewCaseBank, coreReviewCase
   }
 }
 
+async function addCoreReviewCaseExerciseSlides({
+  addSlide,
+  caseData,
+  caseNumber,
+  deckTitle,
+  theme,
+  cases,
+  caseBankCases,
+}) {
+  const anatomyQuestion = buildCaseAnatomyQuestion(caseData);
+  const exerciseType = coreReviewExerciseType(caseData, caseNumber, anatomyQuestion);
+
+  if (exerciseType === "structure_card") {
+    const cardPrompt = buildCoreReviewStructureFindingPrompt(caseData, anatomyQuestion, exerciseType);
+    if (cardPrompt) {
+      await addCoreReviewAnatomyAnswerSlide(
+        addSlide(),
+        caseData,
+        caseNumber,
+        deckTitle,
+        theme,
+        cardPrompt,
+        { title: cardPrompt.answerTitle },
+      );
+      return;
+    }
+  }
+
+  if (exerciseType === "pin_abnormality" || exerciseType === "pin_anatomy") {
+    const pinPrompt = buildCoreReviewStructureFindingPrompt(caseData, anatomyQuestion, exerciseType);
+    if (pinPrompt) {
+      await addCoreReviewAnatomyQuestionSlide(
+        addSlide(),
+        caseData,
+        caseNumber,
+        deckTitle,
+        theme,
+        pinPrompt,
+        { showMarker: pinPrompt.showPromptMarker },
+      );
+      await addCoreReviewAnatomyAnswerSlide(
+        addSlide(),
+        caseData,
+        caseNumber,
+        deckTitle,
+        theme,
+        pinPrompt,
+        { title: pinPrompt.answerTitle },
+      );
+      return;
+    }
+  }
+
+  await addCoreReviewDiagnosisQuestionSlide(
+    addSlide(),
+    caseData,
+    caseNumber,
+    deckTitle,
+    theme,
+    cases,
+    caseBankCases,
+    { multipleChoice: exerciseType === "diagnosis_mcq" },
+  );
+  addDiagnosisSlide(addSlide(), caseData, caseNumber, deckTitle, theme);
+}
+
 export async function buildDeck({
   cases,
   deckTitle,
@@ -2244,39 +2379,15 @@ export async function buildDeck({
     const caseNumber = index + 1;
     const caseData = cases[index];
     if (activeDeckMode === DECK_MODES.coreReview) {
-      const anatomyQuestion = buildCaseAnatomyQuestion(caseData);
-
-      addCaseSlide(addSlide(), caseData, caseNumber, deckTitle, activeTheme);
-      await addCoreReviewDiagnosisQuestionSlide(
-        addSlide(),
+      await addCoreReviewCaseExerciseSlides({
+        addSlide,
         caseData,
         caseNumber,
         deckTitle,
-        activeTheme,
+        theme: activeTheme,
         cases,
-        coreReviewCaseBankCases,
-      );
-      if (anatomyQuestion) {
-        await addCoreReviewAnatomyQuestionSlide(
-          addSlide(),
-          caseData,
-          caseNumber,
-          deckTitle,
-          activeTheme,
-          anatomyQuestion,
-        );
-      }
-      addDiagnosisSlide(addSlide(), caseData, caseNumber, deckTitle, activeTheme);
-      if (anatomyQuestion) {
-        await addCoreReviewAnatomyAnswerSlide(
-          addSlide(),
-          caseData,
-          caseNumber,
-          deckTitle,
-          activeTheme,
-          anatomyQuestion,
-        );
-      }
+        caseBankCases: coreReviewCaseBankCases,
+      });
       if (shouldIncludeTeachingPoints && Array.isArray(caseData.teachingPoints) && caseData.teachingPoints.length) {
         addTeachingPointsSlide(addSlide(), caseData, caseNumber, deckTitle, activeTheme, {
           title: teachingSlideTitle,
