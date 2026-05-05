@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import JSZip from "jszip";
 import pptxgen from "pptxgenjs";
 import sharp from "sharp";
 import { collapseWhitespace, dedupe } from "./utils.mjs";
@@ -11,8 +12,11 @@ const SLIDE_W = 13.333333;
 const SLIDE_H = 7.5;
 const SX = SLIDE_W / W;
 const SY = SLIDE_H / H;
+const EMU_PER_INCH = 914400;
 const TRANSPARENT = "#00000000";
 const CORE_REVIEW_MARKER_COLOR = "#D4AF37";
+const SLIDE_XML_ENTRY_PATTERN = /^ppt\/slides\/slide\d+\.xml$/;
+const OPENXML_COORDINATE_ATTR_PATTERN = /\b(x|y|cx|cy)="(-?\d+\.\d+)"/g;
 const DECK_MODES = {
   caseConference: "case-conference",
   coreReview: "core-review",
@@ -503,6 +507,23 @@ function markerDiameter(imageFrame, hotspot) {
   return Math.max(0.24, minDimension * 0.08);
 }
 
+function emuSafeInches(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 0;
+  }
+  return Math.round(numeric * EMU_PER_INCH) / EMU_PER_INCH;
+}
+
+function emuSafeFrame(frame) {
+  return {
+    x: emuSafeInches(frame.x),
+    y: emuSafeInches(frame.y),
+    w: emuSafeInches(frame.w),
+    h: emuSafeInches(frame.h),
+  };
+}
+
 function addMarkerOverlay(slide, imageFrame, hotspot, color = CORE_REVIEW_MARKER_COLOR) {
   const center = hotspotCenter(hotspot);
   if (!center) {
@@ -513,18 +534,22 @@ function addMarkerOverlay(slide, imageFrame, hotspot, color = CORE_REVIEW_MARKER
   const markerY = imageFrame.y + imageFrame.h * center.y;
   const diameter = markerDiameter(imageFrame, hotspot);
   slide.addShape(SHAPE_TYPES.ellipse, {
-    x: markerX - diameter / 2,
-    y: markerY - diameter / 2,
-    w: diameter,
-    h: diameter,
+    ...emuSafeFrame({
+      x: markerX - diameter / 2,
+      y: markerY - diameter / 2,
+      w: diameter,
+      h: diameter,
+    }),
     fill: fillOption(TRANSPARENT),
     line: { color: cleanColor(color), width: 2.2 },
   });
   slide.addShape(SHAPE_TYPES.ellipse, {
-    x: markerX - diameter / 8,
-    y: markerY - diameter / 8,
-    w: diameter / 4,
-    h: diameter / 4,
+    ...emuSafeFrame({
+      x: markerX - diameter / 8,
+      y: markerY - diameter / 8,
+      w: diameter / 4,
+      h: diameter / 4,
+    }),
     fill: fillOption(color),
     line: { color: cleanColor(color), width: 0.8 },
   });
@@ -1113,9 +1138,14 @@ function questionInstructions(question) {
   }
 }
 
+function questionOptions(question) {
+  return Array.isArray(question?.options) ? question.options : [];
+}
+
 function answerTextForQuestion(question) {
+  const options = questionOptions(question);
   if (question.type === "single_best_answer") {
-    const option = question.options.find((candidate) => candidate.id === question.answerKey);
+    const option = options.find((candidate) => candidate.id === question.answerKey);
     return option ? `${option.id}. ${option.text}` : question.answerKey || "Answer not supplied";
   }
 
@@ -1126,11 +1156,12 @@ function answerTextForQuestion(question) {
   }
 
   if (question.type === "multi_correct") {
-    const keyed = question.options.filter((option) => question.answerKeys.includes(option.id));
+    const answerKeys = Array.isArray(question.answerKeys) ? question.answerKeys : [];
+    const keyed = options.filter((option) => answerKeys.includes(option.id));
     if (keyed.length) {
       return keyed.map((option) => `${option.id}. ${option.text}`).join("\n");
     }
-    return question.answerKeys.join(", ");
+    return answerKeys.join(", ");
   }
 
   if (question.type === "image_hotspot" || question.type === "gold_marker_abnormality") {
@@ -1175,6 +1206,7 @@ async function addCoreReviewDiagnosisQuestionSlide(slide, caseData, caseNumber, 
   addTopBar(slide, deckTitle, theme, { dark: true });
   const descriptor = caseDescriptor(caseData);
   const question = buildDiagnosisQuestion(caseData, allCases, caseNumber);
+  const options = questionOptions(question);
 
   addText(
     slide,
@@ -1234,10 +1266,10 @@ async function addCoreReviewDiagnosisQuestionSlide(slide, caseData, caseNumber, 
     },
   );
 
-  if (question.options.length) {
+  if (options.length) {
     addText(
       slide,
-      question.options.map((option) => `${option.id}. ${option.text}`).join("\n"),
+      options.map((option) => `${option.id}. ${option.text}`).join("\n"),
       { left: 90, top: 522, width: 920, height: 104 },
       theme,
       {
@@ -1419,6 +1451,7 @@ async function addCoreReviewAnatomyAnswerSlide(slide, caseData, caseNumber, deck
 async function addCoreReviewStandaloneQuestionSlide(slide, question, questionNumber, deckTitle, theme) {
   slide.background = { color: cleanColor(theme.colors.teachingBg) };
   addTopBar(slide, deckTitle, theme, { dark: false });
+  const options = questionOptions(question);
 
   addText(
     slide,
@@ -1471,10 +1504,10 @@ async function addCoreReviewStandaloneQuestionSlide(slide, question, questionNum
         bold: true,
       },
     );
-    if (question.options.length) {
+    if (options.length) {
       addText(
         slide,
-        question.options.map((option) => `${option.id}. ${option.text}`).join("\n"),
+        options.map((option) => `${option.id}. ${option.text}`).join("\n"),
         { left: 676, top: 316, width: 430, height: 180 },
         theme,
         {
@@ -1517,10 +1550,10 @@ async function addCoreReviewStandaloneQuestionSlide(slide, question, questionNum
       },
     );
 
-    if (question.options.length) {
+    if (options.length) {
       addText(
         slide,
-        question.options.map((option) => `${option.id}. ${option.text}`).join("\n"),
+        options.map((option) => `${option.id}. ${option.text}`).join("\n"),
         { left: 126, top: 326, width: 964, height: 208 },
         theme,
         {
@@ -1698,6 +1731,65 @@ function standaloneQuestionsByCase(cases, questions) {
   return groups;
 }
 
+function normalizeOpenXmlCoordinateAttributes(xml) {
+  return xml.replace(OPENXML_COORDINATE_ATTR_PATTERN, (_match, attr, value) => {
+    return `${attr}="${Math.round(Number(value))}"`;
+  });
+}
+
+function normalizePresentationXmlOrder(xml) {
+  const notesMatch = /<p:notesMasterIdLst\b[\s\S]*?<\/p:notesMasterIdLst>/.exec(xml);
+  const slideListMatch = /<p:sldIdLst\b/.exec(xml);
+  if (!notesMatch || !slideListMatch || notesMatch.index < slideListMatch.index) {
+    return xml;
+  }
+
+  const withoutNotes = `${xml.slice(0, notesMatch.index)}${xml.slice(notesMatch.index + notesMatch[0].length)}`;
+  const slideListIndex = withoutNotes.indexOf("<p:sldIdLst");
+  if (slideListIndex < 0) {
+    return xml;
+  }
+
+  return `${withoutNotes.slice(0, slideListIndex)}${notesMatch[0]}${withoutNotes.slice(slideListIndex)}`;
+}
+
+async function normalizePowerPointPackage(filePath) {
+  const buffer = await fs.readFile(filePath);
+  const zip = await JSZip.loadAsync(buffer);
+  let changed = false;
+
+  for (const [entryName, entry] of Object.entries(zip.files)) {
+    if (entry.dir) {
+      continue;
+    }
+
+    if (entryName !== "ppt/presentation.xml" && !SLIDE_XML_ENTRY_PATTERN.test(entryName)) {
+      continue;
+    }
+
+    const xml = await entry.async("string");
+    let normalized = xml;
+    if (entryName === "ppt/presentation.xml") {
+      normalized = normalizePresentationXmlOrder(normalized);
+    }
+    if (SLIDE_XML_ENTRY_PATTERN.test(entryName)) {
+      normalized = normalizeOpenXmlCoordinateAttributes(normalized);
+    }
+
+    if (normalized !== xml) {
+      zip.file(entryName, normalized);
+      changed = true;
+    }
+  }
+
+  if (!changed) {
+    return;
+  }
+
+  const normalizedBuffer = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
+  await fs.writeFile(filePath, normalizedBuffer);
+}
+
 export async function buildDeck({
   cases,
   deckTitle,
@@ -1802,6 +1894,7 @@ export async function buildDeck({
   }
 
   await presentation.writeFile({ fileName: outputPath });
+  await normalizePowerPointPackage(outputPath);
 
   return {
     outputPath,

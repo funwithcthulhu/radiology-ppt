@@ -276,7 +276,6 @@ test("core review mode renders diagnosis, anatomy, and standalone review prompts
         type: "numeric_fill_blank",
         domain: "physics",
         stem: "After two half-lives, what percentage of the original activity remains?",
-        options: [],
         numericAnswer: { value: 25, tolerance: 0.1, units: "%" },
         explanation: "Two half-lives leave one quarter of the original activity.",
         references: [{ label: "ABR Physics study guide", url: "https://www.theabr.org/physics-study-guide" }],
@@ -295,6 +294,24 @@ test("core review mode renders diagnosis, anatomy, and standalone review prompts
   assert.match(allSlideText, /Which communication step is best for an unexpected life-threatening finding\?/);
   assert.match(allSlideText, /After two half-lives, what percentage of the original activity remains\?/);
   assert.match(allSlideText, /Core Review Notes/);
+
+  const presentationXml = readZipEntryText(pptx, "ppt/presentation.xml");
+  const notesMasterIndex = presentationXml.indexOf("<p:notesMasterIdLst");
+  const slideListIndex = presentationXml.indexOf("<p:sldIdLst");
+  assert.ok(
+    notesMasterIndex < 0 || slideListIndex < 0 || notesMasterIndex < slideListIndex,
+    "notes master list should appear before slide list in presentation.xml",
+  );
+
+  const slideXmlEntries = listZipEntries(pptx).filter((entry) => /^ppt\/slides\/slide\d+\.xml$/.test(entry));
+  for (const entry of slideXmlEntries) {
+    const slideXml = readZipEntryText(pptx, entry);
+    assert.equal(
+      /\b(?:x|y|cx|cy)="-?\d+\.\d+"/.test(slideXml),
+      false,
+      `${entry} should not contain fractional OpenXML coordinates`,
+    );
+  }
 });
 
 function readZipEntryText(buffer, entryName) {

@@ -8,6 +8,7 @@
     "test": "node --no-warnings --test"
   },
   "dependencies": {
+    "jszip": "^3.10.1",
     "pdf-parse": "^2.4.5",
     "pptxgenjs": "^4.0.1",
     "sharp": "^0.34.5"
