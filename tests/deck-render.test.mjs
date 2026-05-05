@@ -443,6 +443,87 @@ test("core review avoids pin-abnormality prompts without localized annotations",
   assert.match(allSlideText, /What is the diagnosis\?/);
 });
 
+test("core review does not reveal pathology labels in pin anatomy prompts", async () => {
+  const { buildDeck } = await import("../src/deck.mjs");
+  const sharp = (await import("sharp")).default;
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "radiology-deck-core-pathology-pin-"));
+  const imagePath = path.join(tempDir, "head.png");
+  const outputPath = path.join(tempDir, "pathology-pin.pptx");
+
+  await sharp({
+    create: {
+      width: 640,
+      height: 420,
+      channels: 3,
+      background: "#202020",
+    },
+  }).png().toFile(imagePath);
+
+  const baseCase = {
+    caseUrl: "https://radiopaedia.org/cases/example",
+    images: [{ localPath: imagePath, label: "CT" }],
+  };
+
+  await buildDeck({
+    cases: [
+      {
+        ...baseCase,
+        rawInput: "pulmonary embolism, cta chest",
+        diagnosisQuery: "pulmonary embolism",
+        caseTitle: "pulmonary embolism",
+      },
+      {
+        ...baseCase,
+        rawInput: "perianal fistula, mri pelvis",
+        diagnosisQuery: "perianal fistula",
+        caseTitle: "perianal fistula",
+        images: [
+          {
+            localPath: imagePath,
+            label: "MRI pelvis",
+            focusPoints: [{ x: 320, y: 210, label: "fistula" }],
+            frameWidth: 640,
+            frameHeight: 420,
+          },
+        ],
+      },
+      {
+        ...baseCase,
+        rawInput: "appendicitis, ct abdomen pelvis",
+        diagnosisQuery: "appendicitis",
+        caseTitle: "appendicitis",
+      },
+      {
+        ...baseCase,
+        rawInput: "subdural hematoma, ct head",
+        diagnosisQuery: "subdural hematoma",
+        caseTitle: "subdural hematoma",
+        images: [
+          {
+            localPath: imagePath,
+            label: "CT head",
+            focusPoints: [{ x: 180, y: 120, label: "subdural collection" }],
+            frameWidth: 640,
+            frameHeight: 420,
+          },
+        ],
+      },
+    ],
+    deckTitle: "Pathology Pin Regression",
+    outputPath,
+    scratchDir: path.join(tempDir, "scratch"),
+    deckMode: "core-review",
+  });
+
+  const pptx = await fs.readFile(outputPath);
+  const allSlideText = readAllSlideText(pptx);
+  const case4QuestionText = readSlideTexts(pptx).find((text) => /Case 4 .* Diagnosis Question/.test(text)) || "";
+
+  assert.match(case4QuestionText, /What is the diagnosis\?/);
+  assert.doesNotMatch(allSlideText, /Pin: subdural collection/i);
+  assert.doesNotMatch(allSlideText, /Case 4 .* Pin Anatomy/);
+});
+
 test("core review diagnosis choices use clean sentence-case display labels", async () => {
   const { buildDeck } = await import("../src/deck.mjs");
   const sharp = (await import("sharp")).default;

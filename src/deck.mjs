@@ -56,6 +56,8 @@ const DIAGNOSIS_DISPLAY_ACRONYMS = [
   "SCFE",
   "US",
 ];
+const PIN_TARGET_ABNORMALITY_PATTERN =
+  /\b(?:abscess|aneurysm|avulsion|carcinoma|collection|contusion|dissection|embol(?:us|i|ism)|fistula|fracture|hematoma|haematoma|hemorrhage|haemorrhage|hernia|infarct|ischemia|ischaemia|lesion|lymphoma|malformation|mass|metastasis|necrosis|neoplasm|nodule|pneumothorax|rupture|stone|tear|thrombus|thrombosis|torsion|tumou?r)\b/i;
 const DIAGNOSIS_MODALITY_HINTS = [
   { label: "MRI", patterns: [/\bmri\b/i, /\bmr\b/i, /\bmagnetic resonance\b/i] },
   { label: "CT", patterns: [/\bct\b/i, /\bcomputed tomography\b/i] },
@@ -1549,6 +1551,20 @@ function buildVerbalAnatomyAnswer(caseData) {
   return collapseWhitespace(withoutModality);
 }
 
+function isLikelyAbnormalityPinTarget(answerText, caseData) {
+  const label = normalizeText(answerText);
+  if (!label) {
+    return false;
+  }
+  if (PIN_TARGET_ABNORMALITY_PATTERN.test(label)) {
+    return true;
+  }
+
+  const labelKey = normalizeDiagnosisKey(label);
+  const diagnosisKey = normalizeDiagnosisKey(caseData?.caseTitle || caseData?.diagnosisQuery || "");
+  return Boolean(labelKey && diagnosisKey && diagnosisKeysLookEquivalent(labelKey, diagnosisKey));
+}
+
 function coreReviewExerciseType(caseData, caseNumber, anatomyQuestion) {
   const hasImage = Boolean(firstCaseImage(caseData));
   const preferred = CORE_REVIEW_CASE_EXERCISE_SEQUENCE[(caseNumber - 1) % CORE_REVIEW_CASE_EXERCISE_SEQUENCE.length];
@@ -1558,7 +1574,10 @@ function coreReviewExerciseType(caseData, caseNumber, anatomyQuestion) {
   if (preferred === "pin_abnormality" && !anatomyQuestion?.hotspot) {
     return "diagnosis_open";
   }
-  if (preferred === "pin_anatomy" && !anatomyQuestion?.answerText) {
+  if (
+    preferred === "pin_anatomy"
+    && (!anatomyQuestion?.answerText || isLikelyAbnormalityPinTarget(anatomyQuestion.answerText, caseData))
+  ) {
     return "diagnosis_open";
   }
   return preferred;
@@ -1578,6 +1597,9 @@ function buildCoreReviewStructureFindingPrompt(caseData, anatomyQuestion, exerci
   const specificAnatomy = normalizeText(anatomyQuestion?.answerText || regionText);
   const isPinAnatomy = exerciseType === "pin_anatomy";
   const isPinAbnormality = exerciseType === "pin_abnormality";
+  if (isPinAnatomy && isLikelyAbnormalityPinTarget(specificAnatomy, caseData)) {
+    return null;
+  }
   if (isPinAbnormality && !anatomyQuestion?.hotspot) {
     return null;
   }
