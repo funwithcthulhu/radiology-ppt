@@ -38,6 +38,24 @@ const CORE_REVIEW_CASE_EXERCISE_SEQUENCE = [
 ];
 const DIAGNOSIS_KEY_FILLER_PATTERN =
   /\b(?:acute|chronic|adult|pediatric|paediatric|children|childhood|classic|typical|atypical|case|disease)\b/g;
+const DIAGNOSIS_DISPLAY_TRAILING_QUALIFIER_PATTERN =
+  /\s*(?:[-–—:]\s*|\()\s*(?:abdomen(?:\s+pelvis)?|ankle|brain|breast|cervical\s+spine|chest|ct|cta|elbow|fluoroscopy|foot|hand|head|hip|knee|lumbar\s+spine|mammography|mr|mra|mri|neck|nuclear\s+medicine|pelvis|pet|radiograph|shoulder|spine|thoracic\s+spine|ultrasound|us|wrist|x-?ray)\s*\)?$/i;
+const DIAGNOSIS_DISPLAY_ACRONYMS = [
+  "ACL",
+  "AVM",
+  "CNS",
+  "CPA",
+  "CT",
+  "CTA",
+  "DVT",
+  "IAC",
+  "MR",
+  "MRI",
+  "PCL",
+  "PET",
+  "SCFE",
+  "US",
+];
 const DIAGNOSIS_MODALITY_HINTS = [
   { label: "MRI", patterns: [/\bmri\b/i, /\bmr\b/i, /\bmagnetic resonance\b/i] },
   { label: "CT", patterns: [/\bct\b/i, /\bcomputed tomography\b/i] },
@@ -160,6 +178,14 @@ const DIAGNOSIS_DIFFERENTIAL_GROUPS = [
     domains: ["msk", "mr"],
     systems: ["Musculoskeletal"],
     distractors: ["PCL tear", "Bucket-handle meniscal tear", "Osteochondral injury", "Collateral ligament sprain"],
+  },
+  {
+    id: "hip-femoral-head",
+    patterns: [/\bavascular necrosis\b/i, /\bfemoral head\b/i, /\bhip\b/i, /\bslipped capital femoral epiphysis\b/i, /\bscfe\b/i],
+    terms: ["hip", "femoral", "femoral head", "epiphysis", "physis", "acetabulum"],
+    domains: ["msk", "pediatric", "mr", "radiography_fluoroscopy"],
+    systems: ["Musculoskeletal", "Paediatrics"],
+    distractors: ["Subchondral insufficiency fracture", "Transient osteoporosis of the hip", "Slipped capital femoral epiphysis", "Femoral neck stress fracture"],
   },
   {
     id: "pediatric-bowel",
@@ -1164,6 +1190,33 @@ function normalizeDiagnosisKey(value) {
     .trim();
 }
 
+function formatDiagnosisDisplayLabel(value) {
+  let text = normalizeText(value)
+    .replace(/[–—]/g, "-")
+    .replace(/\s+/g, " ");
+  while (DIAGNOSIS_DISPLAY_TRAILING_QUALIFIER_PATTERN.test(text)) {
+    text = text.replace(DIAGNOSIS_DISPLAY_TRAILING_QUALIFIER_PATTERN, "").trim();
+  }
+  if (!text) {
+    return "";
+  }
+
+  let formatted = text
+    .toLocaleLowerCase()
+    .replace(/\s*-\s*/g, "-");
+  for (const acronym of DIAGNOSIS_DISPLAY_ACRONYMS) {
+    formatted = formatted.replace(new RegExp(`\\b${acronym.toLocaleLowerCase()}\\b`, "g"), acronym);
+  }
+  formatted = formatted
+    .replace(/\bcrohn\b/g, "Crohn")
+    .replace(/\bdandy-walker\b/g, "Dandy-Walker")
+    .replace(/\blangerhans\b/g, "Langerhans")
+    .replace(/\blegg-calve-perthes\b/g, "Legg-Calve-Perthes")
+    .replace(/\bwilms\b/g, "Wilms");
+
+  return formatted.replace(/[a-z]/, (letter) => letter.toLocaleUpperCase());
+}
+
 function diagnosisKeysLookEquivalent(left, right) {
   if (!left || !right) {
     return false;
@@ -1391,20 +1444,38 @@ function selectDiagnosisDistractors(caseData, allCases, caseBankCases, correctTe
 }
 
 function buildDiagnosisQuestion(caseData, allCases, caseNumber, caseBankCases = [], { multipleChoice = true } = {}) {
-  const correctText = normalizeText(caseData.caseTitle || caseData.diagnosisQuery);
+  const correctRawText = normalizeText(caseData.caseTitle || caseData.diagnosisQuery);
+  const correctText = formatDiagnosisDisplayLabel(correctRawText) || correctRawText;
   const distractors = multipleChoice
-    ? selectDiagnosisDistractors(caseData, allCases, caseBankCases, correctText, caseNumber)
+    ? selectDiagnosisDistractors(caseData, allCases, caseBankCases, correctRawText, caseNumber)
     : [];
-  const optionTexts = distractors.length
+  const optionCandidates = [
+    { text: correctText, isCorrect: true },
+    ...distractors.map((text) => ({
+      text: formatDiagnosisDisplayLabel(text) || normalizeText(text),
+      isCorrect: false,
+    })),
+  ].filter((option) => option.text);
+  const uniqueOptionCandidates = [];
+  const seenOptionKeys = new Set();
+  for (const option of optionCandidates) {
+    const key = normalizeDiagnosisKey(option.text);
+    if (!key || seenOptionKeys.has(key)) {
+      continue;
+    }
+    seenOptionKeys.add(key);
+    uniqueOptionCandidates.push(option);
+  }
+  const shuffledOptions = distractors.length
     ? shuffle(
-        [correctText, ...distractors],
+        uniqueOptionCandidates,
         `${caseData.casePath || caseData.caseTitle || caseNumber}|diagnosis-options`,
       )
     : [];
-  const options = optionTexts.map((text, index) => ({
+  const options = shuffledOptions.map((option, index) => ({
     id: optionId(index),
-    text,
-    isCorrect: text === correctText,
+    text: option.text,
+    isCorrect: option.isCorrect,
   }));
 
   return {

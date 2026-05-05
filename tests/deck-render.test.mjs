@@ -443,6 +443,72 @@ test("core review avoids pin-abnormality prompts without localized annotations",
   assert.match(allSlideText, /What is the diagnosis\?/);
 });
 
+test("core review diagnosis choices use clean sentence-case display labels", async () => {
+  const { buildDeck } = await import("../src/deck.mjs");
+  const sharp = (await import("sharp")).default;
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "radiology-deck-core-choice-labels-"));
+  const imagePath = path.join(tempDir, "hip.png");
+  const outputPath = path.join(tempDir, "choice-labels.pptx");
+
+  await sharp({
+    create: {
+      width: 640,
+      height: 420,
+      channels: 3,
+      background: "#202020",
+    },
+  }).png().toFile(imagePath);
+
+  await buildDeck({
+    cases: [
+      {
+        rawInput: "pulmonary embolism, cta chest",
+        diagnosisQuery: "pulmonary embolism",
+        studyHint: "CTA chest",
+        caseTitle: "pulmonary embolism",
+        caseUrl: "https://radiopaedia.org/cases/pulmonary-embolism",
+        images: [{ localPath: imagePath, label: "CTA chest" }],
+      },
+      {
+        rawInput: "rotator cuff tear, mri shoulder",
+        diagnosisQuery: "rotator cuff tear",
+        studyHint: "MRI shoulder",
+        caseTitle: "rotator cuff tear",
+        caseUrl: "https://radiopaedia.org/cases/rotator-cuff-tear",
+        images: [{ localPath: imagePath, label: "MRI shoulder" }],
+      },
+      {
+        rawInput: "avascular necrosis - hip, mri hip",
+        diagnosisQuery: "avascular necrosis - hip",
+        studyHint: "MRI hip",
+        caseTitle: "avascular necrosis - hip",
+        caseUrl: "https://radiopaedia.org/cases/avascular-necrosis-hip",
+        images: [{ localPath: imagePath, label: "MRI hip" }],
+        coreReviewPlan: { domain: "msk", anatomyPrompt: "hip" },
+      },
+    ],
+    deckTitle: "Choice Label Regression",
+    outputPath,
+    scratchDir: path.join(tempDir, "scratch"),
+    deckMode: "core-review",
+    coreReviewCaseBank: [
+      { caseTitle: "osteosarcoma", domain: "msk", anatomy: "bone" },
+      { caseTitle: "slipped capital femoral epiphysis", domain: "msk", anatomy: "hip" },
+      { caseTitle: "rotator cuff tear", domain: "msk", anatomy: "shoulder" },
+    ],
+  });
+
+  const pptx = await fs.readFile(outputPath);
+  const diagnosisSlideText = readSlideTexts(pptx).find((text) =>
+    /What is the most likely diagnosis\?/.test(text) && /Avascular necrosis/.test(text),
+  );
+
+  assert.ok(diagnosisSlideText, "avascular necrosis should receive the diagnosis MCQ slot");
+  assert.match(diagnosisSlideText, /Avascular necrosis/);
+  assert.doesNotMatch(diagnosisSlideText, /Avascular necrosis - hip/i);
+  assert.doesNotMatch(diagnosisSlideText, /\b[A-D]\. [a-z]/);
+});
+
 test("core review diagnosis choices prefer plausible same-region distractors", async () => {
   const { buildDeck } = await import("../src/deck.mjs");
   const sharp = (await import("sharp")).default;
