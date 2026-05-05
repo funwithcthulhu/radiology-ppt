@@ -40,9 +40,9 @@ public static class AppOptions
     ];
     public static readonly string[] CoreReviewCaseMixes =
     [
-        "Blueprint Weighted",
-        "Even Domain Mix",
-        "Focused Domain"
+        "General Random CORE Mix",
+        "Even Domain Random Mix",
+        "Focused Domain Random Mix"
     ];
     public static readonly string[] CoreReviewModalityMixes =
     [
@@ -167,6 +167,8 @@ public static class AppOptions
 
     public static string CoreReviewCaseMixCliValue(string label) => label switch
     {
+        "Even Domain Random Mix" => "even",
+        "Focused Domain Random Mix" => "focused",
         "Even Domain Mix" => "even",
         "Focused Domain" => "focused",
         _ => "blueprint"

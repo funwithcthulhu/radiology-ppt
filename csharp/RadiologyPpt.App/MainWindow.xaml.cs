@@ -325,6 +325,7 @@ public partial class MainWindow : Window
         {
             SelectTab(MainTab.Activity);
             AppendLog($"Planning Core Review deck with {deckSettings.CaseCount} case request(s)...");
+            AppendLog("Core Review generation ignores the Cases tab and fetches from its own CORE case plan.");
             var prepareSettings = settings with { UseOllamaReview = false };
             var prepared = await _jobs.RunAsync(
                 "Planning Core Review deck...",
@@ -575,7 +576,8 @@ public partial class MainWindow : Window
             CaseCount = ParseBoundedInt(CoreReviewCaseCountBox.Text, 50, 1, 150),
             Domain = AppOptions.BoardDomainCliValue(BoardDomainCombo.SelectedItem?.ToString() ?? ""),
             CaseMix = AppOptions.CoreReviewCaseMixCliValue(CoreReviewCaseMixCombo.SelectedItem?.ToString() ?? ""),
-            ModalityMix = AppOptions.CoreReviewModalityMixCliValue(CoreReviewModalityMixCombo.SelectedItem?.ToString() ?? "")
+            ModalityMix = AppOptions.CoreReviewModalityMixCliValue(CoreReviewModalityMixCombo.SelectedItem?.ToString() ?? ""),
+            Seed = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString()
         };
     }
 

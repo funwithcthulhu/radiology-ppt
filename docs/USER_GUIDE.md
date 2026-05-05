@@ -69,20 +69,20 @@ You can:
 
 The Library is built from your local SQLite state. It is not synced to Radiopaedia or GitHub.
 
-## Core Boards Tab
+## Core Review Tab
 
-Core Boards has two jobs: build CORE-style case review lectures, and import local source material for standalone review questions.
+Core Review has two jobs: build CORE-style case review lectures, and import local source material for standalone review questions.
 
 To build a Core Review lecture:
 
 1. Set `Cases` to the target deck size. Long reviews such as 50-100 cases are supported, but preparation will take time.
 2. Choose a `Domain`. `General / Mixed` uses a broad CORE-style mix. `NIS`, `Physics`, and `RISC` are question domains, so case planning falls back to mixed diagnostic cases.
-3. Choose `Case mix`. `Blueprint Weighted` gives more slots to large diagnostic areas. `Even Domain Mix` spreads cases more evenly. `Focused Domain` uses the selected diagnostic domain.
+3. Choose `Selection`. `General Random CORE Mix` gives more slots to large diagnostic areas. `Even Domain Random Mix` spreads cases more evenly. `Focused Domain Random Mix` uses the selected diagnostic domain.
 4. Choose `Modality mix`. `Mixed Modalities` rotates through common modalities for a diagnosis. `Prefer Classic Modality` uses the first listed modality. `Any Modality` leaves modality broad.
 5. Click `Generate Core Review Deck`.
 6. Review the Radiopaedia cases and images before export.
 
-This path does not use the `Cases` tab. It starts from an editable diagnosis seed list aligned to public ABR Core domains, searches Radiopaedia, and lets you approve the actual cases.
+This path does not use the `Cases` tab. It starts from separate Core Review planning logic, searches Radiopaedia, and lets you approve the actual cases.
 
 To add local question sources:
 
@@ -228,9 +228,9 @@ Review with Ollama:
 
 Core Review style PowerPoint:
 
-1. Core Boards: set case count, domain, case mix, and modality mix.
+1. Core Review: set case count, domain, selection, and modality mix.
 2. PowerPoint: choose the bundled bank, imported Core Boards library, or a custom question-bank JSON file for standalone review questions.
-3. Core Boards: click `Generate Core Review Deck`.
+3. Core Review: click `Generate Core Review Deck`.
 4. Review and export.
 
 Hand-picked Core Review PowerPoint:

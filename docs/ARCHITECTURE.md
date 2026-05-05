@@ -52,7 +52,7 @@ flowchart LR
 - tab navigation
 - case request grid
 - Library tab
-- Core Boards deck-generation and source-import UI
+- Core Review deck-generation and source-import UI
 - PowerPoint settings and presets
 - review-window actions
 - cancellation controls
@@ -127,7 +127,7 @@ Radiopaedia behavior is intentionally split:
 - `src/ollama-review.mjs`: optional local vision-model scoring with time/image caps.
 - `src/deck.mjs`: PPTX rendering.
 
-### Core Boards Modules
+### Core Review Modules
 
 - `src/core_review/schema.mjs`: ABR-style domains and question-type schema.
 - `src/core_review/case-plan.mjs`: CORE-style diagnosis seed list and Radiopaedia request planning.
@@ -137,7 +137,7 @@ Radiopaedia behavior is intentionally split:
 - `src/core_review/source-bank.mjs`: imported-corpus loading, merging, and referenced practice question drafting.
 - `src/core_review/index.mjs`: exports.
 
-The GUI supports Core Boards deck generation plus import for PDFs, notes, and JSON study material. Backend Core Boards modules plan Radiopaedia case requests, ingest source corpora, draft referenced practice questions, validate question banks, and assemble quiz sessions.
+The GUI supports Core Review deck generation plus import for PDFs, notes, and JSON study material. Backend Core Review modules plan Radiopaedia case requests, ingest source corpora, draft referenced practice questions, validate question banks, and assemble quiz sessions.
 
 Core Boards deck generation is separate from the `Cases` tab. The UI sends `coreReviewPrepareDeck`, the backend builds a diagnosis plan from `case-plan.mjs`, prepares those Radiopaedia cases, and returns the same prepared-item shape used by the normal review window.
 

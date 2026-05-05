@@ -29,7 +29,7 @@
                                Margin="0,12,0,22" />
                     <Button Content="Cases" Click="CasesNav_Click" Margin="0,0,0,8" />
                     <Button Content="Library" Click="LibraryNav_Click" Margin="0,0,0,8" />
-                    <Button Content="Core Boards" Click="CoreBoardsNav_Click" Margin="0,0,0,8" />
+                    <Button Content="Core Review" Click="CoreBoardsNav_Click" Margin="0,0,0,8" />
                     <Button Content="PowerPoint" Click="PowerPointNav_Click" Margin="0,0,0,8" />
                     <Button Content="Activity" Click="ActivityNav_Click" Margin="0,0,0,8" />
                 </StackPanel>
@@ -141,15 +141,15 @@
                     </Grid>
                 </TabItem>
 
-                <TabItem Header="Core Boards">
+                <TabItem Header="Core Review">
                     <Grid Margin="0,16,0,0">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
                         <StackPanel Grid.Row="0">
-                            <TextBlock Text="Core Boards" Style="{StaticResource PageTitle}" />
-                            <TextBlock Text="Build CORE-scoped case review decks, then add NIS and physics questions from bundled or local sources."
+                            <TextBlock Text="Core Review" Style="{StaticResource PageTitle}" />
+                            <TextBlock Text="Generate CORE review lectures from here. The Cases tab is not used for this workflow."
                                        Style="{StaticResource PageSubtitle}" Margin="0,4,0,12" />
                         </StackPanel>
 
@@ -174,14 +174,14 @@
                                     </Grid.RowDefinitions>
                                     <StackPanel Grid.ColumnSpan="2" Margin="0,0,0,16">
                                         <TextBlock Text="Core Review Deck" FontSize="18" FontWeight="SemiBold" />
-                                        <TextBlock Text="This does not use the Cases tab. The app plans CORE-style diagnosis searches and opens the usual review window before export."
+                                        <TextBlock Text="Pick the number of cases, choose general random or a domain-focused mix, then review the fetched Radiopaedia cases before export."
                                                    Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,4,0,0" />
                                     </StackPanel>
-                                    <TextBlock Grid.Row="1" Text="Cases" FontWeight="SemiBold" />
+                                    <TextBlock Grid.Row="1" Text="Number of cases" FontWeight="SemiBold" />
                                     <TextBox x:Name="CoreReviewCaseCountBox" Grid.Row="1" Grid.Column="1" Text="50" Width="90" HorizontalAlignment="Left" Margin="0,0,0,10" />
                                     <TextBlock Grid.Row="2" Text="Domain" FontWeight="SemiBold" />
                                     <ComboBox x:Name="BoardDomainCombo" Grid.Row="2" Grid.Column="1" Margin="0,0,0,10" />
-                                    <TextBlock Grid.Row="3" Text="Case mix" FontWeight="SemiBold" />
+                                    <TextBlock Grid.Row="3" Text="Selection" FontWeight="SemiBold" />
                                     <ComboBox x:Name="CoreReviewCaseMixCombo" Grid.Row="3" Grid.Column="1" Margin="0,0,0,10" />
                                     <TextBlock Grid.Row="4" Text="Modality mix" FontWeight="SemiBold" />
                                     <ComboBox x:Name="CoreReviewModalityMixCombo" Grid.Row="4" Grid.Column="1" Margin="0,0,0,16" />
@@ -203,7 +203,7 @@
                                     <TextBlock Text="Choose bundled, imported, or custom JSON question sources on the PowerPoint tab. NIS and physics questions are mixed into Core Review decks there."
                                                TextWrapping="Wrap" />
                                     <TextBlock Text="Case source" Margin="0,14,0,3" FontWeight="SemiBold" />
-                                    <TextBlock Text="Cases are searched from Radiopaedia using an editable CORE diagnosis seed list, then you approve the actual cases and images before export."
+                                    <TextBlock Text="Cases are searched from Radiopaedia using separate Core Review planning logic, then you approve the actual cases and images before export."
                                                TextWrapping="Wrap" />
                                 </StackPanel>
                             </Border>

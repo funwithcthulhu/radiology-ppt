@@ -14,7 +14,7 @@ The backend logs progress and timing for each major stage. Activity displays tho
 
 ## Core Review Case Planning
 
-The `Core Boards` tab can prepare a review lecture without reading the `Cases` tab.
+The `Core Review` tab can prepare a review lecture without reading the `Cases` tab.
 
 Planning order:
 
