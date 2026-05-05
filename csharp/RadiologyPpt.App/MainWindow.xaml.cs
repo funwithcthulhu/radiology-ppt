@@ -117,6 +117,7 @@ public partial class MainWindow : Window
             if (values.TryGetValue("output_path", out var outputPath))
             {
                 OutputBox.Text = outputPath;
+                CoreReviewOutputBox.Text = outputPath;
             }
             SetCheckBox(AutoOpenCheck, values, "auto_open");
             SetCheckBox(ClinicalHistoryCheck, values, "use_clinical_history");
@@ -227,16 +228,26 @@ public partial class MainWindow : Window
 
     private void BrowseOutput_Click(object sender, RoutedEventArgs e)
     {
+        BrowseOutputPath(OutputBox, "radiology-cases.pptx");
+    }
+
+    private void BrowseCoreReviewOutput_Click(object sender, RoutedEventArgs e)
+    {
+        BrowseOutputPath(CoreReviewOutputBox, CoreReviewDefaultOutputFileName());
+    }
+
+    private void BrowseOutputPath(System.Windows.Controls.TextBox targetBox, string fallbackFileName)
+    {
         var dialog = new SaveFileDialog
         {
             Filter = "PowerPoint files (*.pptx)|*.pptx",
             DefaultExt = ".pptx",
             AddExtension = true,
-            FileName = string.IsNullOrWhiteSpace(TitleBox.Text) ? "radiology-cases.pptx" : $"{Slugify(TitleBox.Text)}.pptx"
+            FileName = string.IsNullOrWhiteSpace(TitleBox.Text) ? fallbackFileName : $"{Slugify(TitleBox.Text)}.pptx"
         };
         if (dialog.ShowDialog(this) == true)
         {
-            OutputBox.Text = dialog.FileName;
+            targetBox.Text = dialog.FileName;
         }
     }
 
@@ -316,7 +327,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void GenerateCoreReviewDeck_Click(object sender, RoutedEventArgs e)
+    private async void GenerateCoreReviewPowerPoint_Click(object sender, RoutedEventArgs e)
     {
         var deckSettings = BuildCoreReviewDeckSettings();
         var settings = BuildCoreReviewGenerationSettings();
@@ -324,11 +335,11 @@ public partial class MainWindow : Window
         try
         {
             SelectTab(MainTab.Activity);
-            AppendLog($"Planning Core Review deck with {deckSettings.CaseCount} case request(s)...");
+            AppendLog($"Planning Core Review PowerPoint with {deckSettings.CaseCount} case request(s)...");
             AppendLog("Core Review generation ignores the Cases tab and fetches from its own CORE case plan.");
             var prepareSettings = settings with { UseOllamaReview = false };
             var prepared = await _jobs.RunAsync(
-                "Planning Core Review deck...",
+                "Planning Core Review PowerPoint...",
                 OnJobChanged,
                 token => _backend.PrepareCoreReviewDeckAsync(deckSettings, prepareSettings, AppendLog, token));
             await ReviewAndRenderPreparedAsync(prepared, settings, count => BuildCoreReviewRequestSummary(prepared, deckSettings, count));
@@ -437,7 +448,7 @@ public partial class MainWindow : Window
                 });
             _storage.SaveCoreSourceImports(dialog.FileNames, domain);
             BoardStatusText.Text = $"Imported {pdfPaths.Length} PDF(s) and {textPaths.Length} note/JSON file(s).";
-            StatusText = "Core Boards import complete";
+            StatusText = "Core Review import complete";
         }
         catch (OperationCanceledException)
         {
@@ -585,6 +596,7 @@ public partial class MainWindow : Window
     {
         var settings = BuildSettings();
         var title = settings.Title;
+        var outputPath = CoreReviewOutputBox.Text.Trim();
         if (string.IsNullOrWhiteSpace(title))
         {
             var domainLabel = BoardDomainCombo.SelectedItem?.ToString() ?? "General / Mixed";
@@ -594,6 +606,7 @@ public partial class MainWindow : Window
         return settings with
         {
             Title = title,
+            OutputPath = string.IsNullOrWhiteSpace(outputPath) ? settings.OutputPath : outputPath,
             PowerPointStyle = "core-review",
             IncludeTeachingPoints = true
         };
@@ -607,7 +620,13 @@ public partial class MainWindow : Window
         {
             return $"{summary}, {preparedCount} prepared case(s)";
         }
-        return $"Core Review deck: {deckSettings.CaseCount} requested case(s), {preparedCount} prepared case(s)";
+        return $"Core Review PowerPoint: {deckSettings.CaseCount} requested case(s), {preparedCount} prepared case(s)";
+    }
+
+    private string CoreReviewDefaultOutputFileName()
+    {
+        var domainLabel = BoardDomainCombo.SelectedItem?.ToString() ?? "General / Mixed";
+        return domainLabel == "General / Mixed" ? "core-review.pptx" : $"core-review-{Slugify(domainLabel)}.pptx";
     }
 
     private static int ParseBoundedInt(string value, int fallback, int minimum, int maximum)

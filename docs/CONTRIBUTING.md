@@ -89,7 +89,7 @@ Use these boundaries when deciding where a change belongs:
 - backend SQLite/cache/history/index: `src/app-store.mjs`
 - contract schemas: `src/contracts`
 - case/random/image rationale docs: `docs/DECISION_LOGIC.md`
-- Core Boards backend: `src/core_review`
+- Core Review backend: `src/core_review`
 
 ## Change Guidelines
 
@@ -103,7 +103,7 @@ Use these boundaries when deciding where a change belongs:
 - When adding C# to Node fields, update `src/contracts`, `BackendContracts.cs`, backend normalization, and tests.
 - Prefer additive SQLite migrations and record them in `schema_migrations`.
 - Preserve Radiopaedia attribution in generated slides.
-- Prefer user-facing wording like `PowerPoint`, `Cases`, and `Core Boards`; avoid unexplained `deck` wording.
+- Prefer user-facing wording like `PowerPoint`, `Cases`, and `Core Review`; avoid unexplained `deck` wording.
 
 ## Generated Artifact Hygiene
 
@@ -209,7 +209,7 @@ GitHub issue and pull request templates live under `.github\`. Use them to keep 
 
 ## Security And Privacy
 
-- Core Boards PDFs and generated corpora are local/private and ignored by Git.
+- Core Review PDFs and generated corpora are local/private and ignored by Git.
 - SQLite state may contain local paths and review history, so it is ignored by Git.
 - Generated PowerPoints include Radiopaedia attribution; do not remove it.
 - Do not add API keys, credentials, private medical data, private PDFs, or extracted copyrighted assets to the repo.

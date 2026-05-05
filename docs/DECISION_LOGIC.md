@@ -24,7 +24,7 @@ Planning order:
 4. Prepare those cases through the same Radiopaedia case/image pipeline used by normal requests.
 5. Open the same review window so the user approves the final cases and images before export.
 
-NIS, physics, and RISC are treated as standalone question domains, not Radiopaedia case domains. Core Review decks add those questions during PowerPoint rendering from the bundled bank, imported Core Boards library, or a custom question-bank JSON file.
+NIS, physics, and RISC are treated as standalone question domains, not Radiopaedia case domains. Core Review PowerPoints add those questions during PowerPoint rendering from the bundled bank, imported Core Review library, or a custom question-bank JSON file.
 
 The seed list is practice scaffolding aligned to public ABR Core domains. It is not official ABR content, and the actual case material still comes from reviewed Radiopaedia cases.
 
@@ -84,7 +84,7 @@ Tracked commands include:
 - case preparation
 - PowerPoint rendering
 - Ollama image scoring
-- Core Boards imports
+- Core Review imports
 
 The Activity tab shows recent backend jobs with status and duration. This separates Radiopaedia/network delays from application failures.
 
@@ -107,7 +107,7 @@ File folders store generated or cached artifacts:
 - `cache\`: downloaded metadata/images and reusable backend cache files
 - `scratch\`: temporary PowerPoint build files
 - `outputs\`: generated PowerPoints
-- `library\board-review\`: private Core Boards imports
+- `library\board-review\`: private Core Review imports
 
 Use `Activity` > `Run Maintenance` to clean old cache/scratch files and optimize SQLite after many test runs.
 

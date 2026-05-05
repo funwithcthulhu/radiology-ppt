@@ -35,7 +35,7 @@ public static class AppOptions
     public static readonly string[] CoreReviewQuestionSources =
     [
         "Bundled Free CORE Review Questions",
-        "Imported Core Boards Library",
+        "Imported Core Review Library",
         "Custom Question Bank JSON"
     ];
     public static readonly string[] CoreReviewCaseMixes =
@@ -138,7 +138,7 @@ public static class AppOptions
 
     public static string CoreReviewQuestionSourceCliValue(string label) => label switch
     {
-        "Imported Core Boards Library" => "library",
+        "Imported Core Review Library" => "library",
         "Custom Question Bank JSON" => "question-bank",
         _ => "bundled"
     };

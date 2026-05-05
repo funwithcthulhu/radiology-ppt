@@ -187,7 +187,7 @@ public sealed class AppStorage
             command.Parameters.AddWithValue("$domain", domain);
             command.ExecuteNonQuery();
         }
-        RecordEvent("info", "Imported Core Boards sources", domain);
+        RecordEvent("info", "Imported Core Review sources", domain);
     }
 
     public void SaveImageCandidates(JsonObject? caseData)

@@ -250,12 +250,12 @@ public sealed class BackendClient
         return command switch
         {
             "prepare" => "case preparation",
-            "coreReviewPrepareDeck" => "Core Review deck planning",
+            "coreReviewPrepareDeck" => "Core Review PowerPoint planning",
             "render" => "PowerPoint creation",
             "scoreImages" => "Ollama scoring",
-            "coreReviewIngestPdf" => "Core Boards PDF import",
-            "coreReviewIngest" => "Core Boards text import",
-            "coreReviewQuiz" => "Core Boards quiz generation",
+            "coreReviewIngestPdf" => "Core Review PDF import",
+            "coreReviewIngest" => "Core Review text import",
+            "coreReviewQuiz" => "Core Review quiz generation",
             _ => command
         };
     }

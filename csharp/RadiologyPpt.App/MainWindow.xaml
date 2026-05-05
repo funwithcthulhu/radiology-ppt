@@ -171,9 +171,10 @@
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
                                     <StackPanel Grid.ColumnSpan="2" Margin="0,0,0,16">
-                                        <TextBlock Text="Core Review Deck" FontSize="18" FontWeight="SemiBold" />
+                                        <TextBlock Text="Core Review PowerPoint" FontSize="18" FontWeight="SemiBold" />
                                         <TextBlock Text="Pick the number of cases, choose general random or a domain-focused mix, then review the fetched Radiopaedia cases before export."
                                                    Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,4,0,0" />
                                     </StackPanel>
@@ -185,8 +186,13 @@
                                     <ComboBox x:Name="CoreReviewCaseMixCombo" Grid.Row="3" Grid.Column="1" Margin="0,0,0,10" />
                                     <TextBlock Grid.Row="4" Text="Modality mix" FontWeight="SemiBold" />
                                     <ComboBox x:Name="CoreReviewModalityMixCombo" Grid.Row="4" Grid.Column="1" Margin="0,0,0,16" />
-                                    <Button x:Name="GenerateCoreReviewButton" Grid.Row="5" Grid.Column="1" Content="Generate Core Review Deck"
-                                            Style="{StaticResource PrimaryButton}" Click="GenerateCoreReviewDeck_Click" HorizontalAlignment="Left" />
+                                    <TextBlock Grid.Row="5" Text="Output .pptx" FontWeight="SemiBold" />
+                                    <DockPanel Grid.Row="5" Grid.Column="1" LastChildFill="True" Margin="0,0,0,16">
+                                        <Button DockPanel.Dock="Right" Content="Browse" Click="BrowseCoreReviewOutput_Click" Margin="8,0,0,0" />
+                                        <TextBox x:Name="CoreReviewOutputBox" />
+                                    </DockPanel>
+                                    <Button x:Name="GenerateCoreReviewButton" Grid.Row="6" Grid.Column="1" Content="Generate Core Review PowerPoint"
+                                            Style="{StaticResource PrimaryButton}" Click="GenerateCoreReviewPowerPoint_Click" HorizontalAlignment="Left" />
                                 </Grid>
                             </Border>
                             <Border Grid.Column="1" Style="{StaticResource Card}">
@@ -200,7 +206,7 @@
                                     </StackPanel>
                                     <TextBlock x:Name="BoardStatusText" TextWrapping="Wrap" Margin="0,16,0,0" />
                                     <TextBlock Text="Question source" Margin="0,18,0,3" FontWeight="SemiBold" />
-                                    <TextBlock Text="Choose bundled, imported, or custom JSON question sources on the PowerPoint tab. NIS and physics questions are mixed into Core Review decks there."
+                                    <TextBlock Text="Choose bundled, imported, or custom JSON question sources on the PowerPoint tab. NIS and physics questions are mixed into Core Review PowerPoints there."
                                                TextWrapping="Wrap" />
                                     <TextBlock Text="Case source" Margin="0,14,0,3" FontWeight="SemiBold" />
                                     <TextBlock Text="Cases are searched from Radiopaedia using separate Core Review planning logic, then you approve the actual cases and images before export."
@@ -270,7 +276,7 @@
                                           Grid.Column="1"
                                           Content="Only use new random cases"
                                           IsChecked="True"
-                                          ToolTip="On by default. Random requests search Radiopaedia first and skip cases already used in previous random decks instead of backfilling with older cases."
+                                          ToolTip="On by default. Random requests search Radiopaedia first and skip cases already used in previous random PowerPoints instead of backfilling with older cases."
                                           Margin="0,0,0,8" />
                                 <StackPanel Grid.Row="12" Grid.Column="1">
                                     <CheckBox x:Name="OllamaCheck" Content="Use Ollama image review" Margin="0,0,0,8" />

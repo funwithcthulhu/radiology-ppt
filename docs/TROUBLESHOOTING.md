@@ -230,7 +230,7 @@ Try:
 3. Run `Clean Scratch` or `Run Maintenance`.
 4. Re-run with broader filters.
 
-## Core Boards Import Fails
+## Core Review Import Fails
 
 Common causes:
 

@@ -75,12 +75,13 @@ Core Review has two jobs: build CORE-style case review lectures, and import loca
 
 To build a Core Review lecture:
 
-1. Set `Cases` to the target deck size. Long reviews such as 50-100 cases are supported, but preparation will take time.
+1. Set `Cases` to the target PowerPoint size. Long reviews such as 50-100 cases are supported, but preparation will take time.
 2. Choose a `Domain`. `General / Mixed` uses a broad CORE-style mix. `NIS`, `Physics`, and `RISC` are question domains, so case planning falls back to mixed diagnostic cases.
 3. Choose `Selection`. `General Random CORE Mix` gives more slots to large diagnostic areas. `Even Domain Random Mix` spreads cases more evenly. `Focused Domain Random Mix` uses the selected diagnostic domain.
 4. Choose `Modality mix`. `Mixed Modalities` rotates through common modalities for a diagnosis. `Prefer Classic Modality` uses the first listed modality. `Any Modality` leaves modality broad.
-5. Click `Generate Core Review Deck`.
-6. Review the Radiopaedia cases and images before export.
+5. Optional: set `Output .pptx` if you want the Core Review PowerPoint saved somewhere specific.
+6. Click `Generate Core Review PowerPoint`.
+7. Review the Radiopaedia cases and images before export.
 
 This path does not use the `Cases` tab. It starts from separate Core Review planning logic, searches Radiopaedia, and lets you approve the actual cases.
 
@@ -107,7 +108,7 @@ Options:
 - `Title`: optional. If blank, the app creates a title automatically.
 - `Images per case`: target image count. Review can keep fewer when a case only has a few useful images.
 - `PowerPoint style`: `Case Conference` or `Core Review`.
-- `Review question source`: in `Core Review`, choose the bundled free bank, the imported Core Boards library, or a custom question-bank JSON file.
+- `Review question source`: in `Core Review`, choose the bundled free bank, the imported Core Review library, or a custom question-bank JSON file.
 - `Question bank JSON`: optional path used when `Review question source` is set to the custom JSON option.
 - `Theme`: visual style for slides.
 - `Output .pptx`: optional explicit output path. If blank, the app writes to `outputs\`.
@@ -229,8 +230,8 @@ Review with Ollama:
 Core Review style PowerPoint:
 
 1. Core Review: set case count, domain, selection, and modality mix.
-2. PowerPoint: choose the bundled bank, imported Core Boards library, or a custom question-bank JSON file for standalone review questions.
-3. Core Review: click `Generate Core Review Deck`.
+2. PowerPoint: choose the bundled bank, imported Core Review library, or a custom question-bank JSON file for standalone review questions.
+3. Core Review: click `Generate Core Review PowerPoint`.
 4. Review and export.
 
 Hand-picked Core Review PowerPoint:

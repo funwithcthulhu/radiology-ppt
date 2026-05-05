@@ -52,7 +52,7 @@ flowchart LR
 - tab navigation
 - case request grid
 - Library tab
-- Core Review deck-generation and source-import UI
+- Core Review PowerPoint-generation and source-import UI
 - PowerPoint settings and presets
 - review-window actions
 - cancellation controls
@@ -74,7 +74,7 @@ The app is moving toward MVVM:
 `BackendClient.cs` is the C# boundary to Node. It:
 
 - starts one persistent `src/backend-service.mjs` process while the app is open
-- sends prepare, Core Review deck prepare, score, render, Core Boards import, and health commands over newline-delimited JSON
+- sends prepare, Core Review PowerPoint prepare, score, render, Core Review import, and health commands over newline-delimited JSON
 - passes `RADIOLOGY_PPT_APP_ROOT`, `RADIOLOGY_PPT_RESOURCE_ROOT`, and `RADIOLOGY_PPT_DATABASE_PATH`
 - parses structured backend progress events into Activity log messages
 - logs long-running reminders for backend work
@@ -107,7 +107,7 @@ Non-ping commands write durable job rows to SQLite through `src/app-store.mjs`. 
 - PowerPoint rendering
 - random-history persistence during random-case preparation
 - Core Review case planning from the diagnosis seed list
-- Core Boards source/PDF ingestion
+- Core Review source/PDF ingestion
 - Core Review quiz assembly
 
 ### Radiopaedia Modules
@@ -137,9 +137,9 @@ Radiopaedia behavior is intentionally split:
 - `src/core_review/source-bank.mjs`: imported-corpus loading, merging, and referenced practice question drafting.
 - `src/core_review/index.mjs`: exports.
 
-The GUI supports Core Review deck generation plus import for PDFs, notes, and JSON study material. Backend Core Review modules plan Radiopaedia case requests, ingest source corpora, draft referenced practice questions, validate question banks, and assemble quiz sessions.
+The GUI supports Core Review PowerPoint generation plus import for PDFs, notes, and JSON study material. Backend Core Review modules plan Radiopaedia case requests, ingest source corpora, draft referenced practice questions, validate question banks, and assemble quiz sessions.
 
-Core Boards deck generation is separate from the `Cases` tab. The UI sends `coreReviewPrepareDeck`, the backend builds a diagnosis plan from `case-plan.mjs`, prepares those Radiopaedia cases, and returns the same prepared-item shape used by the normal review window.
+Core Review PowerPoint generation is separate from the `Cases` tab. The UI sends `coreReviewPrepareDeck`, the backend builds a diagnosis plan from `case-plan.mjs`, prepares those Radiopaedia cases, and returns the same prepared-item shape used by the normal review window.
 
 ## Data Flow
 
