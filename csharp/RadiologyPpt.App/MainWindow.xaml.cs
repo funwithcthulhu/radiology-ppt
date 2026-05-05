@@ -86,15 +86,16 @@ public partial class MainWindow : Window
         CoreReviewCaseMixCombo.SelectedIndex = 0;
         CoreReviewModalityMixCombo.ItemsSource = AppOptions.CoreReviewModalityMixes;
         CoreReviewModalityMixCombo.SelectedIndex = 0;
-        PowerPointStyleCombo.ItemsSource = AppOptions.PowerPointStyles;
-        PowerPointStyleCombo.SelectedIndex = 0;
         CoreReviewQuestionSourceCombo.ItemsSource = AppOptions.CoreReviewQuestionSources;
         CoreReviewQuestionSourceCombo.SelectedIndex = 0;
         ThemeCombo.ItemsSource = AppOptions.Themes;
         ThemeCombo.SelectedIndex = 0;
+        CoreReviewThemeCombo.ItemsSource = AppOptions.Themes;
+        CoreReviewThemeCombo.SelectedItem = "Teaching Warm";
         PresetCombo.ItemsSource = AppOptions.PowerPointPresets;
         PresetCombo.SelectedIndex = 0;
         OllamaModelCombo.Text = "moondream";
+        CoreReviewOllamaModelCombo.Text = "moondream";
         RefreshCoreReviewQuestionSourceUi();
     }
 
@@ -118,6 +119,7 @@ public partial class MainWindow : Window
             if (values.TryGetValue("title", out var title))
             {
                 TitleBox.Text = title;
+                CoreReviewTitleBox.Text = title;
             }
             if (values.TryGetValue("images_per_case", out var imagesPerCase))
             {
@@ -129,12 +131,16 @@ public partial class MainWindow : Window
                 CoreReviewOutputBox.Text = outputPath;
             }
             SetCheckBox(AutoOpenCheck, values, "auto_open");
+            SetCheckBox(CoreReviewAutoOpenCheck, values, "auto_open");
             SetCheckBox(ClinicalHistoryCheck, values, "use_clinical_history");
+            SetCheckBox(CoreReviewClinicalHistoryCheck, values, "use_clinical_history");
             SetCheckBox(OllamaCheck, values, "use_ollama_review");
+            SetCheckBox(CoreReviewOllamaCheck, values, "use_ollama_review");
             SetCheckBox(TeachingPointsCheck, values, "include_teaching_points");
             SetCheckBox(OnlyNewRandomCheck, values, "only_new_random_cases", defaultValue: true);
+            SetCheckBox(CoreReviewOnlyNewRandomCheck, values, "only_new_random_cases", defaultValue: true);
             SelectByCliValue(ThemeCombo, AppOptions.Themes, AppOptions.ThemeCliValue, values, "theme");
-            SelectByCliValue(PowerPointStyleCombo, AppOptions.PowerPointStyles, AppOptions.PowerPointStyleCliValue, values, "powerpoint_style");
+            SelectByCliValue(CoreReviewThemeCombo, AppOptions.Themes, AppOptions.ThemeCliValue, values, "theme");
             SelectByCliValue(CoreReviewQuestionSourceCombo, AppOptions.CoreReviewQuestionSources, AppOptions.CoreReviewQuestionSourceCliValue, values, "core_review_question_source");
             if (values.TryGetValue("core_review_question_bank_path", out var coreReviewQuestionBankPath))
             {
@@ -143,6 +149,7 @@ public partial class MainWindow : Window
             if (values.TryGetValue("ollama_model", out var ollamaModel) && !string.IsNullOrWhiteSpace(ollamaModel))
             {
                 OllamaModelCombo.Text = ollamaModel;
+                CoreReviewOllamaModelCombo.Text = ollamaModel;
             }
             RefreshCoreReviewQuestionSourceUi();
         }
@@ -159,7 +166,6 @@ public partial class MainWindow : Window
         RefreshLibrary();
     }
     private void CoreBoardsNav_Click(object sender, RoutedEventArgs e) => SelectTab(MainTab.CoreBoards);
-    private void PowerPointNav_Click(object sender, RoutedEventArgs e) => SelectTab(MainTab.PowerPoint);
     private void ActivityNav_Click(object sender, RoutedEventArgs e)
     {
         SelectTab(MainTab.Activity);
@@ -237,22 +243,22 @@ public partial class MainWindow : Window
 
     private void BrowseOutput_Click(object sender, RoutedEventArgs e)
     {
-        BrowseOutputPath(OutputBox, "radiology-cases.pptx");
+        BrowseOutputPath(OutputBox, "radiology-cases.pptx", TitleBox.Text);
     }
 
     private void BrowseCoreReviewOutput_Click(object sender, RoutedEventArgs e)
     {
-        BrowseOutputPath(CoreReviewOutputBox, CoreReviewDefaultOutputFileName());
+        BrowseOutputPath(CoreReviewOutputBox, CoreReviewDefaultOutputFileName(), CoreReviewTitleBox.Text);
     }
 
-    private void BrowseOutputPath(System.Windows.Controls.TextBox targetBox, string fallbackFileName)
+    private void BrowseOutputPath(System.Windows.Controls.TextBox targetBox, string fallbackFileName, string title)
     {
         var dialog = new SaveFileDialog
         {
             Filter = "PowerPoint files (*.pptx)|*.pptx",
             DefaultExt = ".pptx",
             AddExtension = true,
-            FileName = string.IsNullOrWhiteSpace(TitleBox.Text) ? fallbackFileName : $"{Slugify(TitleBox.Text)}.pptx"
+            FileName = string.IsNullOrWhiteSpace(title) ? fallbackFileName : $"{Slugify(title)}.pptx"
         };
         if (dialog.ShowDialog(this) == true)
         {
@@ -265,9 +271,11 @@ public partial class MainWindow : Window
         StatusText = "Checking Ollama models...";
         var models = await _backend.ListOllamaModelsAsync();
         OllamaModelCombo.ItemsSource = models;
+        CoreReviewOllamaModelCombo.ItemsSource = models;
         if (models.Length > 0)
         {
             OllamaModelCombo.SelectedIndex = 0;
+            CoreReviewOllamaModelCombo.SelectedIndex = 0;
             StatusText = $"Found {models.Length} Ollama model(s).";
         }
         else
@@ -291,12 +299,10 @@ public partial class MainWindow : Window
         }
 
         ImagesPerCaseBox.Text = preset.ImagesPerCase.ToString();
-        SelectComboByCliValue(PowerPointStyleCombo, AppOptions.PowerPointStyles, AppOptions.PowerPointStyleCliValue, preset.PowerPointStyle);
         SelectComboByCliValue(ThemeCombo, AppOptions.Themes, AppOptions.ThemeCliValue, preset.Theme);
         ClinicalHistoryCheck.IsChecked = preset.UseClinicalHistory;
         OllamaCheck.IsChecked = preset.UseOllamaReview;
         TeachingPointsCheck.IsChecked = preset.IncludeTeachingPoints;
-        RefreshCoreReviewQuestionSourceUi();
         StatusText = $"Applied preset: {preset.Name}";
     }
 
@@ -344,7 +350,7 @@ public partial class MainWindow : Window
         try
         {
             SelectTab(MainTab.Activity);
-            AppendLog($"Planning Core Review PowerPoint with {deckSettings.CaseCount} case request(s)...");
+            AppendLog($"Planning Core Review PowerPoint with {deckSettings.CaseCount} total review item(s)...");
             AppendLog("Core Review generation ignores the Cases tab and fetches from its own CORE case plan.");
             var prepareSettings = settings with { UseOllamaReview = false };
             var prepared = await _jobs.RunAsync(
@@ -582,9 +588,9 @@ public partial class MainWindow : Window
             OllamaCheck.IsChecked == true,
             OllamaModelCombo.Text,
             ThemeCombo.SelectedItem?.ToString() ?? "",
-            PowerPointStyleCombo.SelectedItem?.ToString() ?? "",
-            CoreReviewQuestionSourceCombo.SelectedItem?.ToString() ?? "",
-            CoreReviewQuestionBankBox.Text,
+            "Case Conference",
+            "",
+            "",
             TeachingPointsCheck.IsChecked == true,
             OnlyNewRandomCheck.IsChecked == true));
     }
@@ -603,8 +609,7 @@ public partial class MainWindow : Window
 
     private GenerationSettings BuildCoreReviewGenerationSettings()
     {
-        var settings = BuildSettings();
-        var title = settings.Title;
+        var title = CoreReviewTitleBox.Text.Trim();
         var outputPath = CoreReviewOutputBox.Text.Trim();
         if (string.IsNullOrWhiteSpace(title))
         {
@@ -612,13 +617,21 @@ public partial class MainWindow : Window
             title = domainLabel == "General / Mixed" ? "Core Review" : $"Core Review - {domainLabel}";
         }
 
-        return settings with
+        return new GenerationSettings
         {
             Title = title,
             ImagesPerCase = 1,
-            OutputPath = string.IsNullOrWhiteSpace(outputPath) ? settings.OutputPath : outputPath,
+            OutputPath = outputPath,
+            AutoOpen = CoreReviewAutoOpenCheck.IsChecked == true,
+            UseClinicalHistory = CoreReviewClinicalHistoryCheck.IsChecked == true,
+            UseOllamaReview = CoreReviewOllamaCheck.IsChecked == true,
+            OllamaModel = CoreReviewOllamaModelCombo.Text.Trim(),
+            Theme = AppOptions.ThemeCliValue(CoreReviewThemeCombo.SelectedItem?.ToString() ?? ""),
             PowerPointStyle = "core-review",
-            IncludeTeachingPoints = true
+            CoreReviewQuestionSource = AppOptions.CoreReviewQuestionSourceCliValue(CoreReviewQuestionSourceCombo.SelectedItem?.ToString() ?? ""),
+            CoreReviewQuestionBankPath = CoreReviewQuestionBankBox.Text.Trim(),
+            IncludeTeachingPoints = true,
+            OnlyNewRandomCases = CoreReviewOnlyNewRandomCheck.IsChecked == true
         };
     }
 
@@ -630,7 +643,7 @@ public partial class MainWindow : Window
         {
             return $"{summary}, {preparedCount} prepared case(s)";
         }
-        return $"Core Review PowerPoint: {deckSettings.CaseCount} requested case(s), {preparedCount} prepared case(s)";
+        return $"Core Review PowerPoint: {deckSettings.CaseCount} requested review item(s), {preparedCount} prepared case(s)";
     }
 
     private string CoreReviewDefaultOutputFileName()
@@ -646,11 +659,6 @@ public partial class MainWindow : Window
             return fallback;
         }
         return Math.Max(minimum, Math.Min(maximum, parsed));
-    }
-
-    private void PowerPointStyleCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
-    {
-        RefreshCoreReviewQuestionSourceUi();
     }
 
     private void CoreReviewQuestionSourceCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
@@ -676,6 +684,7 @@ public partial class MainWindow : Window
         GenerateButton.IsEnabled = !busy;
         GenerateCoreReviewButton.IsEnabled = !busy;
         CancelButton.IsEnabled = busy;
+        CoreReviewCancelButton.IsEnabled = busy;
         ProgressPanel.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
     }
 
@@ -1059,21 +1068,14 @@ public partial class MainWindow : Window
 
     private void RefreshCoreReviewQuestionSourceUi()
     {
-        var isCoreReview = string.Equals(
-            AppOptions.PowerPointStyleCliValue(PowerPointStyleCombo.SelectedItem?.ToString() ?? ""),
-            "core-review",
-            StringComparison.OrdinalIgnoreCase);
         var usesCustomBank = string.Equals(
             AppOptions.CoreReviewQuestionSourceCliValue(CoreReviewQuestionSourceCombo.SelectedItem?.ToString() ?? ""),
             "question-bank",
             StringComparison.OrdinalIgnoreCase);
 
-        CoreReviewQuestionSourceLabel.Visibility = isCoreReview ? Visibility.Visible : Visibility.Collapsed;
-        CoreReviewQuestionSourceCombo.Visibility = isCoreReview ? Visibility.Visible : Visibility.Collapsed;
-        CoreReviewQuestionSourceCombo.IsEnabled = isCoreReview;
-        CoreReviewQuestionBankLabel.Visibility = isCoreReview && usesCustomBank ? Visibility.Visible : Visibility.Collapsed;
-        CoreReviewQuestionBankPanel.Visibility = isCoreReview && usesCustomBank ? Visibility.Visible : Visibility.Collapsed;
-        CoreReviewQuestionBankBox.IsEnabled = isCoreReview && usesCustomBank;
+        CoreReviewQuestionBankLabel.Visibility = usesCustomBank ? Visibility.Visible : Visibility.Collapsed;
+        CoreReviewQuestionBankPanel.Visibility = usesCustomBank ? Visibility.Visible : Visibility.Collapsed;
+        CoreReviewQuestionBankBox.IsEnabled = usesCustomBank;
     }
 
     private static void OpenPath(string path)

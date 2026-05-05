@@ -19,6 +19,14 @@ public partial class CaseReviewWindow : Window
     private readonly List<JsonObject> _items;
     private int _currentIndex;
     private CancellationTokenSource? _actionCancellation;
+    private static readonly CoreReviewExerciseTypeOption[] CoreReviewExerciseTypeOptions =
+    [
+        new("Auto", ""),
+        new("Diagnosis (open answer)", "diagnosis_open"),
+        new("Diagnosis (multiple choice)", "diagnosis_mcq"),
+        new("Pin the abnormality", "pin_abnormality"),
+        new("Pin anatomy / structure", "pin_anatomy")
+    ];
 
     public CaseReviewWindow(
         BackendClient backend,
@@ -37,12 +45,17 @@ public partial class CaseReviewWindow : Window
         _items = preparedItems.Select(item => item.DeepClone().AsObject()).ToList();
         ImagesBox.Text = settings.ImagesPerCase.ToString();
         OllamaScoreButton.IsEnabled = settings.UseOllamaReview;
+        CoreReviewExerciseTypeCombo.ItemsSource = CoreReviewExerciseTypeOptions;
+        CoreReviewExerciseTypeCombo.SelectedValue = "";
+        CoreReviewExercisePanel.Visibility = IsCoreReviewMode ? Visibility.Visible : Visibility.Collapsed;
         ShowCurrentCase();
     }
 
     public ObservableCollection<ReviewImageItem> Images { get; } = [];
     public ObservableCollection<CandidateImageItem> CandidateImages { get; } = [];
     public List<JsonObject> ApprovedItems { get; } = [];
+
+    private bool IsCoreReviewMode => string.Equals(_settings.PowerPointStyle, "core-review", StringComparison.OrdinalIgnoreCase);
 
     private void Window_SourceInitialized(object? sender, EventArgs e)
     {
@@ -65,6 +78,7 @@ public partial class CaseReviewWindow : Window
         CaseIntro.Text = TextValue(caseData, "caseIntro", "Review the images, then keep, re-pick, reroll, or skip this case.");
         QualityBadge.Text = BuildQualityBadge(caseData);
         DetailsBox.Text = BuildDetailsText(item);
+        RefreshCoreReviewExerciseType(item);
 
         Images.Clear();
         foreach (var image in caseData?["images"]?.AsArray() ?? [])
@@ -89,6 +103,65 @@ public partial class CaseReviewWindow : Window
         LoadCandidateImages(caseData);
     }
 
+    private void RefreshCoreReviewExerciseType(JsonObject item)
+    {
+        if (!IsCoreReviewMode)
+        {
+            return;
+        }
+
+        var caseData = item["caseData"]?.AsObject();
+        var coreReviewPlan = caseData?["coreReviewPlan"]?.AsObject();
+        var selected = TextValue(caseData, "coreReviewExerciseType", TextValue(coreReviewPlan, "exerciseType", ""));
+        CoreReviewExerciseTypeCombo.SelectedValue = IsKnownCoreReviewExerciseType(selected) ? selected : "";
+    }
+
+    private static bool IsKnownCoreReviewExerciseType(string value)
+    {
+        return CoreReviewExerciseTypeOptions.Any(option => string.Equals(option.Value, value, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private string SelectedCoreReviewExerciseType()
+    {
+        return CoreReviewExerciseTypeCombo.SelectedValue?.ToString() ?? "";
+    }
+
+    private void ApplyCoreReviewExerciseTypeToCurrentItem()
+    {
+        if (_currentIndex < _items.Count)
+        {
+            ApplyCoreReviewExerciseTypeToItem(_items[_currentIndex], SelectedCoreReviewExerciseType());
+        }
+    }
+
+    private void ApplyCoreReviewExerciseTypeToItem(JsonObject item, string selected)
+    {
+        if (!IsCoreReviewMode)
+        {
+            return;
+        }
+
+        var caseData = item["caseData"]?.AsObject();
+        if (caseData is null)
+        {
+            return;
+        }
+
+        var cleanSelected = IsKnownCoreReviewExerciseType(selected) ? selected : "";
+        if (string.IsNullOrWhiteSpace(cleanSelected))
+        {
+            caseData.Remove("coreReviewExerciseType");
+            if (caseData["coreReviewPlan"] is JsonObject coreReviewPlan)
+            {
+                coreReviewPlan.Remove("exerciseType");
+                coreReviewPlan.Remove("questionType");
+            }
+            return;
+        }
+
+        caseData["coreReviewExerciseType"] = cleanSelected;
+    }
+
     private void KeepNext_Click(object sender, RoutedEventArgs e)
     {
         ApproveCurrentCase("approved");
@@ -111,6 +184,7 @@ public partial class CaseReviewWindow : Window
 
     private void Skip_Click(object sender, RoutedEventArgs e)
     {
+        ApplyCoreReviewExerciseTypeToCurrentItem();
         _storage.SaveCaseReview(_reviewSessionId, _items[_currentIndex].DeepClone().AsObject(), "skipped");
         _currentIndex += 1;
         ShowCurrentCase();
@@ -118,6 +192,7 @@ public partial class CaseReviewWindow : Window
 
     private async void Reroll_Click(object sender, RoutedEventArgs e)
     {
+        var selectedExerciseType = SelectedCoreReviewExerciseType();
         await RunReplacementActionAsync("Rerolling case...", async token =>
         {
             var request = BuildRerollRequest();
@@ -129,6 +204,7 @@ public partial class CaseReviewWindow : Window
             }
 
             _items[_currentIndex] = replacement;
+            ApplyCoreReviewExerciseTypeToItem(_items[_currentIndex], selectedExerciseType);
             _storage.SaveImageCandidates(replacement["caseData"] as JsonObject);
             _storage.RecordEvent("info", "Rerolled review case", TextValue(replacement["caseData"] as JsonObject, "caseTitle", ""));
             ShowCurrentCase();
@@ -155,6 +231,7 @@ public partial class CaseReviewWindow : Window
 
         await RunReplacementActionAsync("Scoring current case with Ollama...", async token =>
         {
+            var selectedExerciseType = SelectedCoreReviewExerciseType();
             var keptImages = Images.Where(image => image.Keep).Select(image => image.Source.DeepClone().AsObject()).ToList();
             if (keptImages.Count == 0)
             {
@@ -171,6 +248,7 @@ public partial class CaseReviewWindow : Window
             }
 
             _items[_currentIndex] = scored;
+            ApplyCoreReviewExerciseTypeToItem(_items[_currentIndex], selectedExerciseType);
             _storage.SaveImageCandidates(scored["caseData"] as JsonObject);
             ShowCurrentCase();
         });
@@ -178,6 +256,7 @@ public partial class CaseReviewWindow : Window
 
     private async void UseSelectedCandidates_Click(object sender, RoutedEventArgs e)
     {
+        ApplyCoreReviewExerciseTypeToCurrentItem();
         var selectedCandidates = CandidateImages.Where(candidate => candidate.Use).ToArray();
         if (selectedCandidates.Length == 0)
         {
@@ -282,6 +361,7 @@ public partial class CaseReviewWindow : Window
 
     private async Task ReplaceImagesAsync(bool excludeCurrentImages, bool replaceUncheckedOnly)
     {
+        ApplyCoreReviewExerciseTypeToCurrentItem();
         await RunReplacementActionAsync("Re-picking images...", async token =>
         {
             var checkedImages = Images.Where(image => image.Keep).Select(image => image.Source.DeepClone().AsObject()).ToList();
@@ -371,6 +451,7 @@ public partial class CaseReviewWindow : Window
         OllamaScoreButton.IsEnabled = !busy && _settings.UseOllamaReview;
         KeepNextButton.IsEnabled = !busy;
         FavoriteNextButton.IsEnabled = !busy;
+        CoreReviewExerciseTypeCombo.IsEnabled = !busy;
     }
 
     private void ApplySelectedImagesToCurrentItem()
@@ -379,6 +460,7 @@ public partial class CaseReviewWindow : Window
         RecordImageDecisions("rejected", "review", Images.Where(image => !image.Keep));
         var keptImages = Images.Where(image => image.Keep).Select(image => image.Source.DeepClone()).ToArray();
         ReplaceCurrentImages(keptImages.Select(node => node.AsObject()).ToList());
+        ApplyCoreReviewExerciseTypeToCurrentItem();
     }
 
     private void RecordImageDecisions(string decision, string reason, IEnumerable<ReviewImageItem> images)

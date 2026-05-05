@@ -35,6 +35,15 @@
                     <TextBlock Text="Shortcuts: K keep, F favorite, S skip, R reroll, I re-pick, Delete remove unchecked, Esc cancel."
                                Foreground="{StaticResource MutedBrush}" FontSize="11" TextWrapping="Wrap" />
                 </DockPanel>
+                <DockPanel x:Name="CoreReviewExercisePanel" Margin="0,8,0,0" LastChildFill="True" Visibility="Collapsed">
+                    <TextBlock Text="Core Review slide type" DockPanel.Dock="Left" VerticalAlignment="Center"
+                               FontWeight="SemiBold" Margin="0,0,10,0" />
+                    <ComboBox x:Name="CoreReviewExerciseTypeCombo" DockPanel.Dock="Left" Width="240"
+                              DisplayMemberPath="Label" SelectedValuePath="Value" />
+                    <TextBlock Text="Choose Auto for the normal mix, or override this reviewed case before keeping it."
+                               Foreground="{StaticResource MutedBrush}" FontSize="11" TextWrapping="Wrap"
+                               VerticalAlignment="Center" Margin="12,0,0,0" />
+                </DockPanel>
             </StackPanel>
             <Button Grid.Column="1" Content="Cancel Review" Click="CancelReview_Click"
                     VerticalAlignment="Top" Padding="12,7" />

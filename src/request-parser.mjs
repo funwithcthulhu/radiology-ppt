@@ -469,6 +469,12 @@ function findAliasMatch(text, aliases) {
 
       for (let index = 0; index <= tokens.length - length; index += 1) {
         const segment = tokens.slice(index, index + length).join(" ");
+        if (aliasTokens.length === 1 && segment !== alias) {
+          const lengthRatio = Math.min(segment.length, alias.length) / Math.max(segment.length, alias.length);
+          if (lengthRatio < 0.75) {
+            continue;
+          }
+        }
         const score = segment === alias ? 1 : similarityScore(segment, alias);
         const threshold =
           aliasTokens.length === 1

@@ -113,6 +113,31 @@ test("falls back to broader case search when filtered Radiopaedia search fails",
   assert.equal(result.candidates[0].casePath, "/cases/multiple-sclerosis-42");
 });
 
+test("retries suspicious empty Radiopaedia search pages without cache", async () => {
+  const html = await fs.readFile(path.resolve("tests", "fixtures", "radiopaedia-search-results.html"), "utf8");
+  const calls = [];
+  const result = await inspectRadiopaediaCaseCandidates(
+    {
+      requestMode: "specific",
+      diagnosis: "multiple sclerosis",
+    },
+    {
+      limit: 2,
+      fetchSearchText: async (url, headers = {}) => {
+        calls.push({ url, headers });
+        if (!new URL(url).searchParams.has("_rp_no_cache")) {
+          return "<html><body>temporarily unavailable</body></html>";
+        }
+        return html;
+      },
+    },
+  );
+
+  assert.equal(calls.length, 2);
+  assert.equal(calls[1].headers["cache-control"], "no-cache");
+  assert.equal(result.candidates[0].casePath, "/cases/multiple-sclerosis-42");
+});
+
 test("builds complete teaching-point sentences without ellipses", () => {
   const points = buildTeachingPoints({
     request: {},

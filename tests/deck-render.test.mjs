@@ -570,6 +570,78 @@ test("core review avoids pin-abnormality prompts without localized annotations",
   assert.match(allSlideText, /What is the diagnosis\?/);
 });
 
+test("core review honors review-stage slide type overrides", async () => {
+  const { buildDeck } = await import("../src/deck.mjs");
+  const sharp = (await import("sharp")).default;
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "radiology-deck-core-review-overrides-"));
+  const imagePath = path.join(tempDir, "override.png");
+  const outputPath = path.join(tempDir, "overrides.pptx");
+
+  await sharp({
+    create: {
+      width: 640,
+      height: 420,
+      channels: 3,
+      background: "#202020",
+    },
+  }).png().toFile(imagePath);
+
+  const image = { localPath: imagePath, label: "CT abdomen" };
+  await buildDeck({
+    cases: [
+      {
+        rawInput: "appendicitis, ct abdomen pelvis",
+        diagnosisQuery: "appendicitis",
+        caseTitle: "appendicitis",
+        caseUrl: "https://radiopaedia.org/cases/appendicitis",
+        images: [image],
+        coreReviewExerciseType: "diagnosis_mcq",
+      },
+      {
+        rawInput: "diverticulitis, ct abdomen pelvis",
+        diagnosisQuery: "diverticulitis",
+        caseTitle: "diverticulitis",
+        caseUrl: "https://radiopaedia.org/cases/diverticulitis",
+        images: [image],
+      },
+      {
+        rawInput: "small bowel obstruction, ct abdomen pelvis",
+        diagnosisQuery: "small bowel obstruction",
+        caseTitle: "small bowel obstruction",
+        caseUrl: "https://radiopaedia.org/cases/small-bowel-obstruction",
+        images: [image],
+      },
+      {
+        rawInput: "pulmonary embolism, cta chest",
+        diagnosisQuery: "pulmonary embolism",
+        caseTitle: "pulmonary embolism",
+        caseUrl: "https://radiopaedia.org/cases/pulmonary-embolism",
+        images: [image],
+        coreReviewExerciseType: "pin_abnormality",
+      },
+    ],
+    deckTitle: "Core Review Override Regression",
+    outputPath,
+    scratchDir: path.join(tempDir, "scratch"),
+    deckMode: "core-review",
+  });
+
+  const pptx = await fs.readFile(outputPath);
+  const slideTexts = readSlideTexts(pptx);
+  const case1QuestionText = slideTexts.find((text) => /Case 1 .* Diagnosis Question/.test(text)) || "";
+  const case4QuestionText = slideTexts.find((text) => /Case 4 .* Pin Abnormality/.test(text)) || "";
+  const case4AnswerSlide = readSlideXmlEntries(pptx).find(({ text }) =>
+    /Case 4/.test(text) && /Abnormality \/ Finding/.test(text),
+  );
+
+  assert.match(case1QuestionText, /What is the most likely diagnosis\?/);
+  assert.match(case1QuestionText, /\bA\./);
+  assert.match(case4QuestionText, /Pin the abnormality\./);
+  assert.ok(case4AnswerSlide, "override pin-abnormality answers should include a follow-up answer slide");
+  assert.match(case4AnswerSlide.xml, /prst="ellipse"/, "unannotated override pins should include a moveable marker");
+  assert.doesNotMatch(case4QuestionText, /pulmonary embolism/i);
+});
+
 test("core review does not render answer-only structure cards as case exercises", async () => {
   const { buildDeck } = await import("../src/deck.mjs");
   const sharp = (await import("sharp")).default;
@@ -737,6 +809,82 @@ test("core review does not reveal pathology labels in pin anatomy prompts", asyn
   assert.match(case4QuestionText, /Pin the abnormality\./);
   assert.doesNotMatch(allSlideText, /Pin: subdural collection/i);
   assert.doesNotMatch(allSlideText, /Case 4 .* Pin Anatomy/);
+});
+
+test("core review treats calcification labels as abnormality pins", async () => {
+  const { buildDeck } = await import("../src/deck.mjs");
+  const sharp = (await import("sharp")).default;
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "radiology-deck-core-calcification-pin-"));
+  const imagePath = path.join(tempDir, "chest-ct.png");
+  const outputPath = path.join(tempDir, "calcification-pin.pptx");
+
+  await sharp({
+    create: {
+      width: 640,
+      height: 420,
+      channels: 3,
+      background: "#202020",
+    },
+  }).png().toFile(imagePath);
+
+  const baseCase = {
+    caseUrl: "https://radiopaedia.org/cases/example",
+    images: [{ localPath: imagePath, label: "CT chest" }],
+  };
+
+  await buildDeck({
+    cases: [
+      {
+        ...baseCase,
+        rawInput: "pulmonary embolism, cta chest",
+        diagnosisQuery: "pulmonary embolism",
+        caseTitle: "pulmonary embolism",
+      },
+      {
+        ...baseCase,
+        rawInput: "perianal fistula, mri pelvis",
+        diagnosisQuery: "perianal fistula",
+        caseTitle: "perianal fistula",
+      },
+      {
+        ...baseCase,
+        rawInput: "appendicitis, ct abdomen pelvis",
+        diagnosisQuery: "appendicitis",
+        caseTitle: "appendicitis",
+      },
+      {
+        ...baseCase,
+        rawInput: "cardiac calcification, ct chest",
+        diagnosisQuery: "cardiac calcification",
+        caseTitle: "cardiac calcification",
+        images: [
+          {
+            localPath: imagePath,
+            label: "CT chest",
+            focusPoints: [{ x: 330, y: 195, label: "saddle shaped calcification" }],
+            frameWidth: 640,
+            frameHeight: 420,
+          },
+        ],
+      },
+    ],
+    deckTitle: "Calcification Pin Regression",
+    outputPath,
+    scratchDir: path.join(tempDir, "scratch"),
+    deckMode: "core-review",
+  });
+
+  const pptx = await fs.readFile(outputPath);
+  const allSlideText = readAllSlideText(pptx);
+  const case4QuestionText = readSlideTexts(pptx).find((text) => /Case 4 .* Pin Abnormality/.test(text)) || "";
+  const case4AnswerSlideText = readSlideTexts(pptx).find((text) =>
+    /Case 4/.test(text) && /Abnormality \/ Finding/.test(text),
+  ) || "";
+
+  assert.match(case4QuestionText, /Pin the abnormality\./);
+  assert.doesNotMatch(allSlideText, /Pin: saddle shaped calcification/i);
+  assert.doesNotMatch(allSlideText, /Case 4 .* Pin Anatomy/);
+  assert.match(case4AnswerSlideText, /Marked region: saddle shaped calcification/i);
 });
 
 test("core review broad regional anatomy prompts ask to pin the abnormality", async () => {

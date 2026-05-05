@@ -3,6 +3,8 @@ using System.Text.Json.Nodes;
 
 namespace RadiologyPpt.App;
 
+public sealed record CoreReviewExerciseTypeOption(string Label, string Value);
+
 public sealed class ReviewImageItem : INotifyPropertyChanged
 {
     private bool _keep = true;

@@ -5,6 +5,8 @@ import os from "node:os";
 import path from "node:path";
 import zlib from "node:zlib";
 import {
+  coreReviewCaseCountForTotal,
+  coreReviewStandaloneQuestionCountsForTotal,
   normalizeCaseRequestEntries,
   normalizePreparedItems,
 } from "../src/backend-api.mjs";
@@ -55,6 +57,17 @@ test("backend API drops empty rows but keeps repeated random rows", () => {
   assert.equal(requests.length, 3);
   assert.equal(requests.filter((request) => request.randomSpec).length, 2);
   assert.equal(requests.filter((request) => request.diagnosis === "appendicitis").length, 1);
+});
+
+test("Core Review total item count reserves NIS and physics inside requested total", () => {
+  assert.deepEqual(coreReviewStandaloneQuestionCountsForTotal(50), { nis: 2, physics: 2 });
+  assert.equal(coreReviewCaseCountForTotal(50), 46);
+  assert.deepEqual(coreReviewStandaloneQuestionCountsForTotal(25), { nis: 2, physics: 2 });
+  assert.equal(coreReviewCaseCountForTotal(25), 21);
+  assert.deepEqual(coreReviewStandaloneQuestionCountsForTotal(10), { nis: 1, physics: 1 });
+  assert.equal(coreReviewCaseCountForTotal(10), 8);
+  assert.deepEqual(coreReviewStandaloneQuestionCountsForTotal(3), { nis: 0, physics: 0 });
+  assert.equal(coreReviewCaseCountForTotal(3), 3);
 });
 
 test("prepared item normalization rejects malformed render payloads", () => {

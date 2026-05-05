@@ -477,18 +477,27 @@ function requestFromCase(item, planIndex, options) {
       caseMix: options.caseMix,
       modalityMix: options.modalityMix,
       anatomyPrompt: item.anatomy,
+      totalReviewItemCount: options.totalReviewItemCount,
+      standaloneQuestionCounts: options.standaloneQuestionCounts,
     },
   };
 }
 
-function buildSummary(entries, requestedCaseCount, domain, caseMix, modalityMix) {
+function buildSummary(entries, requestedCaseCount, domain, caseMix, modalityMix, totalReviewItemCount = 0, standaloneQuestionCounts = {}) {
   const labelByDomain = new Map(CORE_REVIEW_DOMAINS.map((item) => [item.id, item.label]));
   const domainLabel = domain ? labelByDomain.get(domain) || domain : "mixed CORE domains";
   const countText =
     entries.length === requestedCaseCount
       ? `${entries.length} planned case request(s)`
       : `${requestedCaseCount} requested case(s), ${entries.length} candidate request(s)`;
-  return `${countText}, ${domainLabel}, ${caseMix} case mix, ${modalityMix} modality hints`;
+  const standaloneCount = Number(standaloneQuestionCounts.nis || 0) + Number(standaloneQuestionCounts.physics || 0);
+  const totalText =
+    totalReviewItemCount && standaloneCount
+      ? `${totalReviewItemCount} total review item(s), ${standaloneCount} NIS/physics question(s) included`
+      : "";
+  return [totalText, countText, domainLabel, `${caseMix} case mix`, `${modalityMix} modality hints`]
+    .filter(Boolean)
+    .join(", ");
 }
 
 export async function buildCoreReviewCasePlan(args = {}) {
@@ -535,6 +544,8 @@ export async function buildCoreReviewCasePlan(args = {}) {
     ollamaModel: collapseWhitespace(args.ollamaModel || ""),
     caseMix,
     modalityMix,
+    totalReviewItemCount: Number(args.totalReviewItemCount || 0),
+    standaloneQuestionCounts: args.standaloneQuestionCounts || { nis: 0, physics: 0 },
     allowAlternateModality: args.allowAlternateModality !== false,
   };
   const entries = selected.map((item, index) => requestFromCase(item, index, options));
@@ -551,7 +562,17 @@ export async function buildCoreReviewCasePlan(args = {}) {
     caseBankTitle: caseBank.title,
     caseBankPath: caseBank.path,
     sources: [...CORE_REVIEW_CASE_SOURCES, ...(caseBank.sources || [])],
-    summary: buildSummary(entries, caseCount, domain, caseMix, modalityMix),
+    totalReviewItemCount: Number(args.totalReviewItemCount || 0) || caseCount,
+    standaloneQuestionCounts: args.standaloneQuestionCounts || { nis: 0, physics: 0 },
+    summary: buildSummary(
+      entries,
+      caseCount,
+      domain,
+      caseMix,
+      modalityMix,
+      Number(args.totalReviewItemCount || 0),
+      args.standaloneQuestionCounts || { nis: 0, physics: 0 },
+    ),
     entries,
   };
 }

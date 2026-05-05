@@ -71,15 +71,6 @@ public static class AppOptions
             UseOllamaReview: true,
             IncludeTeachingPoints: false),
         new(
-            "Core Review Teaching",
-            "Case-based diagnosis questions with anatomy prompts, plus interleaved NIS and physics review slides.",
-            3,
-            "core-review",
-            "teaching-warm",
-            UseClinicalHistory: true,
-            UseOllamaReview: false,
-            IncludeTeachingPoints: true),
-        new(
             "Dark Conference",
             "A darker case-conference look for presenting in a reading room or lecture room.",
             3,

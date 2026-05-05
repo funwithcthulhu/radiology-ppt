@@ -83,6 +83,34 @@ function boundedInteger(rawValue, defaultValue, minimum, maximum) {
   return Math.max(minimum, Math.min(maximum, parsed));
 }
 
+function normalizeStandaloneQuestionCounts(counts = {}) {
+  return {
+    nis: boundedInteger(counts.nis, 0, 0, 50),
+    physics: boundedInteger(counts.physics, 0, 0, 50),
+  };
+}
+
+function standaloneQuestionTotal(counts = {}) {
+  const normalized = normalizeStandaloneQuestionCounts(counts);
+  return normalized.nis + normalized.physics;
+}
+
+export function coreReviewStandaloneQuestionCountsForTotal(totalReviewItemCount) {
+  const requestedTotal = boundedInteger(totalReviewItemCount, 50, 1, 150);
+  if (requestedTotal < 4) {
+    return { nis: 0, physics: 0 };
+  }
+  if (requestedTotal < 20) {
+    return { nis: 1, physics: 1 };
+  }
+  return { nis: 2, physics: 2 };
+}
+
+export function coreReviewCaseCountForTotal(totalReviewItemCount) {
+  const requestedTotal = boundedInteger(totalReviewItemCount, 50, 1, 150);
+  return Math.max(1, requestedTotal - standaloneQuestionTotal(coreReviewStandaloneQuestionCountsForTotal(requestedTotal)));
+}
+
 async function buildDeck(options) {
   const deck = await import("./deck.mjs");
   return deck.buildDeck(options);
@@ -187,7 +215,9 @@ export async function prepareCases(entries, args) {
 
 export async function prepareCoreReviewDeck(args) {
   emitProgress("Planning Core Review case requests");
-  const requestedCaseCount = boundedInteger(args.caseCount || args.count, 50, 1, 150);
+  const requestedReviewItemCount = boundedInteger(args.caseCount || args.count, 50, 1, 150);
+  const standaloneQuestionCounts = coreReviewStandaloneQuestionCountsForTotal(requestedReviewItemCount);
+  const requestedCaseCount = coreReviewCaseCountForTotal(requestedReviewItemCount);
   const candidateCaseCount = Math.min(
     300,
     Math.max(requestedCaseCount, requestedCaseCount * CORE_REVIEW_CANDIDATE_MULTIPLIER, requestedCaseCount + 120),
@@ -196,11 +226,15 @@ export async function prepareCoreReviewDeck(args) {
     ...args,
     caseCount: requestedCaseCount,
     candidateCaseCount,
+    totalReviewItemCount: requestedReviewItemCount,
+    standaloneQuestionCounts,
     allowAlternateModality: true,
   });
   emitProgress("Starting Core Review case preparation", {
+    requestedReviewItemCount,
     requestedCaseCount: plan.requestedCaseCount,
     plannedCaseCount: plan.plannedCaseCount,
+    standaloneQuestionCounts,
     caseMix: plan.caseMix,
     modalityMix: plan.modalityMix,
   });
@@ -215,8 +249,10 @@ export async function prepareCoreReviewDeck(args) {
     requestedCaseCount,
   );
   emitProgress("Core Review case preparation complete", {
+    requestedReviewItemCount,
     requestedCaseCount,
     preparedCaseCount: prepared.items.length,
+    standaloneQuestionCount: standaloneQuestionTotal(standaloneQuestionCounts),
     candidatePoolSize: plan.entries.length,
   });
   scheduleFallbackCasePrefetch(prepared.items);
@@ -649,6 +685,22 @@ function perDomainCoreReviewQuestionCount(caseCount) {
   return caseCount >= 8 ? 2 : 1;
 }
 
+function standaloneQuestionCountsFromPreparedCases(cases) {
+  for (const caseData of cases) {
+    const counts = caseData?.coreReviewPlan?.standaloneQuestionCounts;
+    if (!counts) {
+      continue;
+    }
+    const normalized = normalizeStandaloneQuestionCounts(counts);
+    if (standaloneQuestionTotal(normalized) > 0) {
+      return normalized;
+    }
+  }
+
+  const perDomain = perDomainCoreReviewQuestionCount(cases.length);
+  return { nis: perDomain, physics: perDomain };
+}
+
 function normalizeCoreReviewQuestionSource(value) {
   const normalized = collapseWhitespace(value || "").toLowerCase();
   if (!normalized) {
@@ -846,21 +898,21 @@ async function selectCoreReviewStandaloneQuestions(cases, deckTitle, args = {}) 
   ]
     .filter(Boolean)
     .join("|");
-  const perDomain = perDomainCoreReviewQuestionCount(cases.length);
+  const standaloneQuestionCounts = standaloneQuestionCountsFromPreparedCases(cases);
 
   return [
     ...supplementStandaloneDomainQuestions(
       questionBank,
       defaultQuestionBank,
       "nis",
-      perDomain,
+      standaloneQuestionCounts.nis,
       `${seedBase}|nis`,
     ),
     ...supplementStandaloneDomainQuestions(
       questionBank,
       defaultQuestionBank,
       "physics",
-      perDomain,
+      standaloneQuestionCounts.physics,
       `${seedBase}|physics`,
     ),
   ];

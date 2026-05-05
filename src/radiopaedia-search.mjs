@@ -37,6 +37,9 @@ const RANDOM_SEARCH_QUERY_LIMIT = boundedInteger(process.env.RADIOLOGY_PPT_RANDO
 const RANDOM_SEARCH_PAGE_SCAN_LIMIT = boundedInteger(process.env.RADIOLOGY_PPT_RANDOM_SEARCH_PAGE_LIMIT, 250, 2, 1000);
 const RANDOM_CANDIDATE_REVIEW_LIMIT = boundedInteger(process.env.RADIOLOGY_PPT_RANDOM_CANDIDATE_LIMIT, 3000, 25, 10000);
 const RANDOM_SEARCH_TIME_LIMIT_MS = boundedInteger(process.env.RADIOLOGY_PPT_RANDOM_SEARCH_TIMEOUT_MS, 300000, 10000, 900000);
+const SEARCH_HTML_BLOCKED_PATTERN =
+  /(?:Just a moment|Attention Required|cf-browser-verification|captcha|rate limit|temporarily unavailable)/i;
+const SEARCH_HTML_SHELL_PATTERN = /(?:id="search-results"|search-results-wrapper|listing-wrapper)/i;
 
 function boundedInteger(rawValue, defaultValue, minimum, maximum) {
   const parsed = Number.parseInt(rawValue ?? "", 10);
@@ -182,6 +185,36 @@ function parseSearchResultCandidates(html, request, limit = 5) {
   return results
     .sort((left, right) => right.score - left.score || left.title.localeCompare(right.title))
     .slice(0, limit);
+}
+
+function cacheBustedSearchUrl(searchUrl) {
+  const url = new URL(searchUrl);
+  url.searchParams.set("_rp_no_cache", String(Date.now()));
+  return url.toString();
+}
+
+function searchHtmlLooksSuspicious(html) {
+  const body = String(html ?? "");
+  if (!body.trim()) {
+    return true;
+  }
+  return SEARCH_HTML_BLOCKED_PATTERN.test(body) || (!SEARCH_HTML_SHELL_PATTERN.test(body) && body.length < 10000);
+}
+
+async function fetchSearchResultCandidates(searchUrl, request, limit, fetchSearchText) {
+  const html = await fetchSearchText(searchUrl);
+  let results = parseSearchResultCandidates(html, request, limit);
+  if (results.length || !searchHtmlLooksSuspicious(html)) {
+    return { results, retried: false };
+  }
+
+  const retryUrl = cacheBustedSearchUrl(searchUrl);
+  const retryHtml = await fetchSearchText(retryUrl, {
+    "cache-control": "no-cache",
+    "pragma": "no-cache",
+  });
+  results = parseSearchResultCandidates(retryHtml, request, limit);
+  return { results, retried: true };
 }
 
 export function buildCaseSearchUrl({ query = "", systems = [], page = 1 } = {}) {
@@ -780,9 +813,14 @@ export async function inspectRadiopaediaCaseCandidates(input, { limit = 5, fetch
 
     for (const systems of searchSystemAttempts) {
       const searchUrl = buildCaseSearchUrl({ query, systems });
-      let html = "";
+      let searchResult;
       try {
-        html = await fetchSearchText(searchUrl);
+        searchResult = await fetchSearchResultCandidates(
+          searchUrl,
+          request,
+          Math.max(limit * 2, 6),
+          fetchSearchText,
+        );
       } catch (error) {
         searchFailures.push({
           query,
@@ -792,7 +830,15 @@ export async function inspectRadiopaediaCaseCandidates(input, { limit = 5, fetch
         continue;
       }
 
-      const results = parseSearchResultCandidates(html, request, Math.max(limit * 2, 6));
+      const results = searchResult.results;
+      if (searchResult.retried) {
+        emitWarning("Radiopaedia search returned an empty or invalid page; retried without cache", {
+          request: request.rawInput,
+          query,
+          systems,
+          results: results.length,
+        });
+      }
 
       for (const candidate of results) {
         if (excludedPaths.has(comparableCasePath(candidate.casePath))) {

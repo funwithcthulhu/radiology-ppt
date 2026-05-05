@@ -62,7 +62,7 @@ const DIAGNOSIS_DISPLAY_ACRONYMS = [
   "US",
 ];
 const PIN_TARGET_ABNORMALITY_PATTERN =
-  /\b(?:abscess|aneurysm|avulsion|carcinoma|collection|contusion|dissection|embol(?:us|i|ism)|fistula|fracture|hematoma|haematoma|hemorrhage|haemorrhage|hernia|infarct|ischemia|ischaemia|lesion|lymphoma|malformation|mass|metastasis|necrosis|neoplasm|nodule|pneumothorax|rupture|stone|tear|thrombus|thrombosis|torsion|tumou?r)\b/i;
+  /\b(?:abscess|aneurysm|atelectasis|avulsion|calcification|calcifications|carcinoma|collection|consolidation|contusion|defect|dilatation|dilation|dissection|edema|embol(?:us|i|ism)|effusion|enhancement|erosion|fistula|fracture|haematoma|haemorrhage|hematoma|hemorrhage|hernia|hydro(?:nephrosis|cephalus)|infarct|inflammation|ischemia|ischaemia|laceration|lesion|lucency|lymphoma|malformation|mass|metastasis|narrowing|necrosis|neoplasm|nodule|obstruction|opacity|oedema|perforation|pneumo(?:mediastinum|peritoneum|thorax)|rupture|sclerosis|stenosis|stone|tear|thickening|thrombus|thrombosis|torsion|tumou?r)\b/i;
 const BROAD_ANATOMY_PIN_TARGETS = new Set([
   "abdomen",
   "abdomen pelvis",
@@ -1682,8 +1682,61 @@ function isBroadAnatomyPinTarget(answerText) {
   return Boolean(key && BROAD_ANATOMY_PIN_TARGETS.has(key));
 }
 
+function normalizeCoreReviewExerciseOverride(value) {
+  const normalized = normalizeText(value).toLowerCase().replace(/[\s-]+/g, "_");
+  if (!normalized || normalized === "auto") {
+    return "";
+  }
+  if (["diagnosis", "diagnosis_open", "open", "open_answer", "short_answer", "free_response"].includes(normalized)) {
+    return "diagnosis_open";
+  }
+  if (["diagnosis_mcq", "mcq", "multiple_choice", "multiplechoice", "single_best_answer"].includes(normalized)) {
+    return "diagnosis_mcq";
+  }
+  if (["pin", "pin_abnormality", "pin_finding", "abnormality", "finding"].includes(normalized)) {
+    return "pin_abnormality";
+  }
+  if (["pin_anatomy", "pin_structure", "anatomy", "structure"].includes(normalized)) {
+    return "pin_anatomy";
+  }
+  return "";
+}
+
+function coreReviewExerciseOverride(caseData) {
+  return normalizeCoreReviewExerciseOverride(
+    caseData?.coreReviewExerciseType
+      || caseData?.questionType
+      || caseData?.coreReviewPlan?.exerciseType
+      || caseData?.coreReviewPlan?.questionType
+      || "",
+  );
+}
+
 function coreReviewExerciseType(caseData, caseNumber, anatomyQuestion) {
   const hasImage = Boolean(firstCaseImage(caseData));
+  const override = coreReviewExerciseOverride(caseData);
+  if (override) {
+    if (!hasImage && ["pin_abnormality", "pin_anatomy"].includes(override)) {
+      return "diagnosis_open";
+    }
+    if (override === "pin_abnormality" && !anatomyQuestion?.hotspot) {
+      return "pin_abnormality_verbal";
+    }
+    if (override === "pin_anatomy" && !anatomyQuestion?.answerText) {
+      return "diagnosis_open";
+    }
+    if (
+      override === "pin_anatomy"
+      && (
+        isLikelyAbnormalityPinTarget(anatomyQuestion.answerText, caseData)
+        || isBroadAnatomyPinTarget(anatomyQuestion.answerText)
+      )
+    ) {
+      return anatomyQuestion?.hotspot ? "pin_abnormality" : "pin_abnormality_verbal";
+    }
+    return override;
+  }
+
   const preferred = CORE_REVIEW_CASE_EXERCISE_SEQUENCE[(caseNumber - 1) % CORE_REVIEW_CASE_EXERCISE_SEQUENCE.length];
   if (!hasImage && ["pin_abnormality", "pin_anatomy", "pin_abnormality_verbal"].includes(preferred)) {
     return "diagnosis_open";

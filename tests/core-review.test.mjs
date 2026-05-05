@@ -190,6 +190,24 @@ test("can over-plan Core Review candidates while preserving the requested count"
   assert.match(plan.summary, /50 requested case\(s\), 120 candidate request\(s\)/);
 });
 
+test("Core Review case plans carry total item and standalone question metadata", async () => {
+  const plan = await buildCoreReviewCasePlan({
+    caseCount: 46,
+    candidateCaseCount: 50,
+    totalReviewItemCount: 50,
+    standaloneQuestionCounts: { nis: 2, physics: 2 },
+    caseMix: "blueprint",
+    modalityMix: "mixed",
+    seed: "core-plan-total-metadata",
+  });
+
+  assert.equal(plan.totalReviewItemCount, 50);
+  assert.deepEqual(plan.standaloneQuestionCounts, { nis: 2, physics: 2 });
+  assert.equal(plan.entries[0].coreReviewPlan.totalReviewItemCount, 50);
+  assert.deepEqual(plan.entries[0].coreReviewPlan.standaloneQuestionCounts, { nis: 2, physics: 2 });
+  assert.match(plan.summary, /50 total review item\(s\), 4 NIS\/physics question\(s\) included/);
+});
+
 test("defaults CORE review cases to one requested image", async () => {
   const plan = await buildCoreReviewCasePlan({
     caseCount: 4,

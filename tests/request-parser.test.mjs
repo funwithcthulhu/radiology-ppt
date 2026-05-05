@@ -9,6 +9,18 @@ test("parses a specific diagnosis with a modality/anatomy hint", () => {
   assert.deepEqual(request.preferredModalities, ["MRI"]);
 });
 
+test("does not treat diagnosis words containing anatomy aliases as random directives", () => {
+  const pneumothorax = parseCaseRequest("pneumothorax, chest");
+  assert.equal(pneumothorax.diagnosis, "pneumothorax");
+  assert.equal(pneumothorax.studyHint, "chest");
+  assert.equal(pneumothorax.randomSpec, null);
+
+  const pulmonaryEmbolism = parseCaseRequest("pulmonary embolism, cta chest");
+  assert.equal(pulmonaryEmbolism.diagnosis, "pulmonary embolism");
+  assert.equal(pulmonaryEmbolism.studyHint, "cta chest");
+  assert.equal(pulmonaryEmbolism.randomSpec, null);
+});
+
 test("parses random subspecialty/category directives", () => {
   const request = parseCaseRequest("random pediatric neuro diagnosis 2");
   assert.equal(request.randomSpec.count, 2);
