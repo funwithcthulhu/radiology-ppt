@@ -75,11 +75,14 @@ public partial class MainWindow : Window
         BoardDomainCombo.SelectedIndex = 0;
         PowerPointStyleCombo.ItemsSource = AppOptions.PowerPointStyles;
         PowerPointStyleCombo.SelectedIndex = 0;
+        CoreReviewQuestionSourceCombo.ItemsSource = AppOptions.CoreReviewQuestionSources;
+        CoreReviewQuestionSourceCombo.SelectedIndex = 0;
         ThemeCombo.ItemsSource = AppOptions.Themes;
         ThemeCombo.SelectedIndex = 0;
         PresetCombo.ItemsSource = AppOptions.PowerPointPresets;
         PresetCombo.SelectedIndex = 0;
         OllamaModelCombo.Text = "moondream";
+        RefreshCoreReviewQuestionSourceUi();
     }
 
     private void InitializeStorage()
@@ -118,10 +121,16 @@ public partial class MainWindow : Window
             SetCheckBox(OnlyNewRandomCheck, values, "only_new_random_cases", defaultValue: true);
             SelectByCliValue(ThemeCombo, AppOptions.Themes, AppOptions.ThemeCliValue, values, "theme");
             SelectByCliValue(PowerPointStyleCombo, AppOptions.PowerPointStyles, AppOptions.PowerPointStyleCliValue, values, "powerpoint_style");
+            SelectByCliValue(CoreReviewQuestionSourceCombo, AppOptions.CoreReviewQuestionSources, AppOptions.CoreReviewQuestionSourceCliValue, values, "core_review_question_source");
+            if (values.TryGetValue("core_review_question_bank_path", out var coreReviewQuestionBankPath))
+            {
+                CoreReviewQuestionBankBox.Text = coreReviewQuestionBankPath;
+            }
             if (values.TryGetValue("ollama_model", out var ollamaModel) && !string.IsNullOrWhiteSpace(ollamaModel))
             {
                 OllamaModelCombo.Text = ollamaModel;
             }
+            RefreshCoreReviewQuestionSourceUi();
         }
         catch (Exception exception)
         {
@@ -263,6 +272,7 @@ public partial class MainWindow : Window
         ClinicalHistoryCheck.IsChecked = preset.UseClinicalHistory;
         OllamaCheck.IsChecked = preset.UseOllamaReview;
         TeachingPointsCheck.IsChecked = preset.IncludeTeachingPoints;
+        RefreshCoreReviewQuestionSourceUi();
         StatusText = $"Applied preset: {preset.Name}";
     }
 
@@ -354,7 +364,7 @@ public partial class MainWindow : Window
     {
         var dialog = new OpenFileDialog
         {
-            Filter = "PDF files (*.pdf)|*.pdf|All files (*.*)|*.*",
+            Filter = "Supported source files (*.pdf;*.txt;*.md;*.markdown;*.json;*.jsonl)|*.pdf;*.txt;*.md;*.markdown;*.json;*.jsonl|PDF files (*.pdf)|*.pdf|Text and JSON files (*.txt;*.md;*.markdown;*.json;*.jsonl)|*.txt;*.md;*.markdown;*.json;*.jsonl|All files (*.*)|*.*",
             Multiselect = true
         };
         if (dialog.ShowDialog(this) != true)
@@ -366,16 +376,29 @@ public partial class MainWindow : Window
         {
             SelectTab(MainTab.Activity);
             var domain = AppOptions.BoardDomainCliValue(BoardDomainCombo.SelectedItem?.ToString() ?? "");
+            var pdfPaths = dialog.FileNames
+                .Where(path => Path.GetExtension(path).Equals(".pdf", StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+            var textPaths = dialog.FileNames
+                .Where(path => !Path.GetExtension(path).Equals(".pdf", StringComparison.OrdinalIgnoreCase))
+                .ToArray();
             await _jobs.RunAsync(
-                "Importing PDFs...",
+                "Importing source material...",
                 OnJobChanged,
                 async token =>
                 {
-                    await _backend.ImportCoreReviewPdfsAsync(dialog.FileNames, domain, AppendLog, token);
+                    if (pdfPaths.Length > 0)
+                    {
+                        await _backend.ImportCoreReviewPdfsAsync(pdfPaths, domain, AppendLog, token);
+                    }
+                    if (textPaths.Length > 0)
+                    {
+                        await _backend.ImportCoreReviewSourcesAsync(textPaths, domain, AppendLog, token);
+                    }
                     return true;
                 });
             _storage.SaveCoreSourceImports(dialog.FileNames, domain);
-            BoardStatusText.Text = $"Imported {dialog.FileNames.Length} PDF(s).";
+            BoardStatusText.Text = $"Imported {pdfPaths.Length} PDF(s) and {textPaths.Length} note/JSON file(s).";
             StatusText = "Core Boards import complete";
         }
         catch (OperationCanceledException)
@@ -502,8 +525,33 @@ public partial class MainWindow : Window
             OllamaModelCombo.Text,
             ThemeCombo.SelectedItem?.ToString() ?? "",
             PowerPointStyleCombo.SelectedItem?.ToString() ?? "",
+            CoreReviewQuestionSourceCombo.SelectedItem?.ToString() ?? "",
+            CoreReviewQuestionBankBox.Text,
             TeachingPointsCheck.IsChecked == true,
             OnlyNewRandomCheck.IsChecked == true));
+    }
+
+    private void PowerPointStyleCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        RefreshCoreReviewQuestionSourceUi();
+    }
+
+    private void CoreReviewQuestionSourceCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        RefreshCoreReviewQuestionSourceUi();
+    }
+
+    private void BrowseCoreReviewQuestionBank_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*",
+            Multiselect = false
+        };
+        if (dialog.ShowDialog(this) == true)
+        {
+            CoreReviewQuestionBankBox.Text = dialog.FileName;
+        }
     }
 
     private void SetBusy(bool busy)
@@ -645,6 +693,25 @@ public partial class MainWindow : Window
         {
             comboBox.SelectedItem = match;
         }
+    }
+
+    private void RefreshCoreReviewQuestionSourceUi()
+    {
+        var isCoreReview = string.Equals(
+            AppOptions.PowerPointStyleCliValue(PowerPointStyleCombo.SelectedItem?.ToString() ?? ""),
+            "core-review",
+            StringComparison.OrdinalIgnoreCase);
+        var usesCustomBank = string.Equals(
+            AppOptions.CoreReviewQuestionSourceCliValue(CoreReviewQuestionSourceCombo.SelectedItem?.ToString() ?? ""),
+            "question-bank",
+            StringComparison.OrdinalIgnoreCase);
+
+        CoreReviewQuestionSourceLabel.Visibility = isCoreReview ? Visibility.Visible : Visibility.Collapsed;
+        CoreReviewQuestionSourceCombo.Visibility = isCoreReview ? Visibility.Visible : Visibility.Collapsed;
+        CoreReviewQuestionSourceCombo.IsEnabled = isCoreReview;
+        CoreReviewQuestionBankLabel.Visibility = isCoreReview && usesCustomBank ? Visibility.Visible : Visibility.Collapsed;
+        CoreReviewQuestionBankPanel.Visibility = isCoreReview && usesCustomBank ? Visibility.Visible : Visibility.Collapsed;
+        CoreReviewQuestionBankBox.IsEnabled = isCoreReview && usesCustomBank;
     }
 
     private static void OpenPath(string path)

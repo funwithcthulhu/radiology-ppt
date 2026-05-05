@@ -192,9 +192,150 @@ test("renders cases with no selected images instead of crashing", async () => {
   assert.match(imageSlideText, /No selected images for this case\./);
 });
 
+test("core review mode renders diagnosis, anatomy, and standalone review prompts", async () => {
+  const { buildDeck } = await import("../src/deck.mjs");
+  const sharp = (await import("sharp")).default;
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "radiology-deck-core-review-"));
+  const imagePath = path.join(tempDir, "review-image.png");
+  const outputPath = path.join(tempDir, "core-review.pptx");
+
+  await sharp({
+    create: {
+      width: 640,
+      height: 420,
+      channels: 3,
+      background: "#202020",
+    },
+  }).png().toFile(imagePath);
+
+  await buildDeck({
+    cases: [
+      {
+        rawInput: "chiari i malformation, mri brain",
+        diagnosisQuery: "Chiari I malformation",
+        studyHint: "mri brain",
+        caseTitle: "Chiari I malformation",
+        caseUrl: "https://radiopaedia.org/cases/chiari-i-malformation",
+        author: "Test Author",
+        licenseName: "CC BY-NC-SA 3.0",
+        rid: "rID-10",
+        patientData: { age: "17", gender: "female" },
+        caseIntro: "The patient is a 17-year-old female.",
+        revealSummary: "Inferior cerebellar tonsillar ectopia extends below the foramen magnum.",
+        footerText: "Radiopaedia • rID-10",
+        images: [
+          {
+            localPath: imagePath,
+            label: "MRI • Sagittal T1",
+            focusPoints: [{ x: 250, y: 168, kind: "arrow", label: "Cerebellar tonsil" }],
+            frameWidth: 640,
+            frameHeight: 420,
+          },
+        ],
+        teachingPoints: ["Crowding at the foramen magnum is a classic morphologic clue."],
+      },
+      {
+        rawInput: "vestibular schwannoma, mri iac",
+        diagnosisQuery: "Vestibular schwannoma",
+        studyHint: "mri iac",
+        caseTitle: "Vestibular schwannoma",
+        caseUrl: "https://radiopaedia.org/cases/vestibular-schwannoma",
+        author: "Test Author",
+        licenseName: "CC BY-NC-SA 3.0",
+        rid: "rID-11",
+        patientData: { age: "52", gender: "male" },
+        caseIntro: "The patient is a 52-year-old male.",
+        revealSummary: "Enhancing mass expands the internal auditory canal and CPA cistern.",
+        footerText: "Radiopaedia • rID-11",
+        images: [{ localPath: imagePath, label: "MRI • Axial postcontrast" }],
+        teachingPoints: ["CPA masses should be localized relative to the IAC and cisternal component."],
+      },
+    ],
+    deckTitle: "Core Review Regression",
+    outputPath,
+    scratchDir: path.join(tempDir, "scratch"),
+    deckMode: "core-review",
+    coreReviewQuestions: [
+      {
+        id: "nis-regression",
+        type: "single_best_answer",
+        domain: "nis",
+        stem: "Which communication step is best for an unexpected life-threatening finding?",
+        options: [
+          { id: "A", text: "Wait for the routine final report" },
+          { id: "B", text: "Directly contact the responsible clinician and document the communication" },
+          { id: "C", text: "Leave a nonurgent inbox message only" },
+          { id: "D", text: "Rely on the technologist to relay the result" },
+        ],
+        answerKey: "B",
+        explanation: "Critical results need direct, timely communication.",
+        references: [{ label: "ABR NIS study guide", url: "https://www.theabr.org/nis-study-guide" }],
+      },
+      {
+        id: "physics-regression",
+        type: "numeric_fill_blank",
+        domain: "physics",
+        stem: "After two half-lives, what percentage of the original activity remains?",
+        options: [],
+        numericAnswer: { value: 25, tolerance: 0.1, units: "%" },
+        explanation: "Two half-lives leave one quarter of the original activity.",
+        references: [{ label: "ABR Physics study guide", url: "https://www.theabr.org/physics-study-guide" }],
+      },
+    ],
+    includeTeachingPoints: true,
+  });
+
+  const pptx = await fs.readFile(outputPath);
+  const allSlideText = readAllSlideText(pptx);
+
+  assert.match(allSlideText, /What is the most likely diagnosis\?/);
+  assert.match(allSlideText, /What structure or finding is indicated by the marker\?/);
+  assert.match(allSlideText, /Cerebellar tonsil/);
+  assert.match(allSlideText, /Which communication step is best for an unexpected life-threatening finding\?/);
+  assert.match(allSlideText, /After two half-lives, what percentage of the original activity remains\?/);
+  assert.match(allSlideText, /Core Review Notes/);
+});
+
 function readZipEntryText(buffer, entryName) {
   const entry = readZipEntry(buffer, entryName);
   return entry.toString("utf8");
+}
+
+function readAllSlideText(buffer) {
+  return listZipEntries(buffer)
+    .filter((entry) => /^ppt\/slides\/slide\d+\.xml$/.test(entry))
+    .sort((left, right) => slideNumber(left) - slideNumber(right))
+    .map((entry) => decodeXmlText(readZipEntryText(buffer, entry)))
+    .join("\n\n");
+}
+
+function slideNumber(entryName) {
+  return Number(/slide(\d+)\.xml$/.exec(entryName)?.[1] || 0);
+}
+
+function listZipEntries(buffer) {
+  const eocdOffset = findEndOfCentralDirectory(buffer);
+  const centralDirectorySize = buffer.readUInt32LE(eocdOffset + 12);
+  const centralDirectoryOffset = buffer.readUInt32LE(eocdOffset + 16);
+  let offset = centralDirectoryOffset;
+  const end = centralDirectoryOffset + centralDirectorySize;
+  const entries = [];
+
+  while (offset < end) {
+    if (buffer.readUInt32LE(offset) !== 0x02014b50) {
+      break;
+    }
+
+    const fileNameLength = buffer.readUInt16LE(offset + 28);
+    const extraLength = buffer.readUInt16LE(offset + 30);
+    const commentLength = buffer.readUInt16LE(offset + 32);
+    const fileName = buffer.toString("utf8", offset + 46, offset + 46 + fileNameLength);
+    entries.push(fileName);
+
+    offset += 46 + fileNameLength + extraLength + commentLength;
+  }
+
+  return entries;
 }
 
 function readZipEntry(buffer, entryName) {

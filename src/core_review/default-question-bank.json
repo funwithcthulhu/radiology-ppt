@@ -1,0 +1,268 @@
+{
+  "title": "Bundled Core Review Practice Questions",
+  "notes": "Original practice questions for internal deck generation. These are not official ABR items.",
+  "questions": [
+    {
+      "id": "bundled-nis-0001",
+      "type": "single_best_answer",
+      "domain": "nis",
+      "difficulty": "core",
+      "cognitiveLevel": "patient_safety",
+      "stem": "A resident identifies a near miss in which the wrong prior examination was almost compared before finalizing a report. Which response best supports a just-culture review?",
+      "options": [
+        { "id": "A", "text": "Issue a private warning to the resident and close the event without discussion" },
+        { "id": "B", "text": "Conduct a de-identified review that looks for system contributors and shares lessons with the team" },
+        { "id": "C", "text": "Avoid documenting the event because no patient harm occurred" },
+        { "id": "D", "text": "Report the resident to the credentialing committee before any local review" }
+      ],
+      "answerKey": "B",
+      "explanation": "Near misses are most useful when reviewed in a structured, non-punitive way that looks for latent system causes and opportunities for safer workflow design.",
+      "references": [
+        {
+          "label": "ABR NIS study guide",
+          "url": "https://www.theabr.org/nis-study-guide"
+        }
+      ]
+    },
+    {
+      "id": "bundled-nis-0002",
+      "type": "single_best_answer",
+      "domain": "nis",
+      "difficulty": "core",
+      "cognitiveLevel": "critical_results",
+      "stem": "A chest radiograph obtained in the emergency department shows a new tension pneumothorax. What is the best next step for result communication?",
+      "options": [
+        { "id": "A", "text": "Finalize the report promptly and rely on the electronic inbox" },
+        { "id": "B", "text": "Send a routine secure message to the ordering team" },
+        { "id": "C", "text": "Directly contact the responsible clinician immediately and document the communication" },
+        { "id": "D", "text": "Wait for a second attending to confirm the interpretation before notifying anyone" }
+      ],
+      "answerKey": "C",
+      "explanation": "Unexpected, potentially life-threatening findings require direct, timely communication plus documentation that the message reached a responsible clinician.",
+      "references": [
+        {
+          "label": "ABR NIS study guide",
+          "url": "https://www.theabr.org/nis-study-guide"
+        }
+      ]
+    },
+    {
+      "id": "bundled-nis-0003",
+      "type": "single_best_answer",
+      "domain": "nis",
+      "difficulty": "core",
+      "cognitiveLevel": "mri_safety",
+      "stem": "A patient reports a prior intracranial aneurysm clip, but no operative record or implant card is available. Which action is most appropriate before MRI?",
+      "options": [
+        { "id": "A", "text": "Proceed if the patient has previously undergone CT without issue" },
+        { "id": "B", "text": "Proceed using a low-field-strength magnet only" },
+        { "id": "C", "text": "Delay the MRI until implant compatibility is verified through reliable documentation" },
+        { "id": "D", "text": "Proceed if a screening form was signed by the patient" }
+      ],
+      "answerKey": "C",
+      "explanation": "Unknown implant compatibility is an MRI safety issue. Reliable documentation is needed before the patient enters the scanner environment.",
+      "references": [
+        {
+          "label": "ABR NIS study guide",
+          "url": "https://www.theabr.org/nis-study-guide"
+        }
+      ]
+    },
+    {
+      "id": "bundled-nis-0004",
+      "type": "single_best_answer",
+      "domain": "nis",
+      "difficulty": "core",
+      "cognitiveLevel": "quality_improvement",
+      "stem": "A department wants to track a process measure for a quality-improvement project focused on emergency department radiology workflow. Which metric is a process measure?",
+      "options": [
+        { "id": "A", "text": "Mean time from image completion to final report for emergency department CT studies" },
+        { "id": "B", "text": "Five-year hospital mortality for all emergency department patients" },
+        { "id": "C", "text": "Regional population life expectancy" },
+        { "id": "D", "text": "Annual hospital operating margin" }
+      ],
+      "answerKey": "A",
+      "explanation": "Process measures track how care is delivered. Turnaround time is a workflow metric that can be measured repeatedly as the intervention is refined.",
+      "references": [
+        {
+          "label": "ABR NIS study guide",
+          "url": "https://www.theabr.org/nis-study-guide"
+        }
+      ]
+    },
+    {
+      "id": "bundled-nis-0005",
+      "type": "single_best_answer",
+      "domain": "nis",
+      "difficulty": "core",
+      "cognitiveLevel": "contrast_reaction",
+      "stem": "A patient develops limited urticaria shortly after iodinated contrast administration but remains hemodynamically stable without respiratory symptoms. Which immediate management is most appropriate?",
+      "options": [
+        { "id": "A", "text": "Recognize a mild reaction, assess for progression, and provide symptomatic treatment or observation as needed" },
+        { "id": "B", "text": "Initiate chest compressions immediately" },
+        { "id": "C", "text": "Send the patient home without assessment because hives are always self-limited" },
+        { "id": "D", "text": "Assume this is vasovagal syncope and place the patient in Trendelenburg position" }
+      ],
+      "answerKey": "A",
+      "explanation": "Limited urticaria without cardiopulmonary compromise is typically managed as a mild contrast reaction with observation and symptom-based treatment.",
+      "references": [
+        {
+          "label": "ABR NIS study guide",
+          "url": "https://www.theabr.org/nis-study-guide"
+        }
+      ]
+    },
+    {
+      "id": "bundled-nis-0006",
+      "type": "single_best_answer",
+      "domain": "nis",
+      "difficulty": "core",
+      "cognitiveLevel": "informatics",
+      "stem": "Which workflow change most directly reduces the risk of reports being finalized on the wrong patient or wrong study?",
+      "options": [
+        { "id": "A", "text": "Suppress patient identifiers on the reporting screen to reduce clutter" },
+        { "id": "B", "text": "Require active verification of patient and accession information before final signature" },
+        { "id": "C", "text": "Allow dictation to continue even after a study is switched in the PACS viewer" },
+        { "id": "D", "text": "Shorten all reports so fewer details are available for review" }
+      ],
+      "answerKey": "B",
+      "explanation": "High-reliability workflow design uses deliberate patient-and-study verification steps at the point of interpretation and finalization.",
+      "references": [
+        {
+          "label": "ABR NIS study guide",
+          "url": "https://www.theabr.org/nis-study-guide"
+        }
+      ]
+    },
+    {
+      "id": "bundled-physics-0001",
+      "type": "single_best_answer",
+      "domain": "physics",
+      "difficulty": "core",
+      "cognitiveLevel": "radiography",
+      "stem": "If the distance from an x-ray source to a point in space is doubled, what happens to the exposure at that point, assuming all other factors are unchanged?",
+      "options": [
+        { "id": "A", "text": "It doubles" },
+        { "id": "B", "text": "It stays the same" },
+        { "id": "C", "text": "It falls to one half" },
+        { "id": "D", "text": "It falls to one quarter" }
+      ],
+      "answerKey": "D",
+      "explanation": "Exposure follows the inverse square law, so doubling distance reduces exposure by a factor of four.",
+      "references": [
+        {
+          "label": "ABR Physics study guide",
+          "url": "https://www.theabr.org/physics-study-guide"
+        }
+      ]
+    },
+    {
+      "id": "bundled-physics-0002",
+      "type": "single_best_answer",
+      "domain": "physics",
+      "difficulty": "core",
+      "cognitiveLevel": "ct",
+      "stem": "In helical CT, increasing pitch while keeping the other major exposure settings unchanged generally has what effect on patient dose?",
+      "options": [
+        { "id": "A", "text": "Dose increases" },
+        { "id": "B", "text": "Dose decreases" },
+        { "id": "C", "text": "Dose becomes unpredictable" },
+        { "id": "D", "text": "Dose is unchanged by pitch" }
+      ],
+      "answerKey": "B",
+      "explanation": "A higher pitch spreads the beam over a longer z-axis distance per rotation, which generally reduces dose when other parameters are held constant.",
+      "references": [
+        {
+          "label": "ABR Physics study guide",
+          "url": "https://www.theabr.org/physics-study-guide"
+        }
+      ]
+    },
+    {
+      "id": "bundled-physics-0003",
+      "type": "single_best_answer",
+      "domain": "physics",
+      "difficulty": "core",
+      "cognitiveLevel": "mri",
+      "stem": "Susceptibility artifact is typically most conspicuous on which MRI sequence family?",
+      "options": [
+        { "id": "A", "text": "Spin echo" },
+        { "id": "B", "text": "Gradient echo" },
+        { "id": "C", "text": "Inversion recovery" },
+        { "id": "D", "text": "Fast spin echo with short echo train" }
+      ],
+      "answerKey": "B",
+      "explanation": "Gradient-echo sequences are especially sensitive to susceptibility effects because they lack the 180-degree refocusing pulse that reduces dephasing.",
+      "references": [
+        {
+          "label": "ABR Physics study guide",
+          "url": "https://www.theabr.org/physics-study-guide"
+        }
+      ]
+    },
+    {
+      "id": "bundled-physics-0004",
+      "type": "single_best_answer",
+      "domain": "physics",
+      "difficulty": "core",
+      "cognitiveLevel": "ultrasound",
+      "stem": "Color Doppler aliasing is present. Which adjustment most directly reduces aliasing?",
+      "options": [
+        { "id": "A", "text": "Lower the pulse repetition frequency" },
+        { "id": "B", "text": "Increase the pulse repetition frequency" },
+        { "id": "C", "text": "Increase transducer contact pressure only" },
+        { "id": "D", "text": "Switch from color Doppler to B-mode without changing any settings" }
+      ],
+      "answerKey": "B",
+      "explanation": "Raising the pulse repetition frequency increases the Nyquist limit and is one of the standard ways to reduce Doppler aliasing.",
+      "references": [
+        {
+          "label": "ABR Physics study guide",
+          "url": "https://www.theabr.org/physics-study-guide"
+        }
+      ]
+    },
+    {
+      "id": "bundled-physics-0005",
+      "type": "numeric_fill_blank",
+      "domain": "physics",
+      "difficulty": "core",
+      "cognitiveLevel": "nuclear_decay",
+      "stem": "A radiotracer has an activity of 20 mCi and a physical half-life of 6 hours. Assuming only physical decay, what activity remains after 12 hours? State the answer in mCi.",
+      "numericAnswer": {
+        "value": 5,
+        "tolerance": 0.1,
+        "units": "mCi"
+      },
+      "explanation": "Twelve hours is two half-lives, so 20 mCi decreases to 10 mCi and then to 5 mCi.",
+      "references": [
+        {
+          "label": "ABR Physics study guide",
+          "url": "https://www.theabr.org/physics-study-guide"
+        }
+      ]
+    },
+    {
+      "id": "bundled-physics-0006",
+      "type": "single_best_answer",
+      "domain": "physics",
+      "difficulty": "core",
+      "cognitiveLevel": "xray_beam",
+      "stem": "What does the half-value layer of an x-ray beam represent?",
+      "options": [
+        { "id": "A", "text": "The tube current that doubles photon output" },
+        { "id": "B", "text": "The absorber thickness that reduces beam intensity to one half" },
+        { "id": "C", "text": "The anode angle that eliminates heel effect" },
+        { "id": "D", "text": "The detector exposure needed to avoid quantum mottle" }
+      ],
+      "answerKey": "B",
+      "explanation": "Half-value layer is the thickness of specified absorbing material required to reduce x-ray beam intensity to 50 percent of its original value.",
+      "references": [
+        {
+          "label": "ABR Physics study guide",
+          "url": "https://www.theabr.org/physics-study-guide"
+        }
+      ]
+    }
+  ]
+}

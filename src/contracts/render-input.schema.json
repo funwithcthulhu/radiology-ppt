@@ -28,6 +28,25 @@
           }
         }
       }
+    },
+    "args": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "deckMode": {
+          "type": "string",
+          "enum": ["case-conference", "core-review"]
+        },
+        "coreReviewQuestionSource": {
+          "type": "string",
+          "enum": ["bundled", "library", "question-bank"]
+        },
+        "coreReviewQuestionBankPath": { "type": "string" },
+        "theme": { "type": "string" },
+        "title": { "type": "string" },
+        "out": { "type": "string" },
+        "includeTeachingPoints": { "type": "boolean" }
+      }
     }
   }
 }

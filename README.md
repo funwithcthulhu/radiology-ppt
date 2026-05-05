@@ -89,7 +89,7 @@ There is no success popup after export. Use the left status area, Activity tab, 
 
 - `Cases`: request grid for diagnoses, random pulls, or Radiopaedia URLs.
 - `Library`: local history of reviewed cases with decision, image count, score, and case path.
-- `Core Boards`: local PDF import for a local ABR Core-style study area.
+- `Core Boards`: local import for PDFs, notes, and JSON study material used in Core Review.
 - `PowerPoint`: title, output path, images per case, style, theme, Ollama model, presets, generation, and output shortcuts.
 - `Activity`: diagnostics, backend logs, SQLite/cache counts, state folder access, cleanup, and maintenance.
 
@@ -172,7 +172,13 @@ GitHub Actions runs Node tests and the WPF Release build on Windows.
 
 ## Core Boards
 
-Core Boards can import local PDFs into a local study library under `library\board-review\`. The imported corpus stays local and is not committed.
+Core Boards can import local PDFs, notes, and JSON source material into a local study library under `library\board-review\`. The imported corpora stay local and are not committed.
+
+Core Review decks can source NIS and physics questions from:
+
+- the bundled free CORE-style bank
+- the imported local Core Boards library
+- a custom question-bank JSON file
 
 The repository does not bundle copyrighted board-review books or question banks. Import local materials only when you have the right to use them. Generated Core Boards corpora remain ignored by Git.
 

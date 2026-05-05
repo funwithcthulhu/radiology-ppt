@@ -31,6 +31,7 @@ function demoStudy() {
         ],
         annotations: [
           {
+            label: "Left hippocampus",
             arrow_positions: [{ slice_idx: 1, x: 0.5, y: 0.45 }],
             label_positions: [],
           },
@@ -48,6 +49,7 @@ test("builds scored candidates from annotated study frames", () => {
   assert.ok(candidates[0].relevantScore > 400);
   assert.equal(candidates[0].audit.provider, "radiopaedia");
   assert.ok(candidates[0].audit.reasons.includes("contains Radiopaedia annotation"));
+  assert.equal(candidates[0].focusPoints[0].label, "Left hippocampus");
 });
 
 test("does not reselect excluded image frames", () => {

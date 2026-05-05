@@ -33,6 +33,8 @@ public static class BackendPayloads
             ["args"] = new JsonObject
             {
                 ["deckMode"] = settings.PowerPointStyle,
+                ["coreReviewQuestionSource"] = settings.CoreReviewQuestionSource,
+                ["coreReviewQuestionBankPath"] = settings.CoreReviewQuestionBankPath,
                 ["theme"] = settings.Theme,
                 ["title"] = settings.Title,
                 ["out"] = settings.OutputPath,
@@ -46,6 +48,20 @@ public static class BackendPayloads
         return new JsonObject
         {
             ["inputPaths"] = new JsonArray(pdfPaths.Select(path => JsonValue.Create(path)).ToArray()),
+            ["args"] = new JsonObject
+            {
+                ["out"] = outputPath,
+                ["format"] = "json",
+                ["domain"] = domain
+            }
+        };
+    }
+
+    public static JsonObject CoreReviewSourceImport(IEnumerable<string> sourcePaths, string domain, string outputPath)
+    {
+        return new JsonObject
+        {
+            ["inputPaths"] = new JsonArray(sourcePaths.Select(path => JsonValue.Create(path)).ToArray()),
             ["args"] = new JsonObject
             {
                 ["out"] = outputPath,

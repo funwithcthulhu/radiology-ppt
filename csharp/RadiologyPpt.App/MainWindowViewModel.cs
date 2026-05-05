@@ -55,6 +55,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             OllamaModel = snapshot.OllamaModel.Trim(),
             Theme = AppOptions.ThemeCliValue(snapshot.Theme),
             PowerPointStyle = AppOptions.PowerPointStyleCliValue(snapshot.PowerPointStyle),
+            CoreReviewQuestionSource = AppOptions.CoreReviewQuestionSourceCliValue(snapshot.CoreReviewQuestionSource),
+            CoreReviewQuestionBankPath = snapshot.CoreReviewQuestionBankPath.Trim(),
             IncludeTeachingPoints = snapshot.IncludeTeachingPoints,
             OnlyNewRandomCases = snapshot.OnlyNewRandomCases
         };
@@ -116,5 +118,7 @@ public sealed record PowerPointSettingsSnapshot(
     string OllamaModel,
     string Theme,
     string PowerPointStyle,
+    string CoreReviewQuestionSource,
+    string CoreReviewQuestionBankPath,
     bool IncludeTeachingPoints,
     bool OnlyNewRandomCases);

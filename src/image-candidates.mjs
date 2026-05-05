@@ -90,10 +90,20 @@ function extractFrameFocusPoints(series, frameIndex) {
   for (const annotation of series.annotations ?? []) {
     const arrowPoints = (annotation.arrow_positions ?? [])
       .filter((position) => position?.slice_idx === frameIndex)
-      .map((position) => ({ x: position.x, y: position.y, kind: "arrow" }));
+      .map((position) => ({
+        x: position.x,
+        y: position.y,
+        kind: "arrow",
+        label: collapseWhitespace(annotation.label || ""),
+      }));
     const labelPoints = (annotation.label_positions ?? [])
       .filter((position) => position?.slice_idx === frameIndex)
-      .map((position) => ({ x: position.x, y: position.y, kind: "label" }));
+      .map((position) => ({
+        x: position.x,
+        y: position.y,
+        kind: "label",
+        label: collapseWhitespace(annotation.label || ""),
+      }));
 
     if (arrowPoints.length) {
       points.push(...arrowPoints);

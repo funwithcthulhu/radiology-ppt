@@ -32,6 +32,12 @@ public static class AppOptions
     public static readonly string[] Difficulties = ["Any", "Easy", "Medium", "Hard"];
     public static readonly string[] Themes = ["Radiopaedia Classic", "Clean Light", "Conference Dark", "Teaching Warm"];
     public static readonly string[] PowerPointStyles = ["Case Conference", "Core Review"];
+    public static readonly string[] CoreReviewQuestionSources =
+    [
+        "Bundled Free CORE Review Questions",
+        "Imported Core Boards Library",
+        "Custom Question Bank JSON"
+    ];
     public static readonly PowerPointPreset[] PowerPointPresets =
     [
         new(
@@ -54,7 +60,7 @@ public static class AppOptions
             IncludeTeachingPoints: false),
         new(
             "Core Review Teaching",
-            "Board-review flavored slides with teaching points when they are available.",
+            "Case-based diagnosis questions with anatomy prompts, plus interleaved NIS and physics review slides.",
             3,
             "core-review",
             "teaching-warm",
@@ -117,6 +123,13 @@ public static class AppOptions
     };
 
     public static string PowerPointStyleCliValue(string label) => label == "Core Review" ? "core-review" : "case-conference";
+
+    public static string CoreReviewQuestionSourceCliValue(string label) => label switch
+    {
+        "Imported Core Boards Library" => "library",
+        "Custom Question Bank JSON" => "question-bank",
+        _ => "bundled"
+    };
 
     public static string BoardDomainCliValue(string label) => label switch
     {

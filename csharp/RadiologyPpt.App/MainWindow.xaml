@@ -149,7 +149,7 @@
                         </Grid.RowDefinitions>
                         <StackPanel Grid.Row="0">
                             <TextBlock Text="Core Boards" Style="{StaticResource PageTitle}" />
-                            <TextBlock Text="Import your own PDFs into a private local study library for Core Boards preparation."
+                            <TextBlock Text="Import PDFs, notes, or JSON study material into a private local Core Boards library."
                                        Style="{StaticResource PageSubtitle}" Margin="0,4,0,12" />
                         </StackPanel>
 
@@ -161,12 +161,12 @@
                             <Border Style="{StaticResource Card}" Margin="0,0,12,0">
                                 <StackPanel>
                                     <TextBlock Text="Knowledge Base" FontSize="18" FontWeight="SemiBold" />
-                                    <TextBlock Text="PDFs and extracted assets stay local under library\board-review, which is ignored by Git."
+                                    <TextBlock Text="Imported PDFs, notes, JSON files, and extracted assets stay local under library\board-review, which is ignored by Git."
                                                Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,4,0,16" />
                                     <TextBlock Text="Default topic" FontWeight="SemiBold" />
                                     <ComboBox x:Name="BoardDomainCombo" Margin="0,6,0,14" />
                                     <StackPanel Orientation="Horizontal">
-                                        <Button Content="Import PDFs" Style="{StaticResource PrimaryButton}" Click="ImportPdfs_Click" />
+                                        <Button Content="Import Sources" Style="{StaticResource PrimaryButton}" Click="ImportPdfs_Click" />
                                         <Button Content="Open Folder" Click="OpenBoardFolder_Click" />
                                     </StackPanel>
                                     <TextBlock x:Name="BoardStatusText" TextWrapping="Wrap" Margin="0,16,0,0" />
@@ -175,12 +175,12 @@
                             <Border Grid.Column="1" Style="{StaticResource Card}">
                                 <StackPanel>
                                     <TextBlock Text="Roadmap" FontSize="18" FontWeight="SemiBold" />
-                                    <TextBlock Text="1. Import PDFs" Margin="0,14,0,3" FontWeight="SemiBold" />
-                                    <TextBlock Text="Extract text, page images, embedded images, and source metadata." TextWrapping="Wrap" />
+                                    <TextBlock Text="1. Import source material" Margin="0,14,0,3" FontWeight="SemiBold" />
+                                    <TextBlock Text="Store PDFs, notes, and JSON files locally with extracted text and metadata." TextWrapping="Wrap" />
                                     <TextBlock Text="2. Draft questions" Margin="0,14,0,3" FontWeight="SemiBold" />
-                                    <TextBlock Text="Generate source-grounded practice items for human review." TextWrapping="Wrap" />
+                                    <TextBlock Text="Generate source-grounded NIS and physics review items from the imported material." TextWrapping="Wrap" />
                                     <TextBlock Text="3. Practice" Margin="0,14,0,3" FontWeight="SemiBold" />
-                                    <TextBlock Text="Run Core-style sessions with explanations and image localization." TextWrapping="Wrap" />
+                                    <TextBlock Text="Use the imported library or a custom JSON bank in Core Review decks." TextWrapping="Wrap" />
                                 </StackPanel>
                             </Border>
                         </Grid>
@@ -213,6 +213,8 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
 
                                 <TextBlock Grid.ColumnSpan="2" Text="PowerPoint Settings" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,16" />
@@ -221,25 +223,32 @@
                                 <TextBlock Grid.Row="2" Text="Images per case" FontWeight="SemiBold" />
                                 <TextBox x:Name="ImagesPerCaseBox" Grid.Row="2" Grid.Column="1" Text="3" Width="80" HorizontalAlignment="Left" Margin="0,0,0,10" />
                                 <TextBlock Grid.Row="3" Text="PowerPoint style" FontWeight="SemiBold" />
-                                <ComboBox x:Name="PowerPointStyleCombo" Grid.Row="3" Grid.Column="1" Margin="0,0,0,10" />
-                                <TextBlock Grid.Row="4" Text="Theme" FontWeight="SemiBold" />
-                                <ComboBox x:Name="ThemeCombo" Grid.Row="4" Grid.Column="1" Margin="0,0,0,10" />
-                                <TextBlock Grid.Row="5" Text="Output .pptx" FontWeight="SemiBold" />
-                                <DockPanel Grid.Row="5" Grid.Column="1" LastChildFill="True" Margin="0,0,0,10">
+                                <ComboBox x:Name="PowerPointStyleCombo" Grid.Row="3" Grid.Column="1" Margin="0,0,0,10" SelectionChanged="PowerPointStyleCombo_SelectionChanged" />
+                                <TextBlock x:Name="CoreReviewQuestionSourceLabel" Grid.Row="4" Text="Review question source" FontWeight="SemiBold" />
+                                <ComboBox x:Name="CoreReviewQuestionSourceCombo" Grid.Row="4" Grid.Column="1" Margin="0,0,0,10" SelectionChanged="CoreReviewQuestionSourceCombo_SelectionChanged" />
+                                <TextBlock x:Name="CoreReviewQuestionBankLabel" Grid.Row="5" Text="Question bank JSON" FontWeight="SemiBold" />
+                                <DockPanel x:Name="CoreReviewQuestionBankPanel" Grid.Row="5" Grid.Column="1" LastChildFill="True" Margin="0,0,0,10">
+                                    <Button DockPanel.Dock="Right" Content="Browse" Click="BrowseCoreReviewQuestionBank_Click" Margin="8,0,0,0" />
+                                    <TextBox x:Name="CoreReviewQuestionBankBox" />
+                                </DockPanel>
+                                <TextBlock Grid.Row="6" Text="Theme" FontWeight="SemiBold" />
+                                <ComboBox x:Name="ThemeCombo" Grid.Row="6" Grid.Column="1" Margin="0,0,0,10" />
+                                <TextBlock Grid.Row="7" Text="Output .pptx" FontWeight="SemiBold" />
+                                <DockPanel Grid.Row="7" Grid.Column="1" LastChildFill="True" Margin="0,0,0,10">
                                     <Button DockPanel.Dock="Right" Content="Browse" Click="BrowseOutput_Click" Margin="8,0,0,0" />
                                     <TextBox x:Name="OutputBox" />
                                 </DockPanel>
-                                <CheckBox x:Name="AutoOpenCheck" Grid.Row="6" Grid.Column="1" Content="Open PowerPoint when finished" IsChecked="True" Margin="0,0,0,8" />
-                                <CheckBox x:Name="ClinicalHistoryCheck" Grid.Row="7" Grid.Column="1" Content="Show patient age/sex when available" IsChecked="True" Margin="0,0,0,8" />
-                                <CheckBox x:Name="TeachingPointsCheck" Grid.Row="8" Grid.Column="1" Content="Add teaching-points slides when available" Margin="0,0,0,8" />
+                                <CheckBox x:Name="AutoOpenCheck" Grid.Row="8" Grid.Column="1" Content="Open PowerPoint when finished" IsChecked="True" Margin="0,0,0,8" />
+                                <CheckBox x:Name="ClinicalHistoryCheck" Grid.Row="9" Grid.Column="1" Content="Show patient age/sex when available" IsChecked="True" Margin="0,0,0,8" />
+                                <CheckBox x:Name="TeachingPointsCheck" Grid.Row="10" Grid.Column="1" Content="Add teaching-points slides when available" Margin="0,0,0,8" />
                                 <CheckBox x:Name="OnlyNewRandomCheck"
-                                          Grid.Row="9"
+                                          Grid.Row="11"
                                           Grid.Column="1"
                                           Content="Only use new random cases"
                                           IsChecked="True"
                                           ToolTip="On by default. Random requests search Radiopaedia first and skip cases already used in previous random decks instead of backfilling with older cases."
                                           Margin="0,0,0,8" />
-                                <StackPanel Grid.Row="10" Grid.Column="1">
+                                <StackPanel Grid.Row="12" Grid.Column="1">
                                     <CheckBox x:Name="OllamaCheck" Content="Use Ollama image review" Margin="0,0,0,8" />
                                     <DockPanel>
                                         <Button DockPanel.Dock="Right" Content="Refresh Models" Click="RefreshOllama_Click" Margin="8,0,0,0" />

@@ -4,11 +4,14 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {
+  buildCoreReviewQuestionBankFromCorpus,
   buildCoreReviewQuizSession,
   chunkCoreReviewText,
   coreReviewSchemaSummary,
   ingestCoreReviewSources,
+  loadCoreReviewCorpus,
   loadCoreReviewQuestionBank,
+  mergeCoreReviewCorpora,
   normalizeCoreReviewDomain,
   scoreCoreReviewAnswer,
 } from "../src/core_review/index.mjs";
@@ -117,4 +120,70 @@ test("builds deterministic quiz sessions and scores answers", async () => {
   assert.ok(question);
   assert.equal(scoreCoreReviewAnswer(question, question.answerKey).correct, true);
   assert.equal(scoreCoreReviewAnswer(question, "definitely-wrong").correct, false);
+});
+
+test("loads the bundled Core Review bank for NIS and physics practice", async () => {
+  const bank = await loadCoreReviewQuestionBank(
+    path.resolve("src", "core_review", "default-question-bank.json"),
+  );
+
+  assert.ok(bank.questions.length >= 10);
+  assert.equal(bank.validation.every((entry) => entry.ok), true);
+  assert.ok(bank.questions.some((question) => question.domain === "nis"));
+  assert.ok(bank.questions.some((question) => question.domain === "physics"));
+
+  const physicsSession = buildCoreReviewQuizSession(bank, {
+    count: 2,
+    domain: "physics",
+    seed: "bundled-default",
+  });
+
+  assert.equal(physicsSession.questions.length, 2);
+  assert.equal(physicsSession.questions.every((question) => question.domain === "physics"), true);
+});
+
+test("builds source-grounded review questions from imported corpora", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "core-review-bank-from-corpus-"));
+  const nisSourcePath = path.join(tempDir, "nis-communication-notes.md");
+  const physicsSourcePath = path.join(tempDir, "physics-distance-notes.md");
+  const nisCorpusPath = path.join(tempDir, "nis-corpus.json");
+  const physicsCorpusPath = path.join(tempDir, "physics-corpus.json");
+
+  await fs.writeFile(
+    nisSourcePath,
+    "Critical results should be directly communicated to the responsible clinician and documented in the workflow record.",
+    "utf8",
+  );
+  await fs.writeFile(
+    physicsSourcePath,
+    "Increasing pitch in helical CT generally reduces dose when the other major exposure settings are unchanged.",
+    "utf8",
+  );
+
+  await ingestCoreReviewSources([nisSourcePath], {
+    outputPath: nisCorpusPath,
+    domain: "nis",
+  });
+  await ingestCoreReviewSources([physicsSourcePath], {
+    outputPath: physicsCorpusPath,
+    domain: "physics",
+  });
+
+  const mergedCorpus = mergeCoreReviewCorpora([
+    await loadCoreReviewCorpus(nisCorpusPath),
+    await loadCoreReviewCorpus(physicsCorpusPath),
+  ]);
+  const bank = buildCoreReviewQuestionBankFromCorpus(mergedCorpus, {
+    title: "Imported Review Questions",
+  });
+
+  assert.ok(bank.questions.length >= 2);
+  assert.equal(bank.validation.every((entry) => entry.ok), true);
+  assert.ok(bank.questions.some((question) => question.domain === "nis"));
+  assert.ok(bank.questions.some((question) => question.domain === "physics"));
+  assert.ok(
+    bank.questions.some((question) =>
+      question.references.some((reference) => /communication notes|distance notes/i.test(reference.label)),
+    ),
+  );
 });

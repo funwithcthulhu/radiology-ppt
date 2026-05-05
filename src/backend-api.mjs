@@ -2,10 +2,13 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  buildCoreReviewQuestionBankFromCorpus,
   buildCoreReviewQuizSession,
   coreReviewSchemaSummary,
   ingestCoreReviewSources,
+  loadCoreReviewCorpus,
   loadCoreReviewQuestionBank,
+  mergeCoreReviewCorpora,
   renderCoreReviewQuizText,
 } from "./core_review/index.mjs";
 import { ingestCoreReviewPdfs } from "./core_review/pdf-ingest.mjs";
@@ -36,6 +39,25 @@ const RANDOM_PREPARE_REPLACEMENT_ATTEMPTS = boundedInteger(
   0,
   40,
 );
+const CORE_REVIEW_DEFAULT_QUESTION_BANK_PATH = path.join(
+  RESOURCE_ROOT,
+  "src",
+  "core_review",
+  "default-question-bank.json",
+);
+const CORE_REVIEW_LIBRARY_TEXT_CORPUS_PATH = path.join(
+  APP_ROOT,
+  "library",
+  "board-review",
+  "corpus.json",
+);
+const CORE_REVIEW_LIBRARY_PDF_CORPUS_PATH = path.join(
+  APP_ROOT,
+  "library",
+  "board-review",
+  "pdf-corpus.json",
+);
+const CORE_REVIEW_QUESTION_SOURCE_MODES = new Set(["bundled", "library", "question-bank"]);
 
 function boundedInteger(rawValue, defaultValue, minimum, maximum) {
   const parsed = Number.parseInt(rawValue ?? "", 10);
@@ -179,6 +201,10 @@ export async function renderPowerPoint(payload, args) {
   const manifestPath = path.join(path.dirname(outputPath), `${path.parse(outputPath).name}.json`);
   const scratchDir = path.join(APP_ROOT, "scratch", path.parse(outputPath).name);
   const deckMode = args.deckMode || "case-conference";
+  const coreReviewQuestions =
+    deckMode === "core-review"
+      ? await selectCoreReviewStandaloneQuestions(cases, deckTitle, args)
+      : [];
 
   await fs.mkdir(path.dirname(outputPath), { recursive: true });
   await fs.writeFile(
@@ -194,6 +220,7 @@ export async function renderPowerPoint(payload, args) {
       outputPath,
       scratchDir,
       deckMode,
+      coreReviewQuestions,
       theme: args.theme || "classic",
       includeTeachingPoints: Boolean(args.includeTeachingPoints),
     }),
@@ -474,6 +501,227 @@ async function rememberRandomHistoryFromPreparedItems(items) {
   if (casePaths.length) {
     await saveRandomHistory(casePaths);
   }
+}
+
+function perDomainCoreReviewQuestionCount(caseCount) {
+  return caseCount >= 8 ? 2 : 1;
+}
+
+function normalizeCoreReviewQuestionSource(value) {
+  const normalized = collapseWhitespace(value || "").toLowerCase();
+  if (!normalized) {
+    return "";
+  }
+  if (["bundled", "bundled-free", "default", "free"].includes(normalized)) {
+    return "bundled";
+  }
+  if (["library", "imported-library", "imported", "local-library", "corpus"].includes(normalized)) {
+    return "library";
+  }
+  if (["question-bank", "question_bank", "json", "custom-bank", "custom-json"].includes(normalized)) {
+    return "question-bank";
+  }
+  return "";
+}
+
+async function pathExists(targetPath) {
+  try {
+    await fs.access(targetPath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function tryLoadDefaultCoreReviewQuestionBank() {
+  try {
+    return await loadCoreReviewQuestionBank(CORE_REVIEW_DEFAULT_QUESTION_BANK_PATH);
+  } catch (error) {
+    emitWarning("Bundled Core Review question bank could not be loaded", {
+      questionBankPath: CORE_REVIEW_DEFAULT_QUESTION_BANK_PATH,
+      message: error.message,
+    });
+    return null;
+  }
+}
+
+function resolveCoreReviewQuestionImage(question, questionBankPath) {
+  const image = question?.image;
+  if (!image || typeof image !== "object") {
+    return question;
+  }
+
+  const imagePath = collapseWhitespace(image.path || "");
+  if (!imagePath || path.isAbsolute(imagePath)) {
+    return question;
+  }
+
+  return {
+    ...question,
+    image: {
+      ...image,
+      path: path.resolve(path.dirname(questionBankPath), imagePath),
+    },
+  };
+}
+
+function resolveCoreReviewQuestionBankSource(args = {}) {
+  const requestedSource = normalizeCoreReviewQuestionSource(
+    args.coreReviewQuestionSource || process.env.RADIOLOGY_PPT_CORE_REVIEW_QUESTION_SOURCE || "",
+  );
+  const questionBankPath = collapseWhitespace(
+    args.coreReviewQuestionBankPath || process.env.RADIOLOGY_PPT_CORE_REVIEW_QUESTION_BANK || "",
+  );
+
+  if (requestedSource && CORE_REVIEW_QUESTION_SOURCE_MODES.has(requestedSource)) {
+    return {
+      source: requestedSource,
+      questionBankPath,
+    };
+  }
+
+  return {
+    source: questionBankPath ? "question-bank" : "bundled",
+    questionBankPath,
+  };
+}
+
+function resolveLoadedQuestionBank(questionBank) {
+  if (!questionBank?.path) {
+    return questionBank;
+  }
+  return {
+    ...questionBank,
+    questions: questionBank.questions.map((question) =>
+      resolveCoreReviewQuestionImage(question, questionBank.path),
+    ),
+  };
+}
+
+async function loadCoreReviewQuestionBankForRender(args = {}) {
+  const resolved = resolveCoreReviewQuestionBankSource(args);
+  if (resolved.source === "question-bank") {
+    if (!resolved.questionBankPath) {
+      emitWarning("Core Review question bank path was not provided", {
+        requestedSource: resolved.source,
+      });
+      return tryLoadDefaultCoreReviewQuestionBank();
+    }
+    try {
+      const questionBank = await loadCoreReviewQuestionBank(resolved.questionBankPath);
+      return resolveLoadedQuestionBank(questionBank);
+    } catch (error) {
+      emitWarning("Core Review question bank could not be loaded", {
+        questionBankPath: resolved.questionBankPath,
+        message: error.message,
+      });
+      return tryLoadDefaultCoreReviewQuestionBank();
+    }
+  }
+
+  if (resolved.source === "library") {
+    const corpusPaths = [CORE_REVIEW_LIBRARY_TEXT_CORPUS_PATH, CORE_REVIEW_LIBRARY_PDF_CORPUS_PATH];
+    const existingPaths = [];
+    for (const corpusPath of corpusPaths) {
+      if (await pathExists(corpusPath)) {
+        existingPaths.push(corpusPath);
+      }
+    }
+    if (!existingPaths.length) {
+      emitWarning("No imported Core Review sources were found; falling back to bundled questions", {
+        expectedPaths: corpusPaths,
+      });
+      return tryLoadDefaultCoreReviewQuestionBank();
+    }
+
+    try {
+      const corpora = await Promise.all(existingPaths.map((corpusPath) => loadCoreReviewCorpus(corpusPath)));
+      const mergedCorpus = mergeCoreReviewCorpora(corpora);
+      const questionBank = buildCoreReviewQuestionBankFromCorpus(mergedCorpus, {
+        title: "Imported Core Review Sources",
+      });
+      if (!questionBank.questions.length) {
+        emitWarning("Imported Core Review sources did not yield usable review questions", {
+          corpusPaths: existingPaths,
+        });
+        return tryLoadDefaultCoreReviewQuestionBank();
+      }
+      return questionBank;
+    } catch (error) {
+      emitWarning("Imported Core Review sources could not be loaded", {
+        corpusPaths: existingPaths,
+        message: error.message,
+      });
+      return tryLoadDefaultCoreReviewQuestionBank();
+    }
+  }
+
+  return tryLoadDefaultCoreReviewQuestionBank();
+}
+
+function pickStandaloneDomainQuestions(questionBank, domain, count, seed) {
+  if (!questionBank) {
+    return [];
+  }
+  return buildCoreReviewQuizSession(questionBank, {
+    count,
+    domain,
+    seed,
+  }).questions;
+}
+
+function supplementStandaloneDomainQuestions(primary, fallback, domain, count, seed) {
+  const selected = pickStandaloneDomainQuestions(primary, domain, count, seed);
+  if (selected.length >= count || !fallback || fallback === primary) {
+    return selected;
+  }
+
+  const excludedIds = new Set(selected.map((question) => question.id));
+  const fallbackQuestions = pickStandaloneDomainQuestions(
+    {
+      ...fallback,
+      questions: fallback.questions.filter((question) => !excludedIds.has(question.id)),
+    },
+    domain,
+    count - selected.length,
+    `${seed}|fallback`,
+  );
+  return [...selected, ...fallbackQuestions];
+}
+
+async function selectCoreReviewStandaloneQuestions(cases, deckTitle, args = {}) {
+  const questionBank = await loadCoreReviewQuestionBankForRender(args);
+  if (!questionBank?.questions?.length) {
+    return [];
+  }
+  const defaultQuestionBank =
+    questionBank.path === CORE_REVIEW_DEFAULT_QUESTION_BANK_PATH
+      ? questionBank
+      : await tryLoadDefaultCoreReviewQuestionBank();
+  const seedBase = [
+    deckTitle,
+    ...cases.map((caseData) => caseData.casePath || caseData.caseTitle || caseData.rawInput || ""),
+  ]
+    .filter(Boolean)
+    .join("|");
+  const perDomain = perDomainCoreReviewQuestionCount(cases.length);
+
+  return [
+    ...supplementStandaloneDomainQuestions(
+      questionBank,
+      defaultQuestionBank,
+      "nis",
+      perDomain,
+      `${seedBase}|nis`,
+    ),
+    ...supplementStandaloneDomainQuestions(
+      questionBank,
+      defaultQuestionBank,
+      "physics",
+      perDomain,
+      `${seedBase}|physics`,
+    ),
+  ];
 }
 
 function defaultDeckTitle(entries) {

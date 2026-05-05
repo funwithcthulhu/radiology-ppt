@@ -22,3 +22,9 @@ export {
   scoreCoreReviewAnswer,
   validateCoreReviewQuestion,
 } from "./quiz.mjs";
+
+export {
+  buildCoreReviewQuestionBankFromCorpus,
+  loadCoreReviewCorpus,
+  mergeCoreReviewCorpora,
+} from "./source-bank.mjs";

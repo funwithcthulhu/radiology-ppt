@@ -52,7 +52,7 @@ flowchart LR
 - tab navigation
 - case request grid
 - Library tab
-- Core Boards PDF import UI
+- Core Boards source-import UI
 - PowerPoint settings and presets
 - review-window actions
 - cancellation controls
@@ -105,7 +105,7 @@ Non-ping commands write durable job rows to SQLite through `src/app-store.mjs`. 
 - duplicate random-case replacement
 - optional Ollama scoring
 - PowerPoint rendering
-- random-history persistence after render
+- random-history persistence during random-case preparation
 - Core Boards source/PDF ingestion
 - Core Review quiz assembly
 
@@ -132,9 +132,10 @@ Radiopaedia behavior is intentionally split:
 - `src/core_review/ingest.mjs`: text/JSON source ingestion.
 - `src/core_review/pdf-ingest.mjs`: local PDF copy, page rendering, embedded-image extraction, text chunking, and provenance.
 - `src/core_review/quiz.mjs`: question-bank validation, session assembly, scoring, and localization scoring.
+- `src/core_review/source-bank.mjs`: imported-corpus loading, merging, and source-grounded question drafting.
 - `src/core_review/index.mjs`: exports.
 
-The GUI supports Core Boards PDF import and local study-library management. Backend Core Boards modules validate question banks and assemble quiz sessions.
+The GUI supports Core Boards import for PDFs, notes, and JSON study material. Backend Core Boards modules ingest source corpora, draft source-grounded questions, validate question banks, and assemble quiz sessions.
 
 ## Data Flow
 

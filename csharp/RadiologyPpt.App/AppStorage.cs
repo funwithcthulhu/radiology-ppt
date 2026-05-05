@@ -42,6 +42,8 @@ public sealed class AppStorage
         SaveSetting("ollama_model", settings.OllamaModel);
         SaveSetting("theme", settings.Theme);
         SaveSetting("powerpoint_style", settings.PowerPointStyle);
+        SaveSetting("core_review_question_source", settings.CoreReviewQuestionSource);
+        SaveSetting("core_review_question_bank_path", settings.CoreReviewQuestionBankPath);
         SaveSetting("include_teaching_points", settings.IncludeTeachingPoints ? "1" : "0");
         SaveSetting("only_new_random_cases", settings.OnlyNewRandomCases ? "1" : "0");
     }
@@ -185,7 +187,7 @@ public sealed class AppStorage
             command.Parameters.AddWithValue("$domain", domain);
             command.ExecuteNonQuery();
         }
-        RecordEvent("info", "Imported Core Boards PDFs", domain);
+        RecordEvent("info", "Imported Core Boards sources", domain);
     }
 
     public void SaveImageCandidates(JsonObject? caseData)

@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import pptxgen from "pptxgenjs";
 import sharp from "sharp";
+import { collapseWhitespace, dedupe } from "./utils.mjs";
 
 const SHAPE_TYPES = new pptxgen().ShapeType;
 const W = 1280;
@@ -11,6 +12,7 @@ const SLIDE_H = 7.5;
 const SX = SLIDE_W / W;
 const SY = SLIDE_H / H;
 const TRANSPARENT = "#00000000";
+const CORE_REVIEW_MARKER_COLOR = "#D4AF37";
 const DECK_MODES = {
   caseConference: "case-conference",
   coreReview: "core-review",
@@ -239,6 +241,37 @@ async function addImage(slide, imagePath, position, alt) {
     ...frame,
     altText: alt,
   });
+  return frame;
+}
+
+function hashSeed(value) {
+  let hash = 2166136261;
+  for (const char of String(value || "core-review")) {
+    hash ^= char.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function seededRandom(seed) {
+  let state = hashSeed(seed);
+  return () => {
+    state += 0x6d2b79f5;
+    let value = state;
+    value = Math.imul(value ^ (value >>> 15), value | 1);
+    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function shuffle(items, seed) {
+  const random = seededRandom(seed);
+  const copy = [...items];
+  for (let index = copy.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(random() * (index + 1));
+    [copy[index], copy[swapIndex]] = [copy[swapIndex], copy[index]];
+  }
+  return copy;
 }
 
 function addTopBar(slide, title, theme, { dark = true } = {}) {
@@ -309,6 +342,252 @@ function truncateAtSentence(value, maxLength) {
 
 function normalizeText(value) {
   return String(value ?? "").replace(/\s+/g, " ").trim();
+}
+
+function optionId(index) {
+  return String.fromCharCode(65 + index);
+}
+
+function domainLabel(domain) {
+  const normalized = String(domain || "").trim().toLowerCase();
+  const labels = {
+    nis: "NIS",
+    physics: "Physics",
+    msk: "MSK",
+    gu: "GU",
+    gi: "GI",
+    ir: "IR",
+    mr: "MR",
+    ct: "CT",
+    risc: "RISC",
+    neuro: "Neuro",
+    thoracic: "Thoracic",
+    pediatric: "Pediatrics",
+    cardiovascular: "Cardiovascular",
+    nuclear: "Nuclear",
+    breast: "Breast",
+    ultrasound: "Ultrasound",
+    radiography_fluoroscopy: "Radiography/Fluoroscopy",
+  };
+  if (labels[normalized]) {
+    return labels[normalized];
+  }
+  return normalized
+    .split(/[_\s]+/)
+    .filter(Boolean)
+    .map((piece) => piece[0].toUpperCase() + piece.slice(1))
+    .join(" ");
+}
+
+function boundedImageLayouts(count, bounds) {
+  const gap = 20;
+  if (count <= 0) {
+    return [];
+  }
+  if (count === 1) {
+    return [bounds];
+  }
+  if (count === 2) {
+    const width = (bounds.width - gap) / 2;
+    return [
+      { left: bounds.left, top: bounds.top, width, height: bounds.height },
+      { left: bounds.left + width + gap, top: bounds.top, width, height: bounds.height },
+    ];
+  }
+  if (count === 3) {
+    const width = (bounds.width - gap * 2) / 3;
+    return [
+      { left: bounds.left, top: bounds.top, width, height: bounds.height },
+      { left: bounds.left + width + gap, top: bounds.top, width, height: bounds.height },
+      { left: bounds.left + (width + gap) * 2, top: bounds.top, width, height: bounds.height },
+    ];
+  }
+
+  const width = (bounds.width - gap) / 2;
+  const height = (bounds.height - gap) / 2;
+  return [
+    { left: bounds.left, top: bounds.top, width, height },
+    { left: bounds.left + width + gap, top: bounds.top, width, height },
+    { left: bounds.left, top: bounds.top + height + gap, width, height },
+    { left: bounds.left + width + gap, top: bounds.top + height + gap, width, height },
+  ].slice(0, count);
+}
+
+function toNormalizedUnit(value, size) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return NaN;
+  }
+  if (numeric <= 1 || !Number.isFinite(size) || size <= 1) {
+    return numeric;
+  }
+  return numeric / size;
+}
+
+function normalizeHotspot(hotspot, imageMeta = {}) {
+  if (!hotspot || typeof hotspot !== "object") {
+    return null;
+  }
+
+  const imageWidth = Number(
+    imageMeta.width ?? imageMeta.frameWidth ?? imageMeta.naturalWidth ?? imageMeta.pixelWidth,
+  );
+  const imageHeight = Number(
+    imageMeta.height ?? imageMeta.frameHeight ?? imageMeta.naturalHeight ?? imageMeta.pixelHeight,
+  );
+  const x = toNormalizedUnit(hotspot.x ?? hotspot.left, imageWidth);
+  const y = toNormalizedUnit(hotspot.y ?? hotspot.top, imageHeight);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    return null;
+  }
+
+  const radius = Number(hotspot.radius);
+  if (Number.isFinite(radius)) {
+    return {
+      x,
+      y,
+      radius: toNormalizedUnit(radius, Math.max(imageWidth, imageHeight)),
+    };
+  }
+
+  const width = toNormalizedUnit(hotspot.width, imageWidth);
+  const height = toNormalizedUnit(hotspot.height, imageHeight);
+  if (!Number.isFinite(width) || !Number.isFinite(height)) {
+    return null;
+  }
+
+  return {
+    x,
+    y,
+    width,
+    height,
+  };
+}
+
+function hotspotCenter(hotspot) {
+  if (!hotspot) {
+    return null;
+  }
+  const x = Number(hotspot.x);
+  const y = Number(hotspot.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    return null;
+  }
+  if (Number.isFinite(Number(hotspot.radius))) {
+    return { x, y };
+  }
+
+  const width = Number(hotspot.width);
+  const height = Number(hotspot.height);
+  if (!Number.isFinite(width) || !Number.isFinite(height)) {
+    return null;
+  }
+
+  return {
+    x: x + width / 2,
+    y: y + height / 2,
+  };
+}
+
+function markerDiameter(imageFrame, hotspot) {
+  const minDimension = Math.max(0.18, Math.min(imageFrame.w, imageFrame.h));
+  const radius = Number(hotspot?.radius);
+  if (Number.isFinite(radius) && radius > 0) {
+    return Math.max(0.24, minDimension * radius * 2.2);
+  }
+  const width = Number(hotspot?.width);
+  const height = Number(hotspot?.height);
+  if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
+    return Math.max(0.24, minDimension * Math.max(width, height) * 1.4);
+  }
+  return Math.max(0.24, minDimension * 0.08);
+}
+
+function addMarkerOverlay(slide, imageFrame, hotspot, color = CORE_REVIEW_MARKER_COLOR) {
+  const center = hotspotCenter(hotspot);
+  if (!center) {
+    return;
+  }
+
+  const markerX = imageFrame.x + imageFrame.w * center.x;
+  const markerY = imageFrame.y + imageFrame.h * center.y;
+  const diameter = markerDiameter(imageFrame, hotspot);
+  slide.addShape(SHAPE_TYPES.ellipse, {
+    x: markerX - diameter / 2,
+    y: markerY - diameter / 2,
+    w: diameter,
+    h: diameter,
+    fill: fillOption(TRANSPARENT),
+    line: { color: cleanColor(color), width: 2.2 },
+  });
+  slide.addShape(SHAPE_TYPES.ellipse, {
+    x: markerX - diameter / 8,
+    y: markerY - diameter / 8,
+    w: diameter / 4,
+    h: diameter / 4,
+    fill: fillOption(color),
+    line: { color: cleanColor(color), width: 0.8 },
+  });
+}
+
+function imageLocalPath(image) {
+  return collapseWhitespace(image?.localPath || image?.path || "");
+}
+
+function imageAltText(image, fallback) {
+  return collapseWhitespace(image?.label || image?.series || image?.alt || fallback);
+}
+
+async function addImageGallery(slide, images, bounds, { marker = null, emptyMessage = "" } = {}) {
+  const layouts = boundedImageLayouts(images.length, bounds);
+  if (!layouts.length) {
+    if (emptyMessage) {
+      addText(
+        slide,
+        emptyMessage,
+        {
+          left: bounds.left,
+          top: bounds.top + bounds.height / 2 - 24,
+          width: bounds.width,
+          height: 48,
+        },
+        resolveTheme("classic"),
+        {
+          fontSize: 28,
+          color: "#A8BECC",
+          align: "center",
+          verticalAlignment: "center",
+          autoFit: null,
+        },
+      );
+    }
+    return [];
+  }
+
+  const frames = [];
+  for (let index = 0; index < layouts.length; index += 1) {
+    const image = images[index];
+    const frame = layouts[index];
+    const localPath = imageLocalPath(image);
+    if (!localPath) {
+      continue;
+    }
+
+    addShape(slide, "rect", frame, "#000000", TRANSPARENT, 0);
+    const actualFrame = await addImage(
+      slide,
+      localPath,
+      frame,
+      imageAltText(image, `Review image ${index + 1}`),
+    );
+    frames.push({ image, frame: actualFrame });
+
+    if (marker && localPath === imageLocalPath(marker.image)) {
+      addMarkerOverlay(slide, actualFrame, marker.hotspot);
+    }
+  }
+
+  return frames;
 }
 
 function patientAgeIntro(age) {
@@ -395,7 +674,7 @@ function safeCaseIntro(caseData) {
   return allowedPattern.test(existing) ? existing : "";
 }
 
-function addSpeakerNotes(slide, caseData, caseNumber) {
+function addSpeakerNotes(slide, caseData, caseNumber, extras = []) {
   slide.addNotes(
     [
       `Case ${caseNumber}`,
@@ -407,6 +686,7 @@ function addSpeakerNotes(slide, caseData, caseNumber) {
       `Author: ${caseData.author || "Unknown"}`,
       `License: ${caseData.licenseName}`,
       `Reference: ${caseData.rid}`,
+      ...extras,
     ]
       .filter(Boolean)
       .join("\n"),
@@ -688,12 +968,719 @@ function addTeachingPointsSlide(slide, caseData, caseNumber, deckTitle, theme, {
   addSpeakerNotes(slide, caseData, caseNumber);
 }
 
+function caseDescriptor(caseData) {
+  return safeCaseIntro(caseData) || normalizeText(caseData.modalitySummary);
+}
+
+function buildDiagnosisQuestion(caseData, allCases, caseNumber) {
+  const correctText = normalizeText(caseData.caseTitle || caseData.diagnosisQuery);
+  const distractorPool = dedupe(
+    allCases
+      .flatMap((candidate) => [candidate.caseTitle, candidate.diagnosisQuery])
+      .map(normalizeText)
+      .filter(Boolean),
+  ).filter((text) => text.toLowerCase() !== correctText.toLowerCase());
+
+  const distractors = shuffle(
+    distractorPool,
+    `${caseData.casePath || caseData.caseTitle || caseNumber}|diagnosis-distractors`,
+  ).slice(0, 3);
+  const optionTexts = distractors.length
+    ? shuffle(
+        [correctText, ...distractors],
+        `${caseData.casePath || caseData.caseTitle || caseNumber}|diagnosis-options`,
+      )
+    : [];
+  const options = optionTexts.map((text, index) => ({
+    id: optionId(index),
+    text,
+    isCorrect: text === correctText,
+  }));
+
+  return {
+    stem: options.length >= 2 ? "What is the most likely diagnosis?" : "What is the diagnosis?",
+    options,
+    answerKey: options.find((option) => option.isCorrect)?.id || "",
+    correctText,
+  };
+}
+
+function buildCaseAnatomyQuestion(caseData) {
+  for (const image of caseData.images || []) {
+    const localPath = imageLocalPath(image);
+    if (!localPath || !Array.isArray(image.focusPoints) || !image.focusPoints.length) {
+      continue;
+    }
+
+    const labeledPoint = image.focusPoints.find((point) => normalizeText(point.label)) || image.focusPoints[0];
+    const answerText = normalizeText(labeledPoint?.label);
+    const hotspot = normalizeHotspot(
+      {
+        x: labeledPoint?.x,
+        y: labeledPoint?.y,
+        radius: Math.max(Number(image.frameWidth) || 0, Number(image.frameHeight) || 0) * 0.03,
+      },
+      {
+        width: image.frameWidth,
+        height: image.frameHeight,
+      },
+    );
+    if (!answerText || !hotspot) {
+      continue;
+    }
+
+    return {
+      stem: "What structure or finding is indicated by the marker?",
+      answerText,
+      image,
+      hotspot,
+    };
+  }
+
+  return null;
+}
+
+function questionImageObject(question) {
+  if (!question?.image) {
+    return null;
+  }
+  if (typeof question.image === "string") {
+    return { path: question.image };
+  }
+  return question.image;
+}
+
+function questionImageEntry(question) {
+  const image = questionImageObject(question);
+  if (!image) {
+    return null;
+  }
+
+  const localPath = imageLocalPath(image);
+  if (!localPath) {
+    return null;
+  }
+
+  return {
+    localPath,
+    label: imageAltText(image, question.stem || "Core Review image"),
+  };
+}
+
+function standaloneQuestionHotspot(question) {
+  const image = questionImageObject(question);
+  return normalizeHotspot(question.hotspot, {
+    width: image?.width ?? image?.frameWidth,
+    height: image?.height ?? image?.frameHeight,
+  });
+}
+
+function questionInstructions(question) {
+  switch (question.type) {
+    case "numeric_fill_blank":
+      return "State the numeric answer verbally before advancing.";
+    case "multi_correct":
+      return "Name every correct option verbally before advancing.";
+    case "image_hotspot":
+    case "gold_marker_abnormality":
+      return "Answer verbally while using the marked image as the prompt.";
+    default:
+      return "Answer verbally before advancing.";
+  }
+}
+
+function answerTextForQuestion(question) {
+  if (question.type === "single_best_answer") {
+    const option = question.options.find((candidate) => candidate.id === question.answerKey);
+    return option ? `${option.id}. ${option.text}` : question.answerKey || "Answer not supplied";
+  }
+
+  if (question.type === "numeric_fill_blank") {
+    const value = question.numericAnswer?.value;
+    const units = normalizeText(question.numericAnswer?.units || "");
+    return collapseWhitespace([value, units].filter((piece) => piece !== null && piece !== undefined && piece !== "").join(" "));
+  }
+
+  if (question.type === "multi_correct") {
+    const keyed = question.options.filter((option) => question.answerKeys.includes(option.id));
+    if (keyed.length) {
+      return keyed.map((option) => `${option.id}. ${option.text}`).join("\n");
+    }
+    return question.answerKeys.join(", ");
+  }
+
+  if (question.type === "image_hotspot" || question.type === "gold_marker_abnormality") {
+    return question.answerKey || question.explanation || "Verbal localization; refer to the marked image.";
+  }
+
+  return question.answerKey || question.explanation || "See explanation in speaker notes.";
+}
+
+function questionFooter(question) {
+  const references = Array.isArray(question.references)
+    ? question.references
+        .map((reference) => collapseWhitespace(reference?.label || reference?.url || ""))
+        .filter(Boolean)
+        .slice(0, 2)
+    : [];
+  return references.join(" • ");
+}
+
+function addStandaloneSpeakerNotes(slide, question, questionNumber) {
+  slide.addNotes(
+    [
+      `Review question ${questionNumber}`,
+      `Domain: ${domainLabel(question.domain)}`,
+      `Type: ${question.type}`,
+      `Stem: ${question.stem}`,
+      `Answer: ${answerTextForQuestion(question)}`,
+      question.explanation ? `Explanation: ${question.explanation}` : null,
+      ...(Array.isArray(question.references)
+        ? question.references.map((reference) =>
+            collapseWhitespace([reference?.label, reference?.url].filter(Boolean).join(": ")),
+          )
+        : []),
+    ]
+      .filter(Boolean)
+      .join("\n"),
+  );
+}
+
+async function addCoreReviewDiagnosisQuestionSlide(slide, caseData, caseNumber, deckTitle, theme, allCases) {
+  slide.background = { color: cleanColor(theme.colors.imageBg) };
+  addTopBar(slide, deckTitle, theme, { dark: true });
+  const descriptor = caseDescriptor(caseData);
+  const question = buildDiagnosisQuestion(caseData, allCases, caseNumber);
+
+  addText(
+    slide,
+    `Case ${caseNumber} • Diagnosis Question`,
+    { left: 44, top: 58, width: 360, height: 18 },
+    theme,
+    {
+      fontSize: 12,
+      color: theme.colors.footerDark,
+      face: theme.fonts.mono,
+      bold: true,
+      autoFit: null,
+    },
+  );
+
+  if (descriptor) {
+    addText(
+      slide,
+      truncateText(descriptor, 100),
+      { left: 480, top: 58, width: 754, height: 18 },
+      theme,
+      {
+        fontSize: 10,
+        color: theme.colors.footerDark,
+        face: theme.fonts.mono,
+        align: "right",
+        autoFit: "shrinkText",
+      },
+    );
+  }
+
+  await addImageGallery(
+    slide,
+    caseData.images || [],
+    { left: 44, top: 86, width: 1192, height: 318 },
+    { emptyMessage: "No selected images for this case." },
+  );
+
+  addShape(
+    slide,
+    "roundRect",
+    { left: 54, top: 434, width: 1172, height: 222 },
+    theme.colors.panel,
+    theme.colors.border,
+    1.1,
+  );
+  addText(
+    slide,
+    question.stem,
+    { left: 86, top: 462, width: 1030, height: 48 },
+    theme,
+    {
+      fontSize: 29,
+      color: theme.colors.ink,
+      face: theme.fonts.title,
+      bold: true,
+    },
+  );
+
+  if (question.options.length) {
+    addText(
+      slide,
+      question.options.map((option) => `${option.id}. ${option.text}`).join("\n"),
+      { left: 90, top: 522, width: 920, height: 104 },
+      theme,
+      {
+        fontSize: 20,
+        color: theme.colors.ink,
+        face: theme.fonts.body,
+      },
+    );
+  } else {
+    addText(
+      slide,
+      "Open response. State the diagnosis before advancing.",
+      { left: 90, top: 526, width: 1020, height: 44 },
+      theme,
+      {
+        fontSize: 20,
+        color: theme.colors.accentDark,
+        face: theme.fonts.body,
+      },
+    );
+  }
+
+  addText(
+    slide,
+    "Answer verbally before advancing.",
+    { left: 832, top: 618, width: 330, height: 20 },
+    theme,
+    {
+      fontSize: 11,
+      color: theme.colors.slate,
+      face: theme.fonts.mono,
+      align: "right",
+      autoFit: null,
+    },
+  );
+
+  addFooter(slide, caseData.footerText, theme, { dark: true });
+  addSpeakerNotes(slide, caseData, caseNumber, [`Diagnosis answer: ${question.correctText}`]);
+}
+
+async function addCoreReviewAnatomyQuestionSlide(slide, caseData, caseNumber, deckTitle, theme, anatomyQuestion) {
+  slide.background = { color: cleanColor(theme.colors.imageBg) };
+  addTopBar(slide, deckTitle, theme, { dark: true });
+
+  addText(
+    slide,
+    `Case ${caseNumber} • Structure / Finding Question`,
+    { left: 44, top: 58, width: 460, height: 18 },
+    theme,
+    {
+      fontSize: 12,
+      color: theme.colors.footerDark,
+      face: theme.fonts.mono,
+      bold: true,
+      autoFit: null,
+    },
+  );
+
+  await addImageGallery(
+    slide,
+    [anatomyQuestion.image],
+    { left: 92, top: 90, width: 1140, height: 420 },
+    {
+      marker: {
+        image: anatomyQuestion.image,
+        hotspot: anatomyQuestion.hotspot,
+      },
+    },
+  );
+
+  addShape(
+    slide,
+    "roundRect",
+    { left: 98, top: 540, width: 1128, height: 110 },
+    theme.colors.panel,
+    theme.colors.border,
+    1.1,
+  );
+  addText(
+    slide,
+    anatomyQuestion.stem,
+    { left: 130, top: 568, width: 820, height: 34 },
+    theme,
+    {
+      fontSize: 26,
+      color: theme.colors.ink,
+      face: theme.fonts.title,
+      bold: true,
+    },
+  );
+  addText(
+    slide,
+    "Answer verbally before advancing.",
+    { left: 862, top: 602, width: 294, height: 18 },
+    theme,
+    {
+      fontSize: 11,
+      color: theme.colors.slate,
+      face: theme.fonts.mono,
+      align: "right",
+      autoFit: null,
+    },
+  );
+
+  addFooter(slide, caseData.footerText, theme, { dark: true });
+  addSpeakerNotes(slide, caseData, caseNumber, [`Structure/finding answer: ${anatomyQuestion.answerText}`]);
+}
+
+async function addCoreReviewAnatomyAnswerSlide(slide, caseData, caseNumber, deckTitle, theme, anatomyQuestion) {
+  slide.background = { color: cleanColor(theme.colors.diagnosisBg) };
+  addTopBar(slide, deckTitle, theme, { dark: theme === THEMES["conference-dark"] });
+
+  addText(
+    slide,
+    `Case ${caseNumber}`,
+    { left: 82, top: 102, width: 220, height: 22 },
+    theme,
+    {
+      fontSize: 13,
+      color: theme.colors.accentDark,
+      face: theme.fonts.mono,
+      bold: true,
+      autoFit: null,
+    },
+  );
+  addText(
+    slide,
+    "Structure / Finding",
+    { left: 82, top: 140, width: 460, height: 58 },
+    theme,
+    {
+      fontSize: 42,
+      color: theme.colors.ink,
+      face: theme.fonts.title,
+      bold: true,
+      autoFit: null,
+    },
+  );
+  addText(
+    slide,
+    anatomyQuestion.answerText,
+    { left: 82, top: 216, width: 540, height: 168 },
+    theme,
+    {
+      fontSize: 30,
+      color: theme.colors.accentDark,
+      face: theme.fonts.title,
+      bold: true,
+    },
+  );
+  addText(
+    slide,
+    caseData.caseTitle,
+    { left: 82, top: 392, width: 540, height: 64 },
+    theme,
+    {
+      fontSize: 22,
+      color: theme.colors.ink,
+      face: theme.fonts.body,
+    },
+  );
+
+  await addImageGallery(
+    slide,
+    [anatomyQuestion.image],
+    { left: 684, top: 124, width: 486, height: 460 },
+    {
+      marker: {
+        image: anatomyQuestion.image,
+        hotspot: anatomyQuestion.hotspot,
+      },
+    },
+  );
+
+  addFooter(slide, caseData.footerText, theme);
+  addSpeakerNotes(slide, caseData, caseNumber, [`Structure/finding answer: ${anatomyQuestion.answerText}`]);
+}
+
+async function addCoreReviewStandaloneQuestionSlide(slide, question, questionNumber, deckTitle, theme) {
+  slide.background = { color: cleanColor(theme.colors.teachingBg) };
+  addTopBar(slide, deckTitle, theme, { dark: false });
+
+  addText(
+    slide,
+    `Review ${questionNumber} • ${domainLabel(question.domain)}`,
+    { left: 82, top: 94, width: 340, height: 22 },
+    theme,
+    {
+      fontSize: 13,
+      color: theme.colors.accentDark,
+      face: theme.fonts.mono,
+      bold: true,
+      autoFit: null,
+    },
+  );
+
+  const image = questionImageEntry(question);
+  const hotspot = standaloneQuestionHotspot(question);
+  if (image) {
+    await addImageGallery(
+      slide,
+      [image],
+      { left: 82, top: 140, width: 520, height: 460 },
+      hotspot
+        ? {
+            marker: {
+              image,
+              hotspot,
+            },
+          }
+        : {},
+    );
+
+    addShape(
+      slide,
+      "roundRect",
+      { left: 640, top: 140, width: 516, height: 460 },
+      theme.colors.panel,
+      theme.colors.border,
+      1.1,
+    );
+    addText(
+      slide,
+      question.stem,
+      { left: 674, top: 176, width: 448, height: 126 },
+      theme,
+      {
+        fontSize: 26,
+        color: theme.colors.ink,
+        face: theme.fonts.title,
+        bold: true,
+      },
+    );
+    if (question.options.length) {
+      addText(
+        slide,
+        question.options.map((option) => `${option.id}. ${option.text}`).join("\n"),
+        { left: 676, top: 316, width: 430, height: 180 },
+        theme,
+        {
+          fontSize: 18,
+          color: theme.colors.ink,
+          face: theme.fonts.body,
+        },
+      );
+    }
+    addText(
+      slide,
+      questionInstructions(question),
+      { left: 676, top: 520, width: 430, height: 28 },
+      theme,
+      {
+        fontSize: 12,
+        color: theme.colors.slate,
+        face: theme.fonts.mono,
+      },
+    );
+  } else {
+    addShape(
+      slide,
+      "roundRect",
+      { left: 82, top: 140, width: 1088, height: 480 },
+      theme.colors.panel,
+      theme.colors.border,
+      1.1,
+    );
+    addText(
+      slide,
+      question.stem,
+      { left: 122, top: 178, width: 1012, height: 120 },
+      theme,
+      {
+        fontSize: 30,
+        color: theme.colors.ink,
+        face: theme.fonts.title,
+        bold: true,
+      },
+    );
+
+    if (question.options.length) {
+      addText(
+        slide,
+        question.options.map((option) => `${option.id}. ${option.text}`).join("\n"),
+        { left: 126, top: 326, width: 964, height: 208 },
+        theme,
+        {
+          fontSize: 22,
+          color: theme.colors.ink,
+          face: theme.fonts.body,
+        },
+      );
+    } else if (question.type === "numeric_fill_blank") {
+      addText(
+        slide,
+        "Open response. State the calculated answer verbally.",
+        { left: 126, top: 326, width: 900, height: 44 },
+        theme,
+        {
+          fontSize: 22,
+          color: theme.colors.accentDark,
+          face: theme.fonts.body,
+        },
+      );
+    }
+
+    addText(
+      slide,
+      questionInstructions(question),
+      { left: 126, top: 560, width: 960, height: 28 },
+      theme,
+      {
+        fontSize: 12,
+        color: theme.colors.slate,
+        face: theme.fonts.mono,
+      },
+    );
+  }
+
+  addFooter(slide, questionFooter(question), theme);
+  addStandaloneSpeakerNotes(slide, question, questionNumber);
+}
+
+async function addCoreReviewStandaloneAnswerSlide(slide, question, questionNumber, deckTitle, theme) {
+  slide.background = { color: cleanColor(theme.colors.diagnosisBg) };
+  addTopBar(slide, deckTitle, theme, { dark: theme === THEMES["conference-dark"] });
+
+  addText(
+    slide,
+    `Review ${questionNumber} • ${domainLabel(question.domain)}`,
+    { left: 82, top: 94, width: 360, height: 22 },
+    theme,
+    {
+      fontSize: 13,
+      color: theme.colors.accentDark,
+      face: theme.fonts.mono,
+      bold: true,
+      autoFit: null,
+    },
+  );
+  addText(
+    slide,
+    "Answer",
+    { left: 82, top: 136, width: 300, height: 58 },
+    theme,
+    {
+      fontSize: 42,
+      color: theme.colors.ink,
+      face: theme.fonts.title,
+      bold: true,
+      autoFit: null,
+    },
+  );
+
+  const image = questionImageEntry(question);
+  const hotspot = standaloneQuestionHotspot(question);
+  if (image) {
+    addText(
+      slide,
+      answerTextForQuestion(question),
+      { left: 82, top: 214, width: 520, height: 140 },
+      theme,
+      {
+        fontSize: 28,
+        color: theme.colors.accentDark,
+        face: theme.fonts.title,
+        bold: true,
+      },
+    );
+
+    if (question.explanation) {
+      addText(
+        slide,
+        question.explanation,
+        { left: 82, top: 380, width: 520, height: 182 },
+        theme,
+        {
+          fontSize: 20,
+          color: theme.colors.ink,
+          face: theme.fonts.body,
+        },
+      );
+    }
+
+    await addImageGallery(
+      slide,
+      [image],
+      { left: 684, top: 124, width: 486, height: 460 },
+      hotspot
+        ? {
+            marker: {
+              image,
+              hotspot,
+            },
+          }
+        : {},
+    );
+  } else {
+    addText(
+      slide,
+      answerTextForQuestion(question),
+      { left: 82, top: 224, width: 1088, height: 120 },
+      theme,
+      {
+        fontSize: 30,
+        color: theme.colors.accentDark,
+        face: theme.fonts.title,
+        bold: true,
+      },
+    );
+    if (question.explanation) {
+      addShape(
+        slide,
+        "roundRect",
+        { left: 82, top: 374, width: 1088, height: 222 },
+        theme.colors.panel,
+        theme.colors.border,
+        1.1,
+      );
+      addText(
+        slide,
+        question.explanation,
+        { left: 118, top: 410, width: 1018, height: 154 },
+        theme,
+        {
+          fontSize: 21,
+          color: theme.colors.ink,
+          face: theme.fonts.body,
+        },
+      );
+    }
+  }
+
+  addFooter(slide, questionFooter(question), theme);
+  addStandaloneSpeakerNotes(slide, question, questionNumber);
+}
+
+function standaloneQuestionsByCase(cases, questions) {
+  const groups = new Map();
+  if (!questions.length || !cases.length) {
+    return groups;
+  }
+
+  for (let index = 0; index < questions.length; index += 1) {
+    const afterCase = cases.length === 1
+      ? 1
+      : Math.max(
+          1,
+          Math.min(
+            cases.length,
+            Math.round(((index + 1) * cases.length) / (questions.length + 1)),
+          ),
+        );
+    const bucket = groups.get(afterCase) || [];
+    bucket.push(questions[index]);
+    groups.set(afterCase, bucket);
+  }
+
+  return groups;
+}
+
 export async function buildDeck({
   cases,
   deckTitle,
   outputPath,
   scratchDir,
   deckMode = DECK_MODES.caseConference,
+  coreReviewQuestions = [],
   theme = "classic",
   includeTeachingPoints = false,
 }) {
@@ -711,8 +1698,13 @@ export async function buildDeck({
   const activeTheme = resolveTheme(theme);
   const activeDeckMode = resolveDeckMode(deckMode);
   const shouldIncludeTeachingPoints = includeTeachingPoints || activeDeckMode === DECK_MODES.coreReview;
-  const teachingSlideTitle = activeDeckMode === DECK_MODES.coreReview ? "Core Review" : "Teaching Points";
+  const teachingSlideTitle = activeDeckMode === DECK_MODES.coreReview ? "Core Review Notes" : "Teaching Points";
+  const standaloneQuestionGroups =
+    activeDeckMode === DECK_MODES.coreReview
+      ? standaloneQuestionsByCase(cases, Array.isArray(coreReviewQuestions) ? coreReviewQuestions : [])
+      : new Map();
   let slideCount = 0;
+  let standaloneQuestionNumber = 0;
 
   const addSlide = () => {
     slideCount += 1;
@@ -722,6 +1714,58 @@ export async function buildDeck({
   for (let index = 0; index < cases.length; index += 1) {
     const caseNumber = index + 1;
     const caseData = cases[index];
+    if (activeDeckMode === DECK_MODES.coreReview) {
+      const anatomyQuestion = buildCaseAnatomyQuestion(caseData);
+
+      addCaseSlide(addSlide(), caseData, caseNumber, deckTitle, activeTheme);
+      await addCoreReviewDiagnosisQuestionSlide(addSlide(), caseData, caseNumber, deckTitle, activeTheme, cases);
+      if (anatomyQuestion) {
+        await addCoreReviewAnatomyQuestionSlide(
+          addSlide(),
+          caseData,
+          caseNumber,
+          deckTitle,
+          activeTheme,
+          anatomyQuestion,
+        );
+      }
+      addDiagnosisSlide(addSlide(), caseData, caseNumber, deckTitle, activeTheme);
+      if (anatomyQuestion) {
+        await addCoreReviewAnatomyAnswerSlide(
+          addSlide(),
+          caseData,
+          caseNumber,
+          deckTitle,
+          activeTheme,
+          anatomyQuestion,
+        );
+      }
+      if (shouldIncludeTeachingPoints && Array.isArray(caseData.teachingPoints) && caseData.teachingPoints.length) {
+        addTeachingPointsSlide(addSlide(), caseData, caseNumber, deckTitle, activeTheme, {
+          title: teachingSlideTitle,
+        });
+      }
+
+      const standaloneQuestions = standaloneQuestionGroups.get(caseNumber) || [];
+      for (const question of standaloneQuestions) {
+        standaloneQuestionNumber += 1;
+        await addCoreReviewStandaloneQuestionSlide(
+          addSlide(),
+          question,
+          standaloneQuestionNumber,
+          deckTitle,
+          activeTheme,
+        );
+        await addCoreReviewStandaloneAnswerSlide(
+          addSlide(),
+          question,
+          standaloneQuestionNumber,
+          deckTitle,
+          activeTheme,
+        );
+      }
+      continue;
+    }
 
     addCaseSlide(addSlide(), caseData, caseNumber, deckTitle, activeTheme);
     await addImagesSlide(addSlide(), caseData, caseNumber, deckTitle, activeTheme);

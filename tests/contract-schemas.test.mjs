@@ -190,7 +190,18 @@ test("prepare input schema accepts C# request payloads", () => {
 
 test("prepared output and render input schemas accept backend payloads", () => {
   validate(schemas["prepared-output.schema.json"], preparedOutput);
-  validate(schemas["render-input.schema.json"], { items: preparedOutput.items });
+  validate(schemas["render-input.schema.json"], {
+    items: preparedOutput.items,
+    args: {
+      deckMode: "core-review",
+      coreReviewQuestionSource: "library",
+      coreReviewQuestionBankPath: "C:\\core-review-bank.json",
+      theme: "teaching-warm",
+      title: "Core Review Test",
+      out: "C:\\deck.pptx",
+      includeTeachingPoints: true,
+    },
+  });
 });
 
 test("prepared output schema rejects missing case data", () => {

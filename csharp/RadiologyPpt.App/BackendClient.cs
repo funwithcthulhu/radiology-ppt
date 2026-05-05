@@ -34,7 +34,8 @@ public sealed class BackendClient
     public string OutputsDir => Path.Combine(AppRoot, "outputs");
     public string StateDir => Path.Combine(AppRoot, "state");
     public string BoardReviewDir => Path.Combine(AppRoot, "library", "board-review");
-    public string BoardReviewCorpusPath => Path.Combine(BoardReviewDir, "pdf-corpus.json");
+    public string BoardReviewPdfCorpusPath => Path.Combine(BoardReviewDir, "pdf-corpus.json");
+    public string BoardReviewTextCorpusPath => Path.Combine(BoardReviewDir, "corpus.json");
 
     public async Task<JsonObject> PrepareAsync(IEnumerable<JsonObject> entries, GenerationSettings settings, Action<string> log, CancellationToken cancellationToken)
     {
@@ -65,7 +66,13 @@ public sealed class BackendClient
     public async Task ImportCoreReviewPdfsAsync(IEnumerable<string> pdfPaths, string domain, Action<string> log, CancellationToken cancellationToken)
     {
         Directory.CreateDirectory(BoardReviewDir);
-        await RunServiceAsync("coreReviewIngestPdf", BackendPayloads.CoreReviewPdfImport(pdfPaths, domain, BoardReviewCorpusPath), log, cancellationToken);
+        await RunServiceAsync("coreReviewIngestPdf", BackendPayloads.CoreReviewPdfImport(pdfPaths, domain, BoardReviewPdfCorpusPath), log, cancellationToken);
+    }
+
+    public async Task ImportCoreReviewSourcesAsync(IEnumerable<string> sourcePaths, string domain, Action<string> log, CancellationToken cancellationToken)
+    {
+        Directory.CreateDirectory(BoardReviewDir);
+        await RunServiceAsync("coreReviewIngest", BackendPayloads.CoreReviewSourceImport(sourcePaths, domain, BoardReviewTextCorpusPath), log, cancellationToken);
     }
 
     public async Task<BackendHealthSnapshot> PingAsync(Action<string> log, CancellationToken cancellationToken)

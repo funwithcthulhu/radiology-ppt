@@ -71,16 +71,16 @@ The Library is built from your local SQLite state. It is not synced to Radiopaed
 
 ## Core Boards Tab
 
-Core Boards imports local study PDFs into a local ABR Core-style study area.
+Core Boards imports local study material into a local ABR Core-style study area.
 
 Core Boards supports:
 
 - choose a default topic/domain
-- import local PDFs
+- import local PDFs, notes, or JSON files
 - open the local study folder
 - view import status
 
-Imported PDFs and extracted assets stay under:
+Imported source files and extracted assets stay under:
 
 ```text
 library\board-review\
@@ -88,7 +88,7 @@ library\board-review\
 
 This folder is ignored by Git. Do not import copyrighted or private material unless you have the right to use it locally.
 
-The desktop app uses this area for local PDF import and study-library management.
+The desktop app uses this area for local study-source import and library management.
 
 ## PowerPoint Tab
 
@@ -99,6 +99,8 @@ Options:
 - `Title`: optional. If blank, the app creates a title automatically.
 - `Images per case`: target image count. Review can keep fewer when a case only has a few useful images.
 - `PowerPoint style`: `Case Conference` or `Core Review`.
+- `Review question source`: in `Core Review`, choose the bundled free bank, the imported Core Boards library, or a custom question-bank JSON file.
+- `Question bank JSON`: optional path used when `Review question source` is set to the custom JSON option.
 - `Theme`: visual style for slides.
 - `Output .pptx`: optional explicit output path. If blank, the app writes to `outputs\`.
 - `Open PowerPoint when finished`: opens the output file after export.
@@ -220,8 +222,9 @@ Core Review style PowerPoint:
 
 1. Cases: choose cases.
 2. PowerPoint: apply `Core Review Teaching`.
-3. Keep teaching points enabled.
-4. Review and export.
+3. Choose the bundled bank, imported Core Boards library, or a custom question-bank JSON file for standalone review questions.
+4. Keep teaching points enabled if you want case-note slides.
+5. Review and export.
 
 ## Local Data And Privacy
 

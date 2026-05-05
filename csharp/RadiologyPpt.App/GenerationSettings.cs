@@ -11,6 +11,8 @@ public sealed record GenerationSettings
     public string OllamaModel { get; init; } = "";
     public string Theme { get; init; } = "classic";
     public string PowerPointStyle { get; init; } = "case-conference";
+    public string CoreReviewQuestionSource { get; init; } = "bundled";
+    public string CoreReviewQuestionBankPath { get; init; } = "";
     public bool IncludeTeachingPoints { get; init; }
     public bool OnlyNewRandomCases { get; init; } = true;
 }
