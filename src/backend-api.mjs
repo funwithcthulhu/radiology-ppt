@@ -40,6 +40,13 @@ const RANDOM_PREPARE_REPLACEMENT_ATTEMPTS = boundedInteger(
   0,
   40,
 );
+const CORE_REVIEW_PREPARE_BATCH_SIZE = boundedInteger(process.env.RADIOLOGY_PPT_CORE_REVIEW_PREPARE_BATCH_SIZE, 12, 1, 30);
+const CORE_REVIEW_CANDIDATE_MULTIPLIER = boundedInteger(
+  process.env.RADIOLOGY_PPT_CORE_REVIEW_CANDIDATE_MULTIPLIER,
+  3,
+  1,
+  6,
+);
 const CORE_REVIEW_DEFAULT_QUESTION_BANK_PATH = path.join(
   RESOURCE_ROOT,
   "src",
@@ -172,28 +179,102 @@ export async function prepareCases(entries, args) {
 
 export async function prepareCoreReviewDeck(args) {
   emitProgress("Planning Core Review case requests");
-  const plan = await buildCoreReviewCasePlan(args);
+  const requestedCaseCount = boundedInteger(args.caseCount || args.count, 50, 1, 150);
+  const candidateCaseCount = Math.min(
+    300,
+    Math.max(requestedCaseCount, requestedCaseCount * CORE_REVIEW_CANDIDATE_MULTIPLIER, requestedCaseCount + 20),
+  );
+  const plan = await buildCoreReviewCasePlan({
+    ...args,
+    caseCount: requestedCaseCount,
+    candidateCaseCount,
+    allowAlternateModality: true,
+  });
   emitProgress("Starting Core Review case preparation", {
     requestedCaseCount: plan.requestedCaseCount,
     plannedCaseCount: plan.plannedCaseCount,
     caseMix: plan.caseMix,
     modalityMix: plan.modalityMix,
   });
-  const prepared = await prepareCaseItems(
+  const prepared = await prepareCoreReviewCaseItems(
     plan.entries,
     {
       ...args,
       onlyNewRandomCases: args.onlyNewRandomCases !== false,
     },
-    {
-      readRandomHistory: true,
-      writeRandomHistory: true,
-    },
+    requestedCaseCount,
   );
   scheduleFallbackCasePrefetch(prepared.items);
   return {
     plan,
     ...prepared,
+  };
+}
+
+async function prepareCoreReviewCaseItems(entries, args, requestedCaseCount) {
+  const items = [];
+  const failures = [];
+  const attemptedEntries = [];
+  const usedCasePaths = new Set();
+
+  for (let index = 0; index < entries.length && items.length < requestedCaseCount; index += CORE_REVIEW_PREPARE_BATCH_SIZE) {
+    const batch = entries.slice(index, index + CORE_REVIEW_PREPARE_BATCH_SIZE);
+    attemptedEntries.push(...batch);
+    emitProgress("Preparing Core Review candidate batch", {
+      targetCaseCount: requestedCaseCount,
+      preparedCaseCount: items.length,
+      candidateStart: index + 1,
+      candidateEnd: index + batch.length,
+      candidatePoolSize: entries.length,
+    });
+
+    const prepared = await prepareCaseItems(batch, args, {
+      readRandomHistory: true,
+      writeRandomHistory: false,
+    });
+    failures.push(...prepared.failures);
+
+    for (const item of prepared.items) {
+      const casePath = normalizedCasePath(item.caseData?.casePath || item.request?.selectedCasePath || "");
+      if (casePath && usedCasePaths.has(casePath)) {
+        const title = item.caseData?.caseTitle || item.request?.rawInput || casePath;
+        emitWarning("Duplicate Core Review case skipped while filling requested count", {
+          caseTitle: title,
+          casePath,
+        });
+        failures.push(`Skipped duplicate Core Review case "${title}".`);
+        continue;
+      }
+
+      if (casePath) {
+        usedCasePaths.add(casePath);
+      }
+      items.push(item);
+      if (items.length >= requestedCaseCount) {
+        break;
+      }
+    }
+  }
+
+  if (items.length < requestedCaseCount) {
+    emitWarning("Core Review prepared fewer cases than requested after exhausting the candidate pool", {
+      requestedCaseCount,
+      preparedCaseCount: items.length,
+      candidatePoolSize: entries.length,
+    });
+    failures.push(
+      `Core Review prepared ${items.length} of ${requestedCaseCount} requested case(s) after trying ${attemptedEntries.length} candidate request(s). Try Any Modality, a broader domain, or a smaller case count if this repeats.`,
+    );
+  }
+
+  if (items.length) {
+    await rememberRandomHistoryFromPreparedItems(items);
+  }
+
+  return {
+    entries: attemptedEntries,
+    items,
+    failures,
   };
 }
 

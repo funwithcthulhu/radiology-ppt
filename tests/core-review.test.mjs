@@ -170,8 +170,24 @@ test("builds deterministic CORE review case plans without using the Cases tab", 
   );
   assert.equal(first.entries.every((entry) => entry.requestMode === "specific"), true);
   assert.equal(first.entries.every((entry) => entry.coreReviewPlan?.domain), true);
+  assert.equal(first.entries.every((entry) => entry.allowAlternateModality === true), true);
   assert.ok(new Set(first.entries.map((entry) => entry.coreReviewPlan.domain)).size >= 8);
   assert.ok(first.entries.some((entry) => entry.modality && entry.studyHint.includes(entry.modality)));
+});
+
+test("can over-plan Core Review candidates while preserving the requested count", async () => {
+  const plan = await buildCoreReviewCasePlan({
+    caseCount: 50,
+    candidateCaseCount: 120,
+    caseMix: "blueprint",
+    modalityMix: "mixed",
+    seed: "core-plan-candidate-buffer",
+  });
+
+  assert.equal(plan.requestedCaseCount, 50);
+  assert.equal(plan.plannedCaseCount, 120);
+  assert.equal(plan.entries.length, 120);
+  assert.match(plan.summary, /50 requested case\(s\), 120 candidate request\(s\)/);
 });
 
 test("can focus CORE review case plans by domain", async () => {

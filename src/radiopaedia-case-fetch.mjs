@@ -146,9 +146,17 @@ export async function fetchRadiopaediaCaseByPath(
   const preferredStudies = request.preferredModalities.length
     ? orderedStudies.filter((study) => request.preferredModalities.includes(study.modality))
     : orderedStudies;
-  if (request.preferredModalities.length && !preferredStudies.length) {
+  if (request.preferredModalities.length && !preferredStudies.length && !request.allowAlternateModality) {
     throw new Error(`No ${request.preferredModalities.join("/")} studies were found for "${caseTitle}".`);
   }
+  if (request.preferredModalities.length && !preferredStudies.length && request.allowAlternateModality) {
+    emitProgress("Preferred modality unavailable; using alternate case modality", {
+      caseTitle,
+      requestedModalities: request.preferredModalities,
+      availableModalities: dedupe(orderedStudies.map((study) => study.modality).filter(Boolean)),
+    });
+  }
+  const usableStudies = preferredStudies.length ? preferredStudies : orderedStudies;
 
   const requestCandidateBank = normalizeImageCandidateBank(request.imageCandidateBank);
   const candidateCacheKey = imageCandidateCacheKey(casePath, request.preferredModalities);
@@ -159,7 +167,7 @@ export async function fetchRadiopaediaCaseByPath(
       );
   let imageCandidates = cachedCandidateBank;
   if (!imageCandidates.length) {
-    for (const study of preferredStudies) {
+    for (const study of usableStudies) {
       imageCandidates.push(...buildImageCandidates(study));
     }
   }

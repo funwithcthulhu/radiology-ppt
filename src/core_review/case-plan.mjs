@@ -468,6 +468,7 @@ function requestFromCase(item, planIndex, options) {
     includeClinicalHistory: options.useClinicalHistory,
     useOllamaAssist: options.useOllamaAssist,
     ollamaModel: options.ollamaModel,
+    allowAlternateModality: options.allowAlternateModality,
     coreReviewPlan: {
       planIndex: planIndex + 1,
       sourceId: item.sourceId,
@@ -480,14 +481,24 @@ function requestFromCase(item, planIndex, options) {
   };
 }
 
-function buildSummary(entries, domain, caseMix, modalityMix) {
+function buildSummary(entries, requestedCaseCount, domain, caseMix, modalityMix) {
   const labelByDomain = new Map(CORE_REVIEW_DOMAINS.map((item) => [item.id, item.label]));
   const domainLabel = domain ? labelByDomain.get(domain) || domain : "mixed CORE domains";
-  return `${entries.length} planned case request(s), ${domainLabel}, ${caseMix} case mix, ${modalityMix} modality hints`;
+  const countText =
+    entries.length === requestedCaseCount
+      ? `${entries.length} planned case request(s)`
+      : `${requestedCaseCount} requested case(s), ${entries.length} candidate request(s)`;
+  return `${countText}, ${domainLabel}, ${caseMix} case mix, ${modalityMix} modality hints`;
 }
 
 export async function buildCoreReviewCasePlan(args = {}) {
   const caseCount = boundedInteger(args.caseCount || args.count, 50, 1, 150);
+  const candidateCaseCount = boundedInteger(
+    args.candidateCaseCount || args.planningCaseCount || caseCount,
+    caseCount,
+    caseCount,
+    300,
+  );
   const domain = normalizeCoreReviewCaseDomain(args.domain || args.coreReviewDomain || "");
   const caseMix = normalizeCaseMix(args.caseMix || args.mix || "");
   const modalityMix = normalizeModalityMix(args.modalityMix || "");
@@ -500,7 +511,7 @@ export async function buildCoreReviewCasePlan(args = {}) {
   }
 
   const buckets = groupByDomain(cases, rng);
-  const domainSequence = buildDomainSequence(buckets, caseCount, caseMix, domain, rng);
+  const domainSequence = buildDomainSequence(buckets, candidateCaseCount, caseMix, domain, rng);
   const cursors = new Map();
   const usedIds = new Set();
   const selected = [];
@@ -524,6 +535,7 @@ export async function buildCoreReviewCasePlan(args = {}) {
     ollamaModel: collapseWhitespace(args.ollamaModel || ""),
     caseMix,
     modalityMix,
+    allowAlternateModality: args.allowAlternateModality !== false,
   };
   const entries = selected.map((item, index) => requestFromCase(item, index, options));
 
@@ -539,7 +551,7 @@ export async function buildCoreReviewCasePlan(args = {}) {
     caseBankTitle: caseBank.title,
     caseBankPath: caseBank.path,
     sources: [...CORE_REVIEW_CASE_SOURCES, ...(caseBank.sources || [])],
-    summary: buildSummary(entries, domain, caseMix, modalityMix),
+    summary: buildSummary(entries, caseCount, domain, caseMix, modalityMix),
     entries,
   };
 }

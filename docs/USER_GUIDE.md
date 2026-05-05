@@ -84,6 +84,7 @@ To build a Core Review lecture:
 7. Review the Radiopaedia cases and images before export.
 
 This path does not use the `Cases` tab. It starts from separate Core Review planning logic, searches Radiopaedia, and lets you approve the actual cases.
+For larger reviews, the app plans extra candidate requests behind the scenes and keeps preparing until it reaches your requested case count or exhausts the candidate pool. Modality choices are treated as preferences in this workflow so a useful case is not dropped just because Radiopaedia lacks the exact preferred modality.
 
 To add local question sources:
 
