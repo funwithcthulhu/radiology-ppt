@@ -5,7 +5,8 @@ import { fileURLToPath } from "node:url";
 import { readStoreCache, writeStoreCache } from "./app-store.mjs";
 
 const RESOURCE_ROOT =
-  process.env.RADIOLOGY_PPT_RESOURCE_ROOT || path.resolve(fileURLToPath(new URL("..", import.meta.url)));
+  process.env.RADIOLOGY_PPT_RESOURCE_ROOT ||
+  path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const APP_ROOT = process.env.RADIOLOGY_PPT_APP_ROOT || RESOURCE_ROOT;
 const CACHE_SCHEMA_VERSION = 1;
 
@@ -14,7 +15,10 @@ function cacheRoot() {
 }
 
 function cachePath(namespace, key) {
-  const hash = crypto.createHash("sha1").update(JSON.stringify({ namespace, key })).digest("hex");
+  const hash = crypto
+    .createHash("sha1")
+    .update(JSON.stringify({ namespace, key }))
+    .digest("hex");
   return path.join(cacheRoot(), namespace, `${hash}.json`);
 }
 
@@ -26,7 +30,11 @@ function isFresh(entry, ttlMs) {
   return Number.isFinite(createdAt) && Date.now() - createdAt <= ttlMs;
 }
 
-export async function readCacheEntry(namespace, key, { ttlMs = 0, allowStale = false } = {}) {
+export async function readCacheEntry(
+  namespace,
+  key,
+  { ttlMs = 0, allowStale = false } = {},
+) {
   const stored = await readStoreCache(namespace, key, { ttlMs, allowStale });
   if (stored !== null && stored !== undefined) {
     return stored;
@@ -69,7 +77,12 @@ export async function writeCacheEntry(namespace, key, value) {
   return filePath;
 }
 
-export async function cachedValue(namespace, key, loadValue, { ttlMs = 0 } = {}) {
+export async function cachedValue(
+  namespace,
+  key,
+  loadValue,
+  { ttlMs = 0 } = {},
+) {
   const cached = await readCacheEntry(namespace, key, { ttlMs });
   if (cached !== null && cached !== undefined) {
     return cached;

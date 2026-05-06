@@ -48,34 +48,71 @@ test("builds scored candidates from annotated study frames", () => {
   assert.equal(candidates[0].isAnnotated, true);
   assert.ok(candidates[0].relevantScore > 400);
   assert.equal(candidates[0].audit.provider, "radiopaedia");
-  assert.ok(candidates[0].audit.reasons.includes("contains Radiopaedia annotation"));
+  assert.ok(
+    candidates[0].audit.reasons.includes("contains Radiopaedia annotation"),
+  );
   assert.equal(candidates[0].focusPoints[0].label, "Left hippocampus");
 });
 
 test("does not reselect excluded image frames", () => {
   const candidates = buildImageCandidates(demoStudy());
-  const selected = selectRelevantImages(candidates, 1, { excludeFrameIds: [2] });
+  const selected = selectRelevantImages(candidates, 1, {
+    excludeFrameIds: [2],
+  });
   assert.deepEqual(selected, []);
 });
 
 test("can explicitly select requested image frames before filling remaining slots", () => {
   const candidates = [
-    { frameId: "1", seriesId: "a", viewSignature: "a", relevantScore: 500, url: "https://example.com/1.jpg" },
-    { frameId: "2", seriesId: "b", viewSignature: "b", relevantScore: 120, url: "https://example.com/2.jpg" },
-    { frameId: "3", seriesId: "c", viewSignature: "c", relevantScore: 450, url: "https://example.com/3.jpg" },
+    {
+      frameId: "1",
+      seriesId: "a",
+      viewSignature: "a",
+      relevantScore: 500,
+      url: "https://example.com/1.jpg",
+    },
+    {
+      frameId: "2",
+      seriesId: "b",
+      viewSignature: "b",
+      relevantScore: 120,
+      url: "https://example.com/2.jpg",
+    },
+    {
+      frameId: "3",
+      seriesId: "c",
+      viewSignature: "c",
+      relevantScore: 450,
+      url: "https://example.com/3.jpg",
+    },
   ];
 
-  const selected = selectRelevantImages(candidates, 2, { includeFrameIds: ["2"] });
+  const selected = selectRelevantImages(candidates, 2, {
+    includeFrameIds: ["2"],
+  });
 
   assert.equal(selected[0].frameId, "2");
   assert.equal(selected.length, 2);
-  assert.equal(selected[0].audit.selectedReason, "explicitly requested plus ranked fill");
+  assert.equal(
+    selected[0].audit.selectedReason,
+    "explicitly requested plus ranked fill",
+  );
   assert.match(selected[0].selectionExplanation, /explicitly requested/);
-  assert.ok(selected.some((candidate) => candidate.frameId === "1" || candidate.frameId === "3"));
+  assert.ok(
+    selected.some(
+      (candidate) => candidate.frameId === "1" || candidate.frameId === "3",
+    ),
+  );
 });
 
 test("normalizes candidate banks and drops local paths", () => {
-  const bank = normalizeImageCandidateBank([{ url: "https://example.test/a.jpg", frameId: "a", localPath: "cached.jpg" }]);
+  const bank = normalizeImageCandidateBank([
+    {
+      url: "https://example.test/a.jpg",
+      frameId: "a",
+      localPath: "cached.jpg",
+    },
+  ]);
   assert.equal(bank.length, 1);
   assert.equal(bank[0].frameId, "a");
   assert.equal(bank[0].localPath, undefined);
@@ -100,7 +137,12 @@ test("ignores malformed frame metadata without throwing", () => {
         specifics: "Portal venous",
         perspective: "Axial",
         encodings: {
-          thumbnailed_files: [{ original: "one.jpg" }, null, { original: "" }, { original: "extra.jpg" }],
+          thumbnailed_files: [
+            { original: "one.jpg" },
+            null,
+            { original: "" },
+            { original: "extra.jpg" },
+          ],
         },
         frames: [
           { id: 10, current: true, width: 512, height: 512 },
@@ -127,9 +169,27 @@ test("ignores malformed frame metadata without throwing", () => {
 
 test("does not re-add excluded frames while filling explicit selections", () => {
   const candidates = [
-    { frameId: "keep", seriesId: "a", viewSignature: "a", relevantScore: 500, url: "https://example.com/a.jpg" },
-    { frameId: "reject", seriesId: "b", viewSignature: "b", relevantScore: 700, url: "https://example.com/b.jpg" },
-    { frameId: "fallback", seriesId: "c", viewSignature: "c", relevantScore: 300, url: "https://example.com/c.jpg" },
+    {
+      frameId: "keep",
+      seriesId: "a",
+      viewSignature: "a",
+      relevantScore: 500,
+      url: "https://example.com/a.jpg",
+    },
+    {
+      frameId: "reject",
+      seriesId: "b",
+      viewSignature: "b",
+      relevantScore: 700,
+      url: "https://example.com/b.jpg",
+    },
+    {
+      frameId: "fallback",
+      seriesId: "c",
+      viewSignature: "c",
+      relevantScore: 300,
+      url: "https://example.com/c.jpg",
+    },
   ];
 
   const selected = selectRelevantImages(candidates, 2, {
@@ -137,7 +197,10 @@ test("does not re-add excluded frames while filling explicit selections", () => 
     excludeFrameIds: ["reject"],
   });
 
-  assert.deepEqual(selected.map((candidate) => candidate.frameId), ["keep", "fallback"]);
+  assert.deepEqual(
+    selected.map((candidate) => candidate.frameId),
+    ["keep", "fallback"],
+  );
 });
 
 test("difficulty changes weak-image warnings predictably", () => {
@@ -155,5 +218,8 @@ test("difficulty changes weak-image warnings predictably", () => {
 
   assert.equal(easy.shouldReroll, true);
   assert.match(easy.summary, /Easy mode/);
-  assert.equal(hard.warnings.some((warning) => /Easy mode/.test(warning)), false);
+  assert.equal(
+    hard.warnings.some((warning) => /Easy mode/.test(warning)),
+    false,
+  );
 });

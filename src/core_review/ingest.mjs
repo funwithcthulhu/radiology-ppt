@@ -4,7 +4,13 @@ import path from "node:path";
 import { collapseWhitespace, slugify } from "../utils.mjs";
 import { normalizeCoreReviewDomain } from "./schema.mjs";
 
-const SUPPORTED_EXTENSIONS = new Set([".json", ".jsonl", ".md", ".markdown", ".txt"]);
+const SUPPORTED_EXTENSIONS = new Set([
+  ".json",
+  ".jsonl",
+  ".md",
+  ".markdown",
+  ".txt",
+]);
 
 function sha256(value) {
   return crypto.createHash("sha256").update(value).digest("hex");
@@ -12,7 +18,9 @@ function sha256(value) {
 
 function inferTitle(filePath, parsed) {
   if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-    const title = collapseWhitespace(parsed.title || parsed.name || parsed.sourceTitle || "");
+    const title = collapseWhitespace(
+      parsed.title || parsed.name || parsed.sourceTitle || "",
+    );
     if (title) {
       return title;
     }
@@ -25,7 +33,9 @@ function normalizeTags(value) {
     return [];
   }
   const tags = Array.isArray(value) ? value : String(value).split(/[,;]/);
-  return tags.map((tag) => collapseWhitespace(tag).toLowerCase()).filter(Boolean);
+  return tags
+    .map((tag) => collapseWhitespace(tag).toLowerCase())
+    .filter(Boolean);
 }
 
 function textFromJsonValue(value) {
@@ -47,7 +57,10 @@ function textFromJsonValue(value) {
     if (preferred.length) {
       return preferred.map(textFromJsonValue).filter(Boolean).join("\n\n");
     }
-    return Object.values(value).map(textFromJsonValue).filter(Boolean).join("\n\n");
+    return Object.values(value)
+      .map(textFromJsonValue)
+      .filter(Boolean)
+      .join("\n\n");
   }
   return "";
 }
@@ -63,7 +76,9 @@ function parseJsonl(raw) {
 function parseSource(raw, filePath) {
   const extension = path.extname(filePath).toLowerCase();
   if (!SUPPORTED_EXTENSIONS.has(extension)) {
-    throw new Error(`Unsupported Core Review source type: ${extension || "(none)"}`);
+    throw new Error(
+      `Unsupported Core Review source type: ${extension || "(none)"}`,
+    );
   }
 
   if (extension === ".jsonl") {
@@ -88,10 +103,19 @@ function parseSource(raw, filePath) {
   };
 }
 
-export function chunkCoreReviewText(text, { maxChars = 1600, overlapChars = 180 } = {}) {
+export function chunkCoreReviewText(
+  text,
+  { maxChars = 1600, overlapChars = 180 } = {},
+) {
   const chunkSize = Math.max(1, Number.parseInt(maxChars, 10) || 1600);
-  const overlapSize = Math.max(0, Math.min(Number.parseInt(overlapChars, 10) || 0, chunkSize - 1));
-  const clean = String(text || "").replace(/\r\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  const overlapSize = Math.max(
+    0,
+    Math.min(Number.parseInt(overlapChars, 10) || 0, chunkSize - 1),
+  );
+  const clean = String(text || "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
   if (!clean) {
     return [];
   }
@@ -151,9 +175,16 @@ export async function ingestCoreReviewSource(filePath, options = {}) {
   const raw = await fs.readFile(resolvedPath, "utf8");
   const { parsed, text } = parseSource(raw, resolvedPath);
   const title = inferTitle(resolvedPath, parsed);
-  const domain = normalizeCoreReviewDomain(options.domain || parsed?.domain || parsed?.category || "");
-  const tags = normalizeTags([...(normalizeTags(parsed?.tags)), ...(normalizeTags(options.tags))]);
-  const sourceId = slugify(options.sourceId || parsed?.sourceId || title) || sha256(resolvedPath).slice(0, 12);
+  const domain = normalizeCoreReviewDomain(
+    options.domain || parsed?.domain || parsed?.category || "",
+  );
+  const tags = normalizeTags([
+    ...normalizeTags(parsed?.tags),
+    ...normalizeTags(options.tags),
+  ]);
+  const sourceId =
+    slugify(options.sourceId || parsed?.sourceId || title) ||
+    sha256(resolvedPath).slice(0, 12);
   const textHash = sha256(text);
   const importedAt = new Date().toISOString();
 
@@ -171,7 +202,8 @@ export async function ingestCoreReviewSource(filePath, options = {}) {
     id: sourceId,
     title,
     filePath: resolvedPath,
-    sourceType: path.extname(resolvedPath).toLowerCase().replace(/^\./, "") || "text",
+    sourceType:
+      path.extname(resolvedPath).toLowerCase().replace(/^\./, "") || "text",
     importedAt,
     domain,
     tags,
@@ -199,7 +231,11 @@ export async function ingestCoreReviewSources(inputPaths, options = {}) {
   if (options.outputPath) {
     const outputPath = path.resolve(options.outputPath);
     await fs.mkdir(path.dirname(outputPath), { recursive: true });
-    await fs.writeFile(outputPath, `${JSON.stringify(corpus, null, 2)}\n`, "utf8");
+    await fs.writeFile(
+      outputPath,
+      `${JSON.stringify(corpus, null, 2)}\n`,
+      "utf8",
+    );
   }
 
   return corpus;

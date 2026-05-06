@@ -1,15 +1,42 @@
 import { cleanText, collapseWhitespace, dedupe } from "./utils.mjs";
 
 const MODALITY_HINTS = [
-  { label: "MRI", patterns: [/\bmri\b/i, /\bmr\b/i, /\bmagnetic resonance\b/i] },
-  { label: "CT", patterns: [/\bct\b/i, /\bcomputed tomography\b/i, /\bcat scan\b/i] },
-  { label: "X-ray", patterns: [/\bx-?ray\b/i, /\bradiograph(?:y|ic)?\b/i, /\bcxr\b/i] },
-  { label: "Ultrasound", patterns: [/\bultrasound\b/i, /\bsonograph(?:y|ic)?\b/i, /\bus\b/i] },
+  {
+    label: "MRI",
+    patterns: [/\bmri\b/i, /\bmr\b/i, /\bmagnetic resonance\b/i],
+  },
+  {
+    label: "CT",
+    patterns: [/\bct\b/i, /\bcomputed tomography\b/i, /\bcat scan\b/i],
+  },
+  {
+    label: "X-ray",
+    patterns: [/\bx-?ray\b/i, /\bradiograph(?:y|ic)?\b/i, /\bcxr\b/i],
+  },
+  {
+    label: "Ultrasound",
+    patterns: [/\bultrasound\b/i, /\bsonograph(?:y|ic)?\b/i, /\bus\b/i],
+  },
   { label: "Fluoroscopy", patterns: [/\bfluoro(?:scopy)?\b/i] },
   { label: "PET", patterns: [/\bpet\b/i] },
-  { label: "Nuclear Medicine", patterns: [/\bnuclear medicine\b/i, /\bnuc med\b/i, /\bscintigraph(?:y|ic)?\b/i, /\bspect\b/i, /\bhida\b/i] },
-  { label: "Mammography", patterns: [/\bmammograph(?:y|ic)?\b/i, /\bmammo\b/i] },
-  { label: "Angiography", patterns: [/\bangiograph(?:y|ic)?\b/i, /\bangio\b/i] },
+  {
+    label: "Nuclear Medicine",
+    patterns: [
+      /\bnuclear medicine\b/i,
+      /\bnuc med\b/i,
+      /\bscintigraph(?:y|ic)?\b/i,
+      /\bspect\b/i,
+      /\bhida\b/i,
+    ],
+  },
+  {
+    label: "Mammography",
+    patterns: [/\bmammograph(?:y|ic)?\b/i, /\bmammo\b/i],
+  },
+  {
+    label: "Angiography",
+    patterns: [/\bangiograph(?:y|ic)?\b/i, /\bangio\b/i],
+  },
 ];
 const RANDOM_REQUEST_LIMIT = 20;
 const RANDOM_DIRECTIVE_PATTERNS = [
@@ -26,23 +53,66 @@ const RANDOM_DIRECTIVE_PATTERNS = [
   /\bjust\b/gi,
   /\bme\b/gi,
 ];
-const BODY_SYSTEMS = ["Chest", "Gastrointestinal", "Hepatobiliary", "Urogenital", "Gynaecology", "Obstetrics"];
+const BODY_SYSTEMS = [
+  "Chest",
+  "Gastrointestinal",
+  "Hepatobiliary",
+  "Urogenital",
+  "Gynaecology",
+  "Obstetrics",
+];
 const RANDOM_CATEGORY_HINTS = [
   {
     systems: ["Central Nervous System"],
-    aliases: ["neuro", "neuroradiology", "cns", "brain", "brain imaging", "neuraxial"],
+    aliases: [
+      "neuro",
+      "neuroradiology",
+      "cns",
+      "brain",
+      "brain imaging",
+      "neuraxial",
+    ],
   },
   {
     systems: ["Paediatrics"],
-    aliases: ["pediatric", "pediatrics", "paediatric", "paediatrics", "peds", "peds", "child", "children", "pediatric imaging", "paediatric imaging"],
+    aliases: [
+      "pediatric",
+      "pediatrics",
+      "paediatric",
+      "paediatrics",
+      "peds",
+      "peds",
+      "child",
+      "children",
+      "pediatric imaging",
+      "paediatric imaging",
+    ],
   },
   {
     systems: ["Musculoskeletal"],
-    aliases: ["msk", "musculoskeletal", "muskuloskeletal", "muskuloskletal", "orthopedic", "orthopaedic", "ortho", "bone", "joint", "extremity", "sports"],
+    aliases: [
+      "msk",
+      "musculoskeletal",
+      "muskuloskeletal",
+      "muskuloskletal",
+      "orthopedic",
+      "orthopaedic",
+      "ortho",
+      "bone",
+      "joint",
+      "extremity",
+      "sports",
+    ],
   },
   {
     systems: BODY_SYSTEMS,
-    aliases: ["body", "body imaging", "abdominal imaging", "abdominopelvic", "abdomen pelvis"],
+    aliases: [
+      "body",
+      "body imaging",
+      "abdominal imaging",
+      "abdominopelvic",
+      "abdomen pelvis",
+    ],
     mode: "any",
   },
   {
@@ -55,7 +125,19 @@ const RANDOM_CATEGORY_HINTS = [
   },
   {
     systems: ["Head & Neck"],
-    aliases: ["head neck", "head and neck", "h n", "hn", "ent", "orbit", "orbits", "sinus", "sinuses", "temporal bone", "maxillofacial"],
+    aliases: [
+      "head neck",
+      "head and neck",
+      "h n",
+      "hn",
+      "ent",
+      "orbit",
+      "orbits",
+      "sinus",
+      "sinuses",
+      "temporal bone",
+      "maxillofacial",
+    ],
   },
   {
     systems: ["Spine"],
@@ -63,7 +145,14 @@ const RANDOM_CATEGORY_HINTS = [
   },
   {
     systems: ["Gastrointestinal"],
-    aliases: ["gi", "gastrointestinal", "gastro", "abdomen", "abdominal", "bowel"],
+    aliases: [
+      "gi",
+      "gastrointestinal",
+      "gastro",
+      "abdomen",
+      "abdominal",
+      "bowel",
+    ],
   },
   {
     systems: ["Hepatobiliary"],
@@ -71,7 +160,19 @@ const RANDOM_CATEGORY_HINTS = [
   },
   {
     systems: ["Urogenital"],
-    aliases: ["urogenital", "genitourinary", "gu", "urology", "renal", "kidney", "bladder", "pelvis", "pelvic", "prostate", "testicular"],
+    aliases: [
+      "urogenital",
+      "genitourinary",
+      "gu",
+      "urology",
+      "renal",
+      "kidney",
+      "bladder",
+      "pelvis",
+      "pelvic",
+      "prostate",
+      "testicular",
+    ],
   },
   {
     systems: ["Breast"],
@@ -95,7 +196,15 @@ const RANDOM_CATEGORY_HINTS = [
   },
   {
     systems: ["Gynaecology"],
-    aliases: ["gynaecology", "gynecology", "gyn", "pelvic", "uterine", "ovarian", "adnexal"],
+    aliases: [
+      "gynaecology",
+      "gynecology",
+      "gyn",
+      "pelvic",
+      "uterine",
+      "ovarian",
+      "adnexal",
+    ],
   },
   {
     systems: ["Haematology"],
@@ -153,7 +262,9 @@ const IMPLICIT_STUDY_QUERY_TERMS = [
   "neonatal",
   "neonate",
 ];
-export const KNOWN_CASE_SYSTEMS = dedupe(RANDOM_CATEGORY_HINTS.flatMap((hint) => hint.systems));
+export const KNOWN_CASE_SYSTEMS = dedupe(
+  RANDOM_CATEGORY_HINTS.flatMap((hint) => hint.systems),
+);
 const STRUCTURED_RANDOM_MODES = new Set(["random", "random_case"]);
 const AGE_GROUP_QUERY_TERMS = {
   adult: "adult",
@@ -188,8 +299,12 @@ function buildStructuredStudyHint(payload) {
     return collapseWhitespace(payload.studyHint);
   }
 
-  const modality = isAnyValue(payload.modality) ? "" : collapseWhitespace(payload.modality);
-  const anatomy = isAnyValue(payload.anatomy) ? "" : collapseWhitespace(payload.anatomy);
+  const modality = isAnyValue(payload.modality)
+    ? ""
+    : collapseWhitespace(payload.modality);
+  const anatomy = isAnyValue(payload.anatomy)
+    ? ""
+    : collapseWhitespace(payload.anatomy);
   return collapseWhitespace([modality, anatomy].filter(Boolean).join(" "));
 }
 
@@ -266,15 +381,23 @@ function filterSystemsFromPayload(payload) {
   if (topicFocus && FILTER_SYSTEM_MAP[topicFocus]) {
     systems.push(...FILTER_SYSTEM_MAP[topicFocus]);
   }
-  return dedupe(systems.map((value) => collapseWhitespace(value)).filter(Boolean));
+  return dedupe(
+    systems.map((value) => collapseWhitespace(value)).filter(Boolean),
+  );
 }
 
 function buildPreferredModalities(payload, studyHint) {
   const matches = [...preferredModalitiesFromHint(studyHint)];
-  if (payload && typeof payload === "object" && !isAnyValue(payload.secondaryModality)) {
+  if (
+    payload &&
+    typeof payload === "object" &&
+    !isAnyValue(payload.secondaryModality)
+  ) {
     matches.push(collapseWhitespace(payload.secondaryModality));
   }
-  return dedupe(matches.map((value) => collapseWhitespace(value)).filter(Boolean));
+  return dedupe(
+    matches.map((value) => collapseWhitespace(value)).filter(Boolean),
+  );
 }
 
 function buildStructuredRandomSpec(payload, studyHint) {
@@ -294,7 +417,8 @@ function buildStructuredRandomSpec(payload, studyHint) {
   }
 
   const parsedCount = Number.parseInt(String(payload.randomCount ?? "1"), 10);
-  const count = Number.isInteger(parsedCount) && parsedCount > 0 ? parsedCount : 1;
+  const count =
+    Number.isInteger(parsedCount) && parsedCount > 0 ? parsedCount : 1;
   const systems = dedupe(
     [...(payload.randomSystems ?? []), ...filterSystemsFromPayload(payload)]
       .map((value) => collapseWhitespace(value))
@@ -302,7 +426,12 @@ function buildStructuredRandomSpec(payload, studyHint) {
   );
   const filterQuery = buildStructuredFilterQuery(payload);
   const queryText = collapseWhitespace(
-    [payload.randomQuery || stripCategoryTerms(stripModalityTerms(studyHint)), filterQuery].filter(Boolean).join(" "),
+    [
+      payload.randomQuery || stripCategoryTerms(stripModalityTerms(studyHint)),
+      filterQuery,
+    ]
+      .filter(Boolean)
+      .join(" "),
   );
 
   return {
@@ -310,12 +439,20 @@ function buildStructuredRandomSpec(payload, studyHint) {
     systems,
     queryText,
     studyHintText: collapseWhitespace(studyHint),
-    systemMode: normalizePhrase(payload.randomSystemMode) === "any" ? "any" : "all",
-    diversify: normalizePhrase(payload.randomDiversity) === "mixed" ? "mixed" : "",
+    systemMode:
+      normalizePhrase(payload.randomSystemMode) === "any" ? "any" : "all",
+    diversify:
+      normalizePhrase(payload.randomDiversity) === "mixed" ? "mixed" : "",
   };
 }
 
-function buildStructuredRawInput(payload, diagnosis, studyHint, randomSpec, filterQuery = "") {
+function buildStructuredRawInput(
+  payload,
+  diagnosis,
+  studyHint,
+  randomSpec,
+  filterQuery = "",
+) {
   if (payload.rawInput && !isAnyValue(payload.rawInput)) {
     return collapseWhitespace(payload.rawInput);
   }
@@ -339,11 +476,17 @@ function buildStructuredRawInput(payload, diagnosis, studyHint, randomSpec, filt
     return collapseWhitespace(parts.join(" | "));
   }
 
-  return collapseWhitespace([diagnosis, studyHint, filterQuery].filter(Boolean).join(", "));
+  return collapseWhitespace(
+    [diagnosis, studyHint, filterQuery].filter(Boolean).join(", "),
+  );
 }
 
 export function normalizePhrase(value) {
-  return collapseWhitespace(String(value ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " "));
+  return collapseWhitespace(
+    String(value ?? "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " "),
+  );
 }
 
 export function wordTokens(value) {
@@ -373,7 +516,9 @@ function levenshteinDistance(left, right) {
   if (!a) return b.length;
   if (!b) return a.length;
 
-  const rows = Array.from({ length: a.length + 1 }, () => Array(b.length + 1).fill(0));
+  const rows = Array.from({ length: a.length + 1 }, () =>
+    Array(b.length + 1).fill(0),
+  );
   for (let i = 0; i <= a.length; i += 1) rows[i][0] = i;
   for (let j = 0; j <= b.length; j += 1) rows[0][j] = j;
 
@@ -400,10 +545,15 @@ export function similarityScore(left, right) {
 
   const overlap = tokenOverlapScore(normalizedLeft, normalizedRight);
   const maxLength = Math.max(normalizedLeft.length, normalizedRight.length);
-  const editScore = maxLength ? 1 - levenshteinDistance(normalizedLeft, normalizedRight) / maxLength : 0;
+  const editScore = maxLength
+    ? 1 - levenshteinDistance(normalizedLeft, normalizedRight) / maxLength
+    : 0;
 
   let score = Math.max(overlap, editScore);
-  if (normalizedRight.includes(normalizedLeft) || normalizedLeft.includes(normalizedRight)) {
+  if (
+    normalizedRight.includes(normalizedLeft) ||
+    normalizedLeft.includes(normalizedRight)
+  ) {
     score = Math.max(score, 0.94);
   }
 
@@ -437,7 +587,9 @@ export function stripModalityTerms(studyHint) {
 function replaceAllPatterns(text, patterns) {
   let output = text;
   for (const pattern of patterns) {
-    const flags = pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`;
+    const flags = pattern.flags.includes("g")
+      ? pattern.flags
+      : `${pattern.flags}g`;
     output = output.replace(new RegExp(pattern.source, flags), " ");
   }
   return output;
@@ -450,7 +602,9 @@ function findAliasMatch(text, aliases) {
   }
 
   let bestMatch = null;
-  for (const alias of dedupe(aliases.map((value) => normalizePhrase(value)).filter(Boolean))) {
+  for (const alias of dedupe(
+    aliases.map((value) => normalizePhrase(value)).filter(Boolean),
+  )) {
     const aliasTokens = wordTokens(alias);
     if (!aliasTokens.length) {
       continue;
@@ -470,7 +624,9 @@ function findAliasMatch(text, aliases) {
       for (let index = 0; index <= tokens.length - length; index += 1) {
         const segment = tokens.slice(index, index + length).join(" ");
         if (aliasTokens.length === 1 && segment !== alias) {
-          const lengthRatio = Math.min(segment.length, alias.length) / Math.max(segment.length, alias.length);
+          const lengthRatio =
+            Math.min(segment.length, alias.length) /
+            Math.max(segment.length, alias.length);
           if (lengthRatio < 0.75) {
             continue;
           }
@@ -491,7 +647,8 @@ function findAliasMatch(text, aliases) {
         if (
           !bestMatch ||
           score > bestMatch.score ||
-          (score === bestMatch.score && segment.length > bestMatch.matched.length)
+          (score === bestMatch.score &&
+            segment.length > bestMatch.matched.length)
         ) {
           bestMatch = {
             alias,
@@ -509,15 +666,26 @@ function findAliasMatch(text, aliases) {
 function removeMatchedPhrase(text, phrase) {
   const tokens = wordTokens(text);
   const phraseTokens = wordTokens(phrase);
-  if (!tokens.length || !phraseTokens.length || phraseTokens.length > tokens.length) {
+  if (
+    !tokens.length ||
+    !phraseTokens.length ||
+    phraseTokens.length > tokens.length
+  ) {
     return collapseWhitespace(text);
   }
 
-  for (let index = 0; index <= tokens.length - phraseTokens.length; index += 1) {
+  for (
+    let index = 0;
+    index <= tokens.length - phraseTokens.length;
+    index += 1
+  ) {
     const segment = tokens.slice(index, index + phraseTokens.length);
     if (segment.join(" ") === phraseTokens.join(" ")) {
       return collapseWhitespace(
-        [...tokens.slice(0, index), ...tokens.slice(index + phraseTokens.length)].join(" "),
+        [
+          ...tokens.slice(0, index),
+          ...tokens.slice(index + phraseTokens.length),
+        ].join(" "),
       );
     }
   }
@@ -599,10 +767,14 @@ function parseRandomDirective(rawText) {
 
   working = replaceAllPatterns(working, RANDOM_DIRECTIVE_PATTERNS);
   const queryText = collapseWhitespace(working);
-  const isDirectiveOnly = !queryText && (hasRandomKeyword || systems.length > 0 || Boolean(countMatch));
+  const isDirectiveOnly =
+    !queryText &&
+    (hasRandomKeyword || systems.length > 0 || Boolean(countMatch));
 
   if (hasRandomKeyword || isDirectiveOnly) {
-    const studyHintText = preferredModalitiesFromHint(rawText).length ? queryText : "";
+    const studyHintText = preferredModalitiesFromHint(rawText).length
+      ? queryText
+      : "";
     return {
       count: Math.max(1, Math.min(RANDOM_REQUEST_LIMIT, count)),
       systems: dedupe(systems),
@@ -613,10 +785,18 @@ function parseRandomDirective(rawText) {
 
   const hasModality = preferredModalitiesFromHint(rawText).length > 0;
   const strippedStudyHint = stripModalityTerms(rawText);
-  const impliedSystems = dedupe([...systems, ...detectCategoryHints(strippedStudyHint).systems]);
-  const implicitQueryText = collapseWhitespace(stripCategoryTerms(strippedStudyHint));
+  const impliedSystems = dedupe([
+    ...systems,
+    ...detectCategoryHints(strippedStudyHint).systems,
+  ]);
+  const implicitQueryText = collapseWhitespace(
+    stripCategoryTerms(strippedStudyHint),
+  );
 
-  if ((hasModality || impliedSystems.length > 0) && isImplicitStudyQuery(implicitQueryText)) {
+  if (
+    (hasModality || impliedSystems.length > 0) &&
+    isImplicitStudyQuery(implicitQueryText)
+  ) {
     return {
       count: Math.max(1, Math.min(RANDOM_REQUEST_LIMIT, count)),
       systems: impliedSystems,
@@ -646,22 +826,38 @@ export function titleFromCasePath(casePath) {
 }
 
 export function parseCaseRequest(input) {
-  const payload = typeof input === "string" ? { rawInput: input } : { ...(input ?? {}) };
+  const payload =
+    typeof input === "string" ? { rawInput: input } : { ...(input ?? {}) };
   const requestMode = normalizePhrase(payload.requestMode || "");
   const structuredStudyHint = buildStructuredStudyHint(payload);
-  const structuredRandomSpec = buildStructuredRandomSpec(payload, structuredStudyHint);
+  const structuredRandomSpec = buildStructuredRandomSpec(
+    payload,
+    structuredStudyHint,
+  );
   const filterQuery = buildStructuredFilterQuery(payload);
-  const preferredModalities = buildPreferredModalities(payload, structuredStudyHint);
+  const preferredModalities = buildPreferredModalities(
+    payload,
+    structuredStudyHint,
+  );
   const searchSystems = filterSystemsFromPayload(payload);
   const difficulty = normalizedDifficulty(payload.difficulty);
 
   if (requestMode === "manual" || payload.selectedCasePath) {
     const selectedCasePath = collapseWhitespace(payload.selectedCasePath || "");
-    const diagnosis =
-      collapseWhitespace(payload.diagnosis || payload.selectedCaseTitle || titleFromCasePath(selectedCasePath));
+    const diagnosis = collapseWhitespace(
+      payload.diagnosis ||
+        payload.selectedCaseTitle ||
+        titleFromCasePath(selectedCasePath),
+    );
     const studyHint = structuredStudyHint;
     const rawInput =
-      buildStructuredRawInput(payload, diagnosis, studyHint, null, filterQuery) || selectedCasePath;
+      buildStructuredRawInput(
+        payload,
+        diagnosis,
+        studyHint,
+        null,
+        filterQuery,
+      ) || selectedCasePath;
 
     return {
       ...payload,
@@ -673,14 +869,22 @@ export function parseCaseRequest(input) {
       difficulty,
       randomSpec: null,
       preferredModalities,
-      searchText: collapseWhitespace([diagnosis, studyHint, filterQuery].filter(Boolean).join(" ")),
+      searchText: collapseWhitespace(
+        [diagnosis, studyHint, filterQuery].filter(Boolean).join(" "),
+      ),
     };
   }
 
   if (requestMode === "specific" || structuredRandomSpec) {
     const diagnosis = collapseWhitespace(payload.diagnosis || "");
     const studyHint = structuredStudyHint;
-    const rawInput = buildStructuredRawInput(payload, diagnosis, studyHint, structuredRandomSpec, filterQuery);
+    const rawInput = buildStructuredRawInput(
+      payload,
+      diagnosis,
+      studyHint,
+      structuredRandomSpec,
+      filterQuery,
+    );
 
     return {
       ...payload,
@@ -692,23 +896,35 @@ export function parseCaseRequest(input) {
       difficulty,
       randomSpec: structuredRandomSpec,
       preferredModalities,
-      searchText: collapseWhitespace([diagnosis, studyHint, filterQuery].filter(Boolean).join(" ")),
+      searchText: collapseWhitespace(
+        [diagnosis, studyHint, filterQuery].filter(Boolean).join(" "),
+      ),
     };
   }
 
   let rawInput = collapseWhitespace(
-    payload.rawInput || payload.query || payload.diagnosisQuery || payload.diagnosis || "",
+    payload.rawInput ||
+      payload.query ||
+      payload.diagnosisQuery ||
+      payload.diagnosis ||
+      "",
   );
   let diagnosis = collapseWhitespace(payload.diagnosis || "");
   let studyHint = collapseWhitespace(payload.studyHint || "");
 
   if (!diagnosis && rawInput) {
-    const pipeParts = rawInput.split("|").map((item) => collapseWhitespace(item)).filter(Boolean);
+    const pipeParts = rawInput
+      .split("|")
+      .map((item) => collapseWhitespace(item))
+      .filter(Boolean);
     if (pipeParts.length > 1) {
       [diagnosis, ...pipeParts] = pipeParts;
       studyHint = studyHint || pipeParts.join(" | ");
     } else {
-      const commaParts = rawInput.split(",").map((item) => collapseWhitespace(item)).filter(Boolean);
+      const commaParts = rawInput
+        .split(",")
+        .map((item) => collapseWhitespace(item))
+        .filter(Boolean);
       diagnosis = commaParts.shift() || rawInput;
       if (!studyHint && commaParts.length) {
         studyHint = commaParts.join(", ");
@@ -717,7 +933,9 @@ export function parseCaseRequest(input) {
   }
 
   diagnosis = diagnosis || rawInput;
-  rawInput = rawInput || collapseWhitespace([diagnosis, studyHint].filter(Boolean).join(", "));
+  rawInput =
+    rawInput ||
+    collapseWhitespace([diagnosis, studyHint].filter(Boolean).join(", "));
   const randomSpec = parseRandomDirective(diagnosis || rawInput);
   if (!studyHint && randomSpec?.studyHintText) {
     studyHint = randomSpec.studyHintText;
@@ -733,6 +951,8 @@ export function parseCaseRequest(input) {
     difficulty,
     randomSpec,
     preferredModalities: buildPreferredModalities(payload, studyHint),
-    searchText: collapseWhitespace([diagnosis, studyHint, filterQuery].filter(Boolean).join(" ")),
+    searchText: collapseWhitespace(
+      [diagnosis, studyHint, filterQuery].filter(Boolean).join(" "),
+    ),
   };
 }

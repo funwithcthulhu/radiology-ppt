@@ -1,7 +1,10 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { collapseWhitespace, slugify } from "../utils.mjs";
-import { normalizeCoreReviewQuestion, validateCoreReviewQuestion } from "./quiz.mjs";
+import {
+  normalizeCoreReviewQuestion,
+  validateCoreReviewQuestion,
+} from "./quiz.mjs";
 import { normalizeCoreReviewDomain } from "./schema.mjs";
 
 function hashSeed(value) {
@@ -82,7 +85,9 @@ function splitChunkIntoSentences(text) {
 }
 
 function normalizeStemTopic(topic, fallbackTitle) {
-  const clean = collapseWhitespace(String(topic || "").replace(/^[,;:\-]+|[,;:\-]+$/g, ""));
+  const clean = collapseWhitespace(
+    String(topic || "").replace(/^[,;:\-]+|[,;:\-]+$/g, ""),
+  );
   if (!clean || clean.length < 4) {
     return collapseWhitespace(fallbackTitle || "the source concept");
   }
@@ -131,7 +136,10 @@ function shortenOptionText(text, maxLength = 108) {
   if (!clean) {
     return "";
   }
-  const firstClause = clean.split(/;|, (?=(?:which|that|while|because|although)\b)/i)[0]?.trim() || clean;
+  const firstClause =
+    clean
+      .split(/;|, (?=(?:which|that|while|because|although)\b)/i)[0]
+      ?.trim() || clean;
   if (firstClause.length <= maxLength) {
     return firstClause.replace(/[.?!]$/, "");
   }
@@ -170,7 +178,10 @@ function oppositeOption(correctText, domain, style) {
       [/\bimmediately\b/gi, "only after a routine delay"],
       [/\breliable\b/gi, "informal"],
     ]) || "";
-  if (swapped && swapped.toLowerCase() !== String(correctText || "").toLowerCase()) {
+  if (
+    swapped &&
+    swapped.toLowerCase() !== String(correctText || "").toLowerCase()
+  ) {
     return swapped;
   }
 
@@ -224,7 +235,9 @@ function buildReference(source, chunk) {
           ? `pp. ${chunk.pageStart}-${chunk.pageEnd}`
           : `p. ${chunk.pageStart}`
         : "";
-  const label = collapseWhitespace([source?.title || "Imported source", page].filter(Boolean).join(" • "));
+  const label = collapseWhitespace(
+    [source?.title || "Imported source", page].filter(Boolean).join(" • "),
+  );
   return label ? [{ label }] : [];
 }
 
@@ -248,7 +261,14 @@ function buildQuestionStem(style, domain, topic, sourceTitle) {
 
 function buildCorrectOption(sentence, style, sourceTitle) {
   if (style === "definition") {
-    const match = splitAtKeyword(sentence, [" refers to ", " means ", " represents ", " is ", " are ", " defined as "]);
+    const match = splitAtKeyword(sentence, [
+      " refers to ",
+      " means ",
+      " represents ",
+      " is ",
+      " are ",
+      " defined as ",
+    ]);
     if (match?.after) {
       return shortenOptionText(match.after);
     }
@@ -275,7 +295,10 @@ function buildCorrectOption(sentence, style, sourceTitle) {
       const action =
         match.keyword.trim() === "avoid"
           ? `Avoid ${match.after}`
-          : `${match.keyword.trim().replace(/ed$/, "")} ${match.after}`.replace(/^recommend /i, "Recommend ");
+          : `${match.keyword.trim().replace(/ed$/, "")} ${match.after}`.replace(
+              /^recommend /i,
+              "Recommend ",
+            );
       return shortenOptionText(action);
     }
   }
@@ -285,7 +308,16 @@ function buildCorrectOption(sentence, style, sourceTitle) {
 
 function topicFromSentence(sentence, style, sourceTitle) {
   if (style === "definition") {
-    return splitAtKeyword(sentence, [" refers to ", " means ", " represents ", " is ", " are ", " defined as "])?.before || sourceTitle;
+    return (
+      splitAtKeyword(sentence, [
+        " refers to ",
+        " means ",
+        " represents ",
+        " is ",
+        " are ",
+        " defined as ",
+      ])?.before || sourceTitle
+    );
   }
   if (style === "recommendation") {
     return (
@@ -339,13 +371,18 @@ function buildOptionSet(correctText, domain, style, seed) {
     .map((option) => shortenOptionText(option))
     .filter(Boolean)
     .filter((option) => option.toLowerCase() !== correctText.toLowerCase());
-  const pickedDistractors = uniqueBy(distractors, (option) => option.toLowerCase()).slice(0, 3);
+  const pickedDistractors = uniqueBy(distractors, (option) =>
+    option.toLowerCase(),
+  ).slice(0, 3);
   if (pickedDistractors.length < 3) {
     return { options: [], answerKey: "" };
   }
 
   const choices = shuffle(
-    [{ text: correctText, correct: true }, ...pickedDistractors.map((text) => ({ text, correct: false }))],
+    [
+      { text: correctText, correct: true },
+      ...pickedDistractors.map((text) => ({ text, correct: false })),
+    ],
     seed,
   ).slice(0, 4);
   const optionIds = ["A", "B", "C", "D"];
@@ -353,25 +390,46 @@ function buildOptionSet(correctText, domain, style, seed) {
     id: optionIds[index],
     text: choice.text,
   }));
-  const answerKey = options.find((_, index) => choices[index].correct)?.id || "";
+  const answerKey =
+    options.find((_, index) => choices[index].correct)?.id || "";
   return { options, answerKey };
 }
 
 function draftQuestionFromSentence(source, chunk, sentence, index) {
-  const domain = normalizeCoreReviewDomain(chunk?.domain || source?.domain || "");
+  const domain = normalizeCoreReviewDomain(
+    chunk?.domain || source?.domain || "",
+  );
   if (!domain) {
     return null;
   }
 
   const style = classifySentence(sentence, domain);
-  const topic = topicFromSentence(sentence, style, source?.title || "Imported source");
-  const correctText = buildCorrectOption(sentence, style, source?.title || "Imported source");
+  const topic = topicFromSentence(
+    sentence,
+    style,
+    source?.title || "Imported source",
+  );
+  const correctText = buildCorrectOption(
+    sentence,
+    style,
+    source?.title || "Imported source",
+  );
   if (!correctText || correctText.length < 18) {
     return null;
   }
 
-  const stem = buildQuestionStem(style, domain, topic, source?.title || "Imported source");
-  const { options, answerKey } = buildOptionSet(correctText, domain, style, `${chunk.id}:${index}`);
+  const stem = buildQuestionStem(
+    style,
+    domain,
+    topic,
+    source?.title || "Imported source",
+  );
+  const { options, answerKey } = buildOptionSet(
+    correctText,
+    domain,
+    style,
+    `${chunk.id}:${index}`,
+  );
   if (options.length < 4 || !answerKey) {
     return null;
   }
@@ -406,7 +464,9 @@ export async function loadCoreReviewCorpus(corpusPath) {
     path: resolvedPath,
     title:
       collapseWhitespace(parsed.title || parsed.name || "") ||
-      path.basename(resolvedPath, path.extname(resolvedPath)).replace(/[-_]+/g, " "),
+      path
+        .basename(resolvedPath, path.extname(resolvedPath))
+        .replace(/[-_]+/g, " "),
     sourceCount: Array.isArray(parsed.sources) ? parsed.sources.length : 0,
     chunkCount: parsed.chunks.length,
     sources: Array.isArray(parsed.sources) ? parsed.sources : [],
@@ -426,16 +486,19 @@ export function mergeCoreReviewCorpora(corpora) {
   );
   const chunks = uniqueBy(
     corpora.flatMap((corpus) => corpus.chunks || []).filter(Boolean),
-    (chunk) => chunk.id || `${chunk.sourceId}:${chunk.index ?? chunk.pageStart ?? chunk.textHash ?? ""}`,
+    (chunk) =>
+      chunk.id ||
+      `${chunk.sourceId}:${chunk.index ?? chunk.pageStart ?? chunk.textHash ?? ""}`,
   );
 
   return {
-    title: collapseWhitespace(
-      corpora
-        .map((corpus) => corpus.title)
-        .filter(Boolean)
-        .join(" + "),
-    ) || "Imported Core Review Sources",
+    title:
+      collapseWhitespace(
+        corpora
+          .map((corpus) => corpus.title)
+          .filter(Boolean)
+          .join(" + "),
+      ) || "Imported Core Review Sources",
     sourceCount: sources.length,
     assetCount: assets.length,
     chunkCount: chunks.length,
@@ -446,23 +509,39 @@ export function mergeCoreReviewCorpora(corpora) {
 }
 
 export function buildCoreReviewQuestionBankFromCorpus(corpus, options = {}) {
-  const sourcesById = new Map((corpus.sources || []).map((source) => [source.id, source]));
+  const sourcesById = new Map(
+    (corpus.sources || []).map((source) => [source.id, source]),
+  );
   const questions = [];
   const seenStems = new Set();
 
   for (const chunk of corpus.chunks || []) {
-    const source = sourcesById.get(chunk.sourceId) || { id: chunk.sourceId, title: corpus.title, domain: chunk.domain };
-    const domain = normalizeCoreReviewDomain(chunk?.domain || source?.domain || "");
+    const source = sourcesById.get(chunk.sourceId) || {
+      id: chunk.sourceId,
+      title: corpus.title,
+      domain: chunk.domain,
+    };
+    const domain = normalizeCoreReviewDomain(
+      chunk?.domain || source?.domain || "",
+    );
     if (!domain) {
       continue;
     }
     const candidateSentences = splitChunkIntoSentences(chunk.text).slice(0, 2);
     for (const [index, sentence] of candidateSentences.entries()) {
-      const rawQuestion = draftQuestionFromSentence(source, { ...chunk, domain }, sentence, index);
+      const rawQuestion = draftQuestionFromSentence(
+        source,
+        { ...chunk, domain },
+        sentence,
+        index,
+      );
       if (!rawQuestion || seenStems.has(rawQuestion.stem.toLowerCase())) {
         continue;
       }
-      const question = normalizeCoreReviewQuestion(rawQuestion, questions.length);
+      const question = normalizeCoreReviewQuestion(
+        rawQuestion,
+        questions.length,
+      );
       const validation = validateCoreReviewQuestion(question);
       if (!validation.ok) {
         continue;

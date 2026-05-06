@@ -57,7 +57,9 @@ function captionCandidates(text) {
     .split(/\r?\n/)
     .map((line) => collapseWhitespace(line))
     .filter(Boolean)
-    .filter((line) => /^(fig(?:ure)?\.?\s*\d+|image\s*\d+|case\s*\d+)/i.test(line))
+    .filter((line) =>
+      /^(fig(?:ure)?\.?\s*\d+|image\s*\d+|case\s*\d+)/i.test(line),
+    )
     .slice(0, 12)
     .map((line) => line.slice(0, 500));
 }
@@ -75,7 +77,10 @@ function metadataValue(info, ...keys) {
 async function copySourcePdf(pdfPath, targetDir, outputRoot) {
   await fs.mkdir(targetDir, { recursive: true });
   const copiedPath = path.join(targetDir, path.basename(pdfPath));
-  if (path.resolve(pdfPath).toLowerCase() !== path.resolve(copiedPath).toLowerCase()) {
+  if (
+    path.resolve(pdfPath).toLowerCase() !==
+    path.resolve(copiedPath).toLowerCase()
+  ) {
     await fs.copyFile(pdfPath, copiedPath);
   }
   return {
@@ -101,10 +106,18 @@ async function savePageRenders(parser, sourceId, assetsDir, outputRoot, dpi) {
   for (const page of screenshots.pages || []) {
     const pageNumber = page.pageNumber || assets.length + 1;
     const assetId = `${sourceId}:page-${String(pageNumber).padStart(4, "0")}`;
-    const renderPath = path.join(assetsDir, sourceId, "pages", `page-${String(pageNumber).padStart(4, "0")}.png`);
+    const renderPath = path.join(
+      assetsDir,
+      sourceId,
+      "pages",
+      `page-${String(pageNumber).padStart(4, "0")}.png`,
+    );
     await fs.mkdir(path.dirname(renderPath), { recursive: true });
     await fs.writeFile(renderPath, Buffer.from(page.data));
-    pageAssetIds.set(pageNumber, [...(pageAssetIds.get(pageNumber) || []), assetId]);
+    pageAssetIds.set(pageNumber, [
+      ...(pageAssetIds.get(pageNumber) || []),
+      assetId,
+    ]);
     assets.push({
       id: assetId,
       sourceId,
@@ -121,11 +134,20 @@ async function savePageRenders(parser, sourceId, assetsDir, outputRoot, dpi) {
   return { assets, pageAssetIds };
 }
 
-async function saveEmbeddedImages(parser, sourceId, assetsDir, outputRoot, pageAssetIds) {
+async function saveEmbeddedImages(
+  parser,
+  sourceId,
+  assetsDir,
+  outputRoot,
+  pageAssetIds,
+) {
   const assets = [];
   let imageResult;
   try {
-    imageResult = await parser.getImage({ imageDataUrl: false, imageBuffer: true });
+    imageResult = await parser.getImage({
+      imageDataUrl: false,
+      imageBuffer: true,
+    });
   } catch {
     return assets;
   }
@@ -148,7 +170,10 @@ async function saveEmbeddedImages(parser, sourceId, assetsDir, outputRoot, pageA
       );
       await fs.mkdir(path.dirname(imagePath), { recursive: true });
       await fs.writeFile(imagePath, Buffer.from(image.data));
-      pageAssetIds.set(pageNumber, [...(pageAssetIds.get(pageNumber) || []), assetId]);
+      pageAssetIds.set(pageNumber, [
+        ...(pageAssetIds.get(pageNumber) || []),
+        assetId,
+      ]);
       assets.push({
         id: assetId,
         sourceId,
@@ -171,21 +196,37 @@ async function saveEmbeddedImages(parser, sourceId, assetsDir, outputRoot, pageA
 async function ingestPdf(pdfPath, options, seenSourceIds) {
   const resolvedPdf = path.resolve(pdfPath);
   const outputRoot = path.dirname(path.resolve(options.outputPath));
-  const assetsRoot = path.resolve(options.assetsDir || path.join(outputRoot, "assets"));
-  const sourcesRoot = path.resolve(options.sourcesDir || path.join(outputRoot, "sources"));
+  const assetsRoot = path.resolve(
+    options.assetsDir || path.join(outputRoot, "assets"),
+  );
+  const sourcesRoot = path.resolve(
+    options.sourcesDir || path.join(outputRoot, "sources"),
+  );
   const pdfBuffer = await fs.readFile(resolvedPdf);
-  const pdfData = pdfBuffer.buffer.slice(pdfBuffer.byteOffset, pdfBuffer.byteOffset + pdfBuffer.byteLength);
+  const pdfData = pdfBuffer.buffer.slice(
+    pdfBuffer.byteOffset,
+    pdfBuffer.byteOffset + pdfBuffer.byteLength,
+  );
   const parser = new PDFParse({ data: pdfData });
 
   try {
-    const infoResult = await parser.getInfo({ parsePageInfo: true }).catch(() => null);
+    const infoResult = await parser
+      .getInfo({ parsePageInfo: true })
+      .catch(() => null);
     const textResult = await parser.getText();
     const info = infoResult?.info || {};
     const title =
       collapseWhitespace(options.title) ||
       metadataValue(info, "Title", "title") ||
-      path.basename(resolvedPdf, path.extname(resolvedPdf)).replace(/[-_]+/g, " ");
-    const sourceId = sourceIdFor(options.sourceId || title || path.basename(resolvedPdf, path.extname(resolvedPdf)), seenSourceIds);
+      path
+        .basename(resolvedPdf, path.extname(resolvedPdf))
+        .replace(/[-_]+/g, " ");
+    const sourceId = sourceIdFor(
+      options.sourceId ||
+        title ||
+        path.basename(resolvedPdf, path.extname(resolvedPdf)),
+      seenSourceIds,
+    );
     const fileHash = await sha256File(resolvedPdf);
     const sourcePdf = {
       originalPath: resolvedPdf,
@@ -193,7 +234,14 @@ async function ingestPdf(pdfPath, options, seenSourceIds) {
     };
 
     if (!options.noCopySource) {
-      Object.assign(sourcePdf, await copySourcePdf(resolvedPdf, path.join(sourcesRoot, sourceId), outputRoot));
+      Object.assign(
+        sourcePdf,
+        await copySourcePdf(
+          resolvedPdf,
+          path.join(sourcesRoot, sourceId),
+          outputRoot,
+        ),
+      );
     }
 
     const source = {
@@ -205,16 +253,30 @@ async function ingestPdf(pdfPath, options, seenSourceIds) {
       tags: normalizeTags(options.tags || []),
       fileHash,
       pageCount: textResult.total || infoResult?.total || 0,
-      metadata: Object.fromEntries(Object.entries(info).filter(([, value]) => value)),
+      metadata: Object.fromEntries(
+        Object.entries(info).filter(([, value]) => value),
+      ),
       sourcePdf,
     };
 
     const rendered = options.noRenderPages
       ? { assets: [], pageAssetIds: new Map() }
-      : await savePageRenders(parser, sourceId, assetsRoot, outputRoot, options.dpi || 144);
+      : await savePageRenders(
+          parser,
+          sourceId,
+          assetsRoot,
+          outputRoot,
+          options.dpi || 144,
+        );
     const imageAssets = options.noExtractImages
       ? []
-      : await saveEmbeddedImages(parser, sourceId, assetsRoot, outputRoot, rendered.pageAssetIds);
+      : await saveEmbeddedImages(
+          parser,
+          sourceId,
+          assetsRoot,
+          outputRoot,
+          rendered.pageAssetIds,
+        );
     const assets = [...rendered.assets, ...imageAssets];
 
     const pages = textResult.pages?.length
@@ -226,7 +288,9 @@ async function ingestPdf(pdfPath, options, seenSourceIds) {
       const pageText = page.text || "";
       const assetIds = rendered.pageAssetIds.get(pageNumber) || [];
       const captions = captionCandidates(pageText);
-      chunkCoreReviewText(pageText, { maxChars: options.maxChars || 1600 }).forEach((chunk, index) => {
+      chunkCoreReviewText(pageText, {
+        maxChars: options.maxChars || 1600,
+      }).forEach((chunk, index) => {
         chunks.push({
           id: `${sourceId}:page-${String(pageNumber).padStart(4, "0")}:chunk-${String(index + 1).padStart(3, "0")}`,
           sourceId,
@@ -259,7 +323,9 @@ export async function ingestCoreReviewPdfs(inputPaths, options = {}) {
   const seenSourceIds = new Set();
   const ingested = [];
   for (const inputPath of inputPaths) {
-    ingested.push(await ingestPdf(inputPath, { ...options, outputPath }, seenSourceIds));
+    ingested.push(
+      await ingestPdf(inputPath, { ...options, outputPath }, seenSourceIds),
+    );
   }
 
   const corpus = {
@@ -275,7 +341,11 @@ export async function ingestCoreReviewPdfs(inputPaths, options = {}) {
   };
 
   await fs.mkdir(path.dirname(outputPath), { recursive: true });
-  await fs.writeFile(outputPath, `${JSON.stringify(corpus, null, 2)}\n`, "utf8");
+  await fs.writeFile(
+    outputPath,
+    `${JSON.stringify(corpus, null, 2)}\n`,
+    "utf8",
+  );
   return {
     outputPath,
     ...corpus,

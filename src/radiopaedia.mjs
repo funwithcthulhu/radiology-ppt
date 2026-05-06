@@ -30,22 +30,36 @@ export async function fetchRadiopaediaCase(
   },
 ) {
   const request = parseCaseRequest(input);
-  const fallbackCandidates = Array.isArray(request.fallbackCandidates) ? request.fallbackCandidates : [];
-  const excludedPaths = new Set((request.excludeCasePaths ?? []).map((value) => comparableCasePath(value)).filter(Boolean));
+  const fallbackCandidates = Array.isArray(request.fallbackCandidates)
+    ? request.fallbackCandidates
+    : [];
+  const excludedPaths = new Set(
+    (request.excludeCasePaths ?? [])
+      .map((value) => comparableCasePath(value))
+      .filter(Boolean),
+  );
   const candidateQueue = [];
 
-  if (request.selectedCasePath && !excludedPaths.has(comparableCasePath(request.selectedCasePath))) {
+  if (
+    request.selectedCasePath &&
+    !excludedPaths.has(comparableCasePath(request.selectedCasePath))
+  ) {
     candidateQueue.push(request.selectedCasePath);
   }
 
   for (const candidate of fallbackCandidates) {
-    if (candidate?.casePath && !excludedPaths.has(comparableCasePath(candidate.casePath))) {
+    if (
+      candidate?.casePath &&
+      !excludedPaths.has(comparableCasePath(candidate.casePath))
+    ) {
       candidateQueue.push(candidate.casePath);
     }
   }
 
   if (!candidateQueue.length) {
-    const probe = await inspectRadiopaediaCaseCandidates(request, { limit: candidateLimit });
+    const probe = await inspectRadiopaediaCaseCandidates(request, {
+      limit: candidateLimit,
+    });
     for (const candidate of probe.candidates) {
       if (!excludedPaths.has(comparableCasePath(candidate.casePath))) {
         candidateQueue.push(candidate.casePath);
@@ -55,12 +69,19 @@ export async function fetchRadiopaediaCase(
 
   const dedupedQueue = dedupe(candidateQueue);
   if (!dedupedQueue.length) {
-    throw new Error(`No Radiopaedia case results found for "${request.rawInput}".`);
+    throw new Error(
+      `No Radiopaedia case results found for "${request.rawInput}".`,
+    );
   }
 
   const fallbackLimit =
-    Number.isInteger(maxFallbackAttempts) && maxFallbackAttempts >= 0 ? maxFallbackAttempts : Number.POSITIVE_INFINITY;
-  if (Number.isFinite(fallbackLimit) && fallbackCandidates.length > fallbackLimit) {
+    Number.isInteger(maxFallbackAttempts) && maxFallbackAttempts >= 0
+      ? maxFallbackAttempts
+      : Number.POSITIVE_INFINITY;
+  if (
+    Number.isFinite(fallbackLimit) &&
+    fallbackCandidates.length > fallbackLimit
+  ) {
     emitProgress("Limiting fallback case search", {
       request: request.rawInput,
       fallbackAttempts: fallbackLimit,
@@ -81,18 +102,26 @@ export async function fetchRadiopaediaCase(
       fallbackAttempts += 1;
     }
 
-    const caseTitleHint =
-      isPrimarySelection
-        ? request.selectedCaseTitle || request.diagnosis
-        : fallbackCandidates.find((candidate) => candidate.casePath === candidatePath)?.title || "";
+    const caseTitleHint = isPrimarySelection
+      ? request.selectedCaseTitle || request.diagnosis
+      : fallbackCandidates.find(
+          (candidate) => candidate.casePath === candidatePath,
+        )?.title || "";
 
     try {
-      const caseData = await fetchRadiopaediaCaseByPath(request, candidatePath, {
-        cacheDir,
-        imagesPerCase,
-        caseTitleHint,
-      });
-      if (!bestCase || caseData.quality.overallScore > bestCase.quality.overallScore) {
+      const caseData = await fetchRadiopaediaCaseByPath(
+        request,
+        candidatePath,
+        {
+          cacheDir,
+          imagesPerCase,
+          caseTitleHint,
+        },
+      );
+      if (
+        !bestCase ||
+        caseData.quality.overallScore > bestCase.quality.overallScore
+      ) {
         bestCase = caseData;
       }
       if (acceptFirstUsable || !caseData.quality.shouldReroll) {
@@ -113,14 +142,21 @@ export async function fetchRadiopaediaCase(
   }
 
   if (attemptErrors.length) {
-    const reasons = dedupe(attemptErrors.map((attempt) => summarizeCaseAttemptError(attempt.message)).filter(Boolean)).slice(0, 3);
+    const reasons = dedupe(
+      attemptErrors
+        .map((attempt) => summarizeCaseAttemptError(attempt.message))
+        .filter(Boolean),
+    ).slice(0, 3);
     const reasonText = reasons.length ? ` ${reasons.join(" ")}` : "";
     throw new Error(
       `No suitable Radiopaedia case could be prepared for "${request.rawInput}" after trying ${attemptErrors.length} candidate${attemptErrors.length === 1 ? "" : "s"}.${reasonText}`,
     );
   }
 
-  throw lastError || new Error(`No Radiopaedia case results found for "${request.rawInput}".`);
+  throw (
+    lastError ||
+    new Error(`No Radiopaedia case results found for "${request.rawInput}".`)
+  );
 }
 
 function summarizeCaseAttemptError(message = "") {

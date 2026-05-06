@@ -54,7 +54,9 @@ test("normalizes Core Review schema aliases", () => {
 });
 
 test("chunks and ingests user-provided Core Review notes", async () => {
-  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "core-review-ingest-"));
+  const tempDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "core-review-ingest-"),
+  );
   const sourcePath = path.join(tempDir, "msk-notes.md");
   const outputPath = path.join(tempDir, "corpus.json");
   await fs.writeFile(
@@ -63,7 +65,9 @@ test("chunks and ingests user-provided Core Review notes", async () => {
     "utf8",
   );
 
-  const chunks = chunkCoreReviewText(await fs.readFile(sourcePath, "utf8"), { maxChars: 40 });
+  const chunks = chunkCoreReviewText(await fs.readFile(sourcePath, "utf8"), {
+    maxChars: 40,
+  });
   assert.ok(chunks.length >= 1);
 
   const corpus = await ingestCoreReviewSources([sourcePath], {
@@ -77,7 +81,9 @@ test("chunks and ingests user-provided Core Review notes", async () => {
 });
 
 test("ingests Core Review PDFs through the Node backend", async () => {
-  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "core-review-pdf-ingest-"));
+  const tempDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "core-review-pdf-ingest-"),
+  );
   const pdfPath = path.join(tempDir, "msk.pdf");
   const outputPath = path.join(tempDir, "pdf-corpus.json");
   await fs.writeFile(pdfPath, tinyPdfBuffer("Rotator cuff tear"));
@@ -93,7 +99,9 @@ test("ingests Core Review PDFs through the Node backend", async () => {
   assert.equal(corpus.sourceCount, 1);
   assert.equal(corpus.sources[0].sourceType, "pdf");
   assert.equal(corpus.sources[0].domain, "msk");
-  assert.ok(corpus.chunks.some((chunk) => /Rotator cuff tear/.test(chunk.text)));
+  assert.ok(
+    corpus.chunks.some((chunk) => /Rotator cuff tear/.test(chunk.text)),
+  );
   assert.ok(await fs.stat(outputPath));
 });
 
@@ -118,10 +126,18 @@ test("builds deterministic quiz sessions and scores answers", async () => {
   );
   assert.ok(first.questions.length >= 1);
 
-  const question = first.questions.find((item) => item.type === "single_best_answer");
+  const question = first.questions.find(
+    (item) => item.type === "single_best_answer",
+  );
   assert.ok(question);
-  assert.equal(scoreCoreReviewAnswer(question, question.answerKey).correct, true);
-  assert.equal(scoreCoreReviewAnswer(question, "definitely-wrong").correct, false);
+  assert.equal(
+    scoreCoreReviewAnswer(question, question.answerKey).correct,
+    true,
+  );
+  assert.equal(
+    scoreCoreReviewAnswer(question, "definitely-wrong").correct,
+    false,
+  );
 });
 
 test("loads the bundled Core Review bank for NIS and physics practice", async () => {
@@ -130,7 +146,10 @@ test("loads the bundled Core Review bank for NIS and physics practice", async ()
   );
 
   assert.ok(bank.questions.length >= 10);
-  assert.equal(bank.validation.every((entry) => entry.ok), true);
+  assert.equal(
+    bank.validation.every((entry) => entry.ok),
+    true,
+  );
   assert.ok(bank.questions.some((question) => question.domain === "nis"));
   assert.ok(bank.questions.some((question) => question.domain === "physics"));
 
@@ -141,7 +160,10 @@ test("loads the bundled Core Review bank for NIS and physics practice", async ()
   });
 
   assert.equal(physicsSession.questions.length, 2);
-  assert.equal(physicsSession.questions.every((question) => question.domain === "physics"), true);
+  assert.equal(
+    physicsSession.questions.every((question) => question.domain === "physics"),
+    true,
+  );
 });
 
 test("builds deterministic CORE review case plans without using the Cases tab", async () => {
@@ -168,11 +190,27 @@ test("builds deterministic CORE review case plans without using the Cases tab", 
     first.entries.map((entry) => entry.rawInput),
     second.entries.map((entry) => entry.rawInput),
   );
-  assert.equal(first.entries.every((entry) => entry.requestMode === "specific"), true);
-  assert.equal(first.entries.every((entry) => entry.coreReviewPlan?.domain), true);
-  assert.equal(first.entries.every((entry) => entry.allowAlternateModality === true), true);
-  assert.ok(new Set(first.entries.map((entry) => entry.coreReviewPlan.domain)).size >= 8);
-  assert.ok(first.entries.some((entry) => entry.modality && entry.studyHint.includes(entry.modality)));
+  assert.equal(
+    first.entries.every((entry) => entry.requestMode === "specific"),
+    true,
+  );
+  assert.equal(
+    first.entries.every((entry) => entry.coreReviewPlan?.domain),
+    true,
+  );
+  assert.equal(
+    first.entries.every((entry) => entry.allowAlternateModality === true),
+    true,
+  );
+  assert.ok(
+    new Set(first.entries.map((entry) => entry.coreReviewPlan.domain)).size >=
+      8,
+  );
+  assert.ok(
+    first.entries.some(
+      (entry) => entry.modality && entry.studyHint.includes(entry.modality),
+    ),
+  );
 });
 
 test("can over-plan Core Review candidates while preserving the requested count", async () => {
@@ -187,7 +225,10 @@ test("can over-plan Core Review candidates while preserving the requested count"
   assert.equal(plan.requestedCaseCount, 50);
   assert.equal(plan.plannedCaseCount, 120);
   assert.equal(plan.entries.length, 120);
-  assert.match(plan.summary, /50 requested case\(s\), 120 candidate request\(s\)/);
+  assert.match(
+    plan.summary,
+    /50 requested case\(s\), 120 candidate request\(s\)/,
+  );
 });
 
 test("Core Review case plans carry total item and standalone question metadata", async () => {
@@ -204,8 +245,14 @@ test("Core Review case plans carry total item and standalone question metadata",
   assert.equal(plan.totalReviewItemCount, 50);
   assert.deepEqual(plan.standaloneQuestionCounts, { nis: 2, physics: 2 });
   assert.equal(plan.entries[0].coreReviewPlan.totalReviewItemCount, 50);
-  assert.deepEqual(plan.entries[0].coreReviewPlan.standaloneQuestionCounts, { nis: 2, physics: 2 });
-  assert.match(plan.summary, /50 total review item\(s\), 4 NIS\/physics question\(s\) included/);
+  assert.deepEqual(plan.entries[0].coreReviewPlan.standaloneQuestionCounts, {
+    nis: 2,
+    physics: 2,
+  });
+  assert.match(
+    plan.summary,
+    /50 total review item\(s\), 4 NIS\/physics question\(s\) included/,
+  );
 });
 
 test("defaults CORE review cases to one requested image", async () => {
@@ -217,7 +264,10 @@ test("defaults CORE review cases to one requested image", async () => {
     seed: "core-plan-one-image-default",
   });
 
-  assert.equal(plan.entries.every((entry) => entry.requestedImagesPerCase === 1), true);
+  assert.equal(
+    plan.entries.every((entry) => entry.requestedImagesPerCase === 1),
+    true,
+  );
 });
 
 test("can focus CORE review case plans by domain", async () => {
@@ -230,12 +280,20 @@ test("can focus CORE review case plans by domain", async () => {
   });
 
   assert.equal(plan.entries.length, 12);
-  assert.equal(plan.entries.every((entry) => entry.coreReviewPlan.domain === "msk"), true);
-  assert.equal(plan.entries.every((entry) => entry.modality), true);
+  assert.equal(
+    plan.entries.every((entry) => entry.coreReviewPlan.domain === "msk"),
+    true,
+  );
+  assert.equal(
+    plan.entries.every((entry) => entry.modality),
+    true,
+  );
 });
 
 test("builds source-grounded review questions from imported corpora", async () => {
-  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "core-review-bank-from-corpus-"));
+  const tempDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "core-review-bank-from-corpus-"),
+  );
   const nisSourcePath = path.join(tempDir, "nis-communication-notes.md");
   const physicsSourcePath = path.join(tempDir, "physics-distance-notes.md");
   const nisCorpusPath = path.join(tempDir, "nis-corpus.json");
@@ -270,12 +328,17 @@ test("builds source-grounded review questions from imported corpora", async () =
   });
 
   assert.ok(bank.questions.length >= 2);
-  assert.equal(bank.validation.every((entry) => entry.ok), true);
+  assert.equal(
+    bank.validation.every((entry) => entry.ok),
+    true,
+  );
   assert.ok(bank.questions.some((question) => question.domain === "nis"));
   assert.ok(bank.questions.some((question) => question.domain === "physics"));
   assert.ok(
     bank.questions.some((question) =>
-      question.references.some((reference) => /communication notes|distance notes/i.test(reference.label)),
+      question.references.some((reference) =>
+        /communication notes|distance notes/i.test(reference.label),
+      ),
     ),
   );
 });

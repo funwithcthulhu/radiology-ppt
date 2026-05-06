@@ -56,17 +56,32 @@ test("backend API drops empty rows but keeps repeated random rows", () => {
 
   assert.equal(requests.length, 3);
   assert.equal(requests.filter((request) => request.randomSpec).length, 2);
-  assert.equal(requests.filter((request) => request.diagnosis === "appendicitis").length, 1);
+  assert.equal(
+    requests.filter((request) => request.diagnosis === "appendicitis").length,
+    1,
+  );
 });
 
 test("Core Review total item count reserves NIS and physics inside requested total", () => {
-  assert.deepEqual(coreReviewStandaloneQuestionCountsForTotal(50), { nis: 2, physics: 2 });
+  assert.deepEqual(coreReviewStandaloneQuestionCountsForTotal(50), {
+    nis: 2,
+    physics: 2,
+  });
   assert.equal(coreReviewCaseCountForTotal(50), 46);
-  assert.deepEqual(coreReviewStandaloneQuestionCountsForTotal(25), { nis: 2, physics: 2 });
+  assert.deepEqual(coreReviewStandaloneQuestionCountsForTotal(25), {
+    nis: 2,
+    physics: 2,
+  });
   assert.equal(coreReviewCaseCountForTotal(25), 21);
-  assert.deepEqual(coreReviewStandaloneQuestionCountsForTotal(10), { nis: 1, physics: 1 });
+  assert.deepEqual(coreReviewStandaloneQuestionCountsForTotal(10), {
+    nis: 1,
+    physics: 1,
+  });
   assert.equal(coreReviewCaseCountForTotal(10), 8);
-  assert.deepEqual(coreReviewStandaloneQuestionCountsForTotal(3), { nis: 0, physics: 0 });
+  assert.deepEqual(coreReviewStandaloneQuestionCountsForTotal(3), {
+    nis: 0,
+    physics: 0,
+  });
   assert.equal(coreReviewCaseCountForTotal(3), 3);
 });
 
@@ -81,7 +96,8 @@ test("prepared item normalization rejects malformed render payloads", () => {
       request: {
         requestMode: "manual",
         rawInput: "Manual URL",
-        selectedCasePath: "https://radiopaedia.org/cases/example-case-1?lang=us",
+        selectedCasePath:
+          "https://radiopaedia.org/cases/example-case-1?lang=us",
       },
       caseData: {
         caseTitle: "Example case",
@@ -100,11 +116,16 @@ test("prepared item normalization rejects malformed render payloads", () => {
 });
 
 test("PowerPoint render does not write random history a second time", async () => {
-  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "radiology-render-history-"));
+  const tempDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "radiology-render-history-"),
+  );
   process.env.RADIOLOGY_PPT_APP_ROOT = tempDir;
   process.env.RADIOLOGY_PPT_DATABASE_PATH = path.join(tempDir, "state.sqlite");
 
-  const moduleUrl = new URL(`../src/backend-api.mjs?render-history=${Date.now()}`, import.meta.url);
+  const moduleUrl = new URL(
+    `../src/backend-api.mjs?render-history=${Date.now()}`,
+    import.meta.url,
+  );
   const { renderPowerPoint } = await import(moduleUrl.href);
   const outputPath = path.join(tempDir, "outputs", "render-history-test.pptx");
 
@@ -152,21 +173,32 @@ test("PowerPoint render does not write random history a second time", async () =
 });
 
 test("PowerPoint render can source Core Review questions from the imported library", async () => {
-  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "radiology-render-core-library-"));
+  const tempDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "radiology-render-core-library-"),
+  );
   process.env.RADIOLOGY_PPT_APP_ROOT = tempDir;
   process.env.RADIOLOGY_PPT_DATABASE_PATH = path.join(tempDir, "state.sqlite");
 
   const libraryDir = path.join(tempDir, "library", "board-review");
   await fs.mkdir(libraryDir, { recursive: true });
   await ingestCoreReviewSources(
-    [await writeImportedSource(tempDir, "nis-communication-notes.md", "Critical results should be directly communicated to the responsible clinician and documented.")],
+    [
+      await writeImportedSource(
+        tempDir,
+        "nis-communication-notes.md",
+        "Critical results should be directly communicated to the responsible clinician and documented.",
+      ),
+    ],
     {
       outputPath: path.join(libraryDir, "corpus.json"),
       domain: "nis",
     },
   );
 
-  const moduleUrl = new URL(`../src/backend-api.mjs?core-library=${Date.now()}`, import.meta.url);
+  const moduleUrl = new URL(
+    `../src/backend-api.mjs?core-library=${Date.now()}`,
+    import.meta.url,
+  );
   const { renderPowerPoint } = await import(moduleUrl.href);
   const outputPath = path.join(tempDir, "outputs", "core-library-test.pptx");
 
@@ -249,7 +281,9 @@ function listZipEntries(buffer) {
     const fileNameLength = buffer.readUInt16LE(offset + 28);
     const extraLength = buffer.readUInt16LE(offset + 30);
     const commentLength = buffer.readUInt16LE(offset + 32);
-    entries.push(buffer.toString("utf8", offset + 46, offset + 46 + fileNameLength));
+    entries.push(
+      buffer.toString("utf8", offset + 46, offset + 46 + fileNameLength),
+    );
     offset += 46 + fileNameLength + extraLength + commentLength;
   }
 
@@ -278,14 +312,21 @@ function readZipEntry(buffer, entryName) {
     const extraLength = buffer.readUInt16LE(offset + 30);
     const commentLength = buffer.readUInt16LE(offset + 32);
     const localHeaderOffset = buffer.readUInt32LE(offset + 42);
-    const fileName = buffer.toString("utf8", offset + 46, offset + 46 + fileNameLength);
+    const fileName = buffer.toString(
+      "utf8",
+      offset + 46,
+      offset + 46 + fileNameLength,
+    );
 
     if (fileName === entryName) {
       const localFileNameLength = buffer.readUInt16LE(localHeaderOffset + 26);
       const localExtraLength = buffer.readUInt16LE(localHeaderOffset + 28);
-      const dataStart = localHeaderOffset + 30 + localFileNameLength + localExtraLength;
+      const dataStart =
+        localHeaderOffset + 30 + localFileNameLength + localExtraLength;
       const compressed = buffer.subarray(dataStart, dataStart + compressedSize);
-      return compressionMethod === 8 ? zlib.inflateRawSync(compressed) : compressed;
+      return compressionMethod === 8
+        ? zlib.inflateRawSync(compressed)
+        : compressed;
     }
 
     offset += 46 + fileNameLength + extraLength + commentLength;

@@ -84,8 +84,12 @@ function orderStudiesByPreference(studies, preferredModalities) {
     return studies;
   }
 
-  const matching = studies.filter((study) => preferredModalities.includes(study.modality));
-  const other = studies.filter((study) => !preferredModalities.includes(study.modality));
+  const matching = studies.filter((study) =>
+    preferredModalities.includes(study.modality),
+  );
+  const other = studies.filter(
+    (study) => !preferredModalities.includes(study.modality),
+  );
   return matching.length ? matching.concat(other) : studies;
 }
 
@@ -107,8 +111,13 @@ export async function fetchRadiopaediaCaseByPath(
   casePath,
   { cacheDir, imagesPerCase = 3, caseTitleHint = "" },
 ) {
-  emitProgress("Loading Radiopaedia case", { casePath, request: request.rawInput });
-  const caseUrl = absoluteUrl(casePath.includes("?") ? casePath : `${casePath}?lang=us`);
+  emitProgress("Loading Radiopaedia case", {
+    casePath,
+    request: request.rawInput,
+  });
+  const caseUrl = absoluteUrl(
+    casePath.includes("?") ? casePath : `${casePath}?lang=us`,
+  );
   const html = await fetchText(caseUrl);
   const displayUrl = (() => {
     const parsed = new URL(caseUrl);
@@ -116,20 +125,39 @@ export async function fetchRadiopaediaCaseByPath(
   })();
 
   const caseTitle =
-    cleanText(extractFirst(/<title>(.*?)\s+\|\s+Radiology Case\s+\|\s+Radiopaedia\.org<\/title>/i, html)) ||
+    cleanText(
+      extractFirst(
+        /<title>(.*?)\s+\|\s+Radiology Case\s+\|\s+Radiopaedia\.org<\/title>/i,
+        html,
+      ),
+    ) ||
     cleanText(caseTitleHint) ||
     request.diagnosis;
-  const author = cleanText(extractFirst(/<meta\s+name="author"\s+content="([^"]+)"/i, html));
-  const licenseUrl = extractFirst(/<link\s+rel="license"[^>]+href="([^"]+)"/i, html);
+  const author = cleanText(
+    extractFirst(/<meta\s+name="author"\s+content="([^"]+)"/i, html),
+  );
+  const licenseUrl = extractFirst(
+    /<link\s+rel="license"[^>]+href="([^"]+)"/i,
+    html,
+  );
   const licenseName = licenseNameFromUrl(licenseUrl);
   const description = cleanText(
-    extractFirst(/<meta\s+property="og:description"\s+content="([^"]+)"/i, html),
+    extractFirst(
+      /<meta\s+property="og:description"\s+content="([^"]+)"/i,
+      html,
+    ),
   );
   const patientData = extractPatientData(html);
-  const ridMatch = extractFirst(/<meta\s+name='dc\.identifier'\s+content='[^']*(rID-\d+)'/i, html);
+  const ridMatch = extractFirst(
+    /<meta\s+name='dc\.identifier'\s+content='[^']*(rID-\d+)'/i,
+    html,
+  );
   const rid = ridMatch || "rID unavailable";
-  const studyIds = dedupe([...html.matchAll(/\/studies\/(\d+)/g)].map((match) => match[1]));
-  const caseSlug = slugify(caseTitle) || slugify(request.rawInput) || "radiopaedia-case";
+  const studyIds = dedupe(
+    [...html.matchAll(/\/studies\/(\d+)/g)].map((match) => match[1]),
+  );
+  const caseSlug =
+    slugify(caseTitle) || slugify(request.rawInput) || "radiopaedia-case";
 
   validateCasePage({ request, caseTitle, rid, studyIds, description });
 
@@ -149,28 +177,57 @@ export async function fetchRadiopaediaCaseByPath(
     }
   }
 
-  const orderedStudies = orderStudiesByPreference(studies, request.preferredModalities);
+  const orderedStudies = orderStudiesByPreference(
+    studies,
+    request.preferredModalities,
+  );
   const preferredStudies = request.preferredModalities.length
-    ? orderedStudies.filter((study) => request.preferredModalities.includes(study.modality))
+    ? orderedStudies.filter((study) =>
+        request.preferredModalities.includes(study.modality),
+      )
     : orderedStudies;
-  if (request.preferredModalities.length && !preferredStudies.length && !request.allowAlternateModality) {
-    throw new Error(`No ${request.preferredModalities.join("/")} studies were found for "${caseTitle}".`);
+  if (
+    request.preferredModalities.length &&
+    !preferredStudies.length &&
+    !request.allowAlternateModality
+  ) {
+    throw new Error(
+      `No ${request.preferredModalities.join("/")} studies were found for "${caseTitle}".`,
+    );
   }
-  if (request.preferredModalities.length && !preferredStudies.length && request.allowAlternateModality) {
-    emitProgress("Preferred modality unavailable; using alternate case modality", {
-      caseTitle,
-      requestedModalities: request.preferredModalities,
-      availableModalities: dedupe(orderedStudies.map((study) => study.modality).filter(Boolean)),
-    });
+  if (
+    request.preferredModalities.length &&
+    !preferredStudies.length &&
+    request.allowAlternateModality
+  ) {
+    emitProgress(
+      "Preferred modality unavailable; using alternate case modality",
+      {
+        caseTitle,
+        requestedModalities: request.preferredModalities,
+        availableModalities: dedupe(
+          orderedStudies.map((study) => study.modality).filter(Boolean),
+        ),
+      },
+    );
   }
-  const usableStudies = preferredStudies.length ? preferredStudies : orderedStudies;
+  const usableStudies = preferredStudies.length
+    ? preferredStudies
+    : orderedStudies;
 
-  const requestCandidateBank = normalizeImageCandidateBank(request.imageCandidateBank);
-  const candidateCacheKey = imageCandidateCacheKey(casePath, request.preferredModalities);
+  const requestCandidateBank = normalizeImageCandidateBank(
+    request.imageCandidateBank,
+  );
+  const candidateCacheKey = imageCandidateCacheKey(
+    casePath,
+    request.preferredModalities,
+  );
   const cachedCandidateBank = requestCandidateBank.length
     ? []
     : normalizeImageCandidateBank(
-        await readCacheEntry("image-candidates", candidateCacheKey, { ttlMs: CANDIDATE_BANK_CACHE_TTL_MS }),
+        await readCacheEntry("image-candidates", candidateCacheKey, {
+          ttlMs: CANDIDATE_BANK_CACHE_TTL_MS,
+        }),
       );
   let imageCandidates = cachedCandidateBank;
   if (!imageCandidates.length) {
@@ -182,7 +239,10 @@ export async function fetchRadiopaediaCaseByPath(
     imageCandidates = requestCandidateBank;
   }
 
-  const fallbackOgImage = extractFirst(/<meta\s+property="og:image"\s+content="([^"]+)"/i, html);
+  const fallbackOgImage = extractFirst(
+    /<meta\s+property="og:image"\s+content="([^"]+)"/i,
+    html,
+  );
   if (!imageCandidates.length && fallbackOgImage) {
     imageCandidates.push({
       url: fallbackOgImage,
@@ -196,7 +256,9 @@ export async function fetchRadiopaediaCaseByPath(
       audit: {
         provider: "radiopaedia",
         candidateSource: "page-preview-image",
-        reasons: studyErrors.length ? ["Radiopaedia study metadata was unavailable"] : ["Radiopaedia page preview image"],
+        reasons: studyErrors.length
+          ? ["Radiopaedia study metadata was unavailable"]
+          : ["Radiopaedia page preview image"],
       },
     });
   }
@@ -206,16 +268,30 @@ export async function fetchRadiopaediaCaseByPath(
   }
 
   const imageCandidateBank = normalizeImageCandidateBank(imageCandidates);
-  if (imageCandidateBank.length && !requestCandidateBank.length && !cachedCandidateBank.length) {
-    await writeCacheEntry("image-candidates", candidateCacheKey, imageCandidateBank);
+  if (
+    imageCandidateBank.length &&
+    !requestCandidateBank.length &&
+    !cachedCandidateBank.length
+  ) {
+    await writeCacheEntry(
+      "image-candidates",
+      candidateCacheKey,
+      imageCandidateBank,
+    );
   }
-  const selectedImages = selectRelevantImages(imageCandidates, Math.max(1, imagesPerCase), {
-    excludeFrameIds: dedupe([
-      ...(request.excludeFrameIds || []),
-      ...((request.includeFrameIds || []).length ? [] : await readRejectedFrameIds(casePath)),
-    ]),
-    includeFrameIds: request.includeFrameIds || [],
-  });
+  const selectedImages = selectRelevantImages(
+    imageCandidates,
+    Math.max(1, imagesPerCase),
+    {
+      excludeFrameIds: dedupe([
+        ...(request.excludeFrameIds || []),
+        ...((request.includeFrameIds || []).length
+          ? []
+          : await readRejectedFrameIds(casePath)),
+      ]),
+      includeFrameIds: request.includeFrameIds || [],
+    },
+  );
   emitProgress("Selected case images", {
     caseTitle,
     selectedCount: selectedImages.length,
@@ -234,7 +310,11 @@ export async function fetchRadiopaediaCaseByPath(
     );
 
     await downloadFile(image.url, localPath);
-    emitProgress("Downloaded case image", { caseTitle, frameId: image.frameId, index: index + 1 });
+    emitProgress("Downloaded case image", {
+      caseTitle,
+      frameId: image.frameId,
+      index: index + 1,
+    });
     images.push({
       ...image,
       localPath,
@@ -242,16 +322,32 @@ export async function fetchRadiopaediaCaseByPath(
   }
 
   await maybeScoreSelectedImagesWithOllama(images, request, caseTitle);
-  const quality = evaluateSelectedImages(images, Math.max(1, imagesPerCase), request.difficulty);
+  const quality = evaluateSelectedImages(
+    images,
+    Math.max(1, imagesPerCase),
+    request.difficulty,
+  );
 
-  const findings = orderedStudies.map((study) => study.findings).find(Boolean) || "";
+  const findings =
+    orderedStudies.map((study) => study.findings).find(Boolean) || "";
   const revealSummary = truncate(cleanText(findings || description), 440);
-  const effectiveDiagnosis = request.originalInput ? caseTitle : request.diagnosis;
+  const effectiveDiagnosis = request.originalInput
+    ? caseTitle
+    : request.diagnosis;
   const effectiveRawInput = request.originalInput
-    ? collapseWhitespace([caseTitle, request.studyHint].filter(Boolean).join(", "))
+    ? collapseWhitespace(
+        [caseTitle, request.studyHint].filter(Boolean).join(", "),
+      )
     : request.rawInput;
-  const promptText = buildPromptText(findings || description, effectiveDiagnosis, caseTitle);
-  const modalitySummary = dedupe(orderedStudies.map((study) => study.modality).filter(Boolean)).join(", ") || "Unknown";
+  const promptText = buildPromptText(
+    findings || description,
+    effectiveDiagnosis,
+    caseTitle,
+  );
+  const modalitySummary =
+    dedupe(orderedStudies.map((study) => study.modality).filter(Boolean)).join(
+      ", ",
+    ) || "Unknown";
   const caseIntro = buildClinicalHistoryText({
     request,
     patientData,
@@ -282,7 +378,8 @@ export async function fetchRadiopaediaCaseByPath(
     rid,
     description,
     promptText,
-    revealSummary: revealSummary || "Diagnosis sourced from the linked Radiopaedia case.",
+    revealSummary:
+      revealSummary || "Diagnosis sourced from the linked Radiopaedia case.",
     footerText: createFooterText({
       author,
       displayUrl,

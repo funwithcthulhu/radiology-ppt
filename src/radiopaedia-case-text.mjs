@@ -1,4 +1,9 @@
-import { cleanText, collapseWhitespace, redactTerms, truncate } from "./utils.mjs";
+import {
+  cleanText,
+  collapseWhitespace,
+  redactTerms,
+  truncate,
+} from "./utils.mjs";
 import { normalizePhrase, normalizedDifficulty } from "./request-parser.mjs";
 
 const RADIOLOGY_TEACHING_PATTERN =
@@ -8,7 +13,11 @@ const LOW_VALUE_TEACHING_PATTERN =
 
 const CORE_REVIEW_PEARL_GROUPS = [
   {
-    patterns: [/\bperianal\b/i, /\bfistula(?:-in-ano)?\b/i, /\banal fistula\b/i],
+    patterns: [
+      /\bperianal\b/i,
+      /\bfistula(?:-in-ano)?\b/i,
+      /\banal fistula\b/i,
+    ],
     points: [
       "MRI CORE discriminator: classify the tract by sphincter relationship: intersphincteric, transsphincteric, suprasphincteric, or extrasphincteric.",
       "Report the internal opening, external sphincter involvement, abscess, horseshoe extension, and secondary tracts because these change operative planning.",
@@ -16,7 +25,12 @@ const CORE_REVIEW_PEARL_GROUPS = [
     ],
   },
   {
-    patterns: [/\brotator cuff\b/i, /\bsupraspinatus\b/i, /\bsubscapularis\b/i, /\bshoulder\b/i],
+    patterns: [
+      /\brotator cuff\b/i,
+      /\bsupraspinatus\b/i,
+      /\bsubscapularis\b/i,
+      /\bshoulder\b/i,
+    ],
     points: [
       "MRI/US CORE discriminator: a full-thickness cuff tear has fluid-signal communication from articular to bursal surface.",
       "Report tendon involved, tear size, retraction, muscle atrophy, and fatty infiltration because these determine repairability.",
@@ -24,7 +38,12 @@ const CORE_REVIEW_PEARL_GROUPS = [
     ],
   },
   {
-    patterns: [/\bureter(?:ic|al)? stone\b/i, /\burolithiasis\b/i, /\bobstructing.*stone\b/i, /\bhydronephrosis\b/i],
+    patterns: [
+      /\bureter(?:ic|al)? stone\b/i,
+      /\burolithiasis\b/i,
+      /\bobstructing.*stone\b/i,
+      /\bhydronephrosis\b/i,
+    ],
     points: [
       "CT CORE discriminator: identify the obstructing calculus and the level of obstruction; secondary signs include hydronephrosis, hydroureter, and periureteric stranding.",
       "Report infected obstruction red flags such as fever context, pyonephrosis, gas, or marked inflammatory change because urgent decompression may be needed.",
@@ -40,7 +59,12 @@ const CORE_REVIEW_PEARL_GROUPS = [
     ],
   },
   {
-    patterns: [/\bvestibular schwannoma\b/i, /\bacoustic neuroma\b/i, /\binternal auditory canal\b/i, /\bcpa\b/i],
+    patterns: [
+      /\bvestibular schwannoma\b/i,
+      /\bacoustic neuroma\b/i,
+      /\binternal auditory canal\b/i,
+      /\bcpa\b/i,
+    ],
     points: [
       "MRI CORE discriminator: vestibular schwannoma typically enhances and expands the internal auditory canal with a CPA cisternal component.",
       "Key differential is CPA meningioma, which more often has a broad dural base, dural tail, calcification, or hyperostosis.",
@@ -56,7 +80,11 @@ const CORE_REVIEW_PEARL_GROUPS = [
     ],
   },
   {
-    patterns: [/\bacute ischemic stroke\b/i, /\binfarct\b/i, /\bischemic stroke\b/i],
+    patterns: [
+      /\bacute ischemic stroke\b/i,
+      /\binfarct\b/i,
+      /\bischemic stroke\b/i,
+    ],
     points: [
       "CORE discriminator: restricted diffusion with low ADC confirms acute infarct; match the pattern to an arterial territory or embolic distribution.",
       "On CT/CTA, report hemorrhage exclusion, large-vessel occlusion, ASPECTS/early ischemic change, and salvageable tissue when perfusion is available.",
@@ -64,7 +92,12 @@ const CORE_REVIEW_PEARL_GROUPS = [
     ],
   },
   {
-    patterns: [/\bsubdural\b/i, /\bsubdural hematoma\b/i, /\bsubdural haematoma\b/i, /\bextra-axial hemorrhage\b/i],
+    patterns: [
+      /\bsubdural\b/i,
+      /\bsubdural hematoma\b/i,
+      /\bsubdural haematoma\b/i,
+      /\bextra-axial hemorrhage\b/i,
+    ],
     points: [
       "CT CORE discriminator: subdural hematoma is crescentic extra-axial blood that can cross sutures but is limited by dural reflections.",
       "Report acute versus chronic density, maximal thickness, midline shift, herniation, and sulcal or ventricular effacement because these drive urgency.",
@@ -80,7 +113,12 @@ const CORE_REVIEW_PEARL_GROUPS = [
     ],
   },
   {
-    patterns: [/\bcholecystitis\b/i, /\bcholedocholithiasis\b/i, /\bgallstones?\b/i, /\bbile duct\b/i],
+    patterns: [
+      /\bcholecystitis\b/i,
+      /\bcholedocholithiasis\b/i,
+      /\bgallstones?\b/i,
+      /\bbile duct\b/i,
+    ],
     points: [
       "Ultrasound CORE discriminator for acute cholecystitis: stones plus wall thickening, distention, pericholecystic fluid, and sonographic Murphy sign.",
       "For biliary obstruction, localize intrahepatic versus extrahepatic ductal dilation and look for choledocholithiasis or obstructing mass.",
@@ -96,7 +134,11 @@ const CORE_REVIEW_PEARL_GROUPS = [
     ],
   },
   {
-    patterns: [/\brenal cell carcinoma\b/i, /\bangiomyolipoma\b/i, /\brenal mass\b/i],
+    patterns: [
+      /\brenal cell carcinoma\b/i,
+      /\bangiomyolipoma\b/i,
+      /\brenal mass\b/i,
+    ],
     points: [
       "Renal mass CORE discriminator: macroscopic fat strongly suggests angiomyolipoma, while enhancing solid renal mass is RCC until proven otherwise.",
       "Report enhancement, venous invasion, collecting-system involvement, perinephric extension, nodes, and metastases for staging.",
@@ -104,7 +146,12 @@ const CORE_REVIEW_PEARL_GROUPS = [
     ],
   },
   {
-    patterns: [/\bosteosarcoma\b/i, /\bewing\b/i, /\bgiant cell tumor\b/i, /\bbone metastases\b/i],
+    patterns: [
+      /\bosteosarcoma\b/i,
+      /\bewing\b/i,
+      /\bgiant cell tumor\b/i,
+      /\bbone metastases\b/i,
+    ],
     points: [
       "Bone tumor CORE approach: localize by patient age, bone, epiphyseal/metaphyseal/diaphyseal location, matrix, zone of transition, and periosteal reaction.",
       "MRI defines marrow and soft-tissue extent; radiographs remain the board-relevant first discriminator for matrix and aggressiveness.",
@@ -112,7 +159,12 @@ const CORE_REVIEW_PEARL_GROUPS = [
     ],
   },
   {
-    patterns: [/\bintussusception\b/i, /\bmalrotation\b/i, /\bmidgut volvulus\b/i, /\bpyloric stenosis\b/i],
+    patterns: [
+      /\bintussusception\b/i,
+      /\bmalrotation\b/i,
+      /\bmidgut volvulus\b/i,
+      /\bpyloric stenosis\b/i,
+    ],
     points: [
       "Pediatric abdomen CORE approach: know the age-specific diagnosis and first-line modality: ultrasound for intussusception/pyloric stenosis, upper GI for malrotation.",
       "For malrotation with volvulus, the board-critical finding is abnormal duodenojejunal junction position or corkscrew duodenum; do not rely only on SMA/SMV orientation.",
@@ -128,13 +180,21 @@ function extractFirst(pattern, text) {
 
 export function extractPatientData(html) {
   const text = cleanText(html);
-  const patientSection = extractFirst(
-    /\bPatient Data\b(.*?)(?:\bFrom the case:|\bCase Discussion\b|\bDiscussion\b|\bFindings\b|\bImaging\b|$)/i,
-    text,
-  ) || "";
+  const patientSection =
+    extractFirst(
+      /\bPatient Data\b(.*?)(?:\bFrom the case:|\bCase Discussion\b|\bDiscussion\b|\bFindings\b|\bImaging\b|$)/i,
+      text,
+    ) || "";
   const source = patientSection || text;
-  const age = cleanText(extractFirst(/\bAge:\s*(.*?)(?=\s+(?:Gender|Sex):|$)/i, source));
-  const gender = cleanText(extractFirst(/\b(?:Gender|Sex):\s*(.*?)(?=\s+(?:From the case:|Case Discussion|Discussion|Findings|Imaging|CT|MRI|X-ray|Ultrasound|Fluoroscopy|PET|$))/i, source));
+  const age = cleanText(
+    extractFirst(/\bAge:\s*(.*?)(?=\s+(?:Gender|Sex):|$)/i, source),
+  );
+  const gender = cleanText(
+    extractFirst(
+      /\b(?:Gender|Sex):\s*(.*?)(?=\s+(?:From the case:|Case Discussion|Discussion|Findings|Imaging|CT|MRI|X-ray|Ultrasound|Fluoroscopy|PET|$))/i,
+      source,
+    ),
+  );
   return {
     age: scrubPatientDataValue(age),
     gender: scrubPatientDataValue(gender),
@@ -143,7 +203,10 @@ export function extractPatientData(html) {
 
 function scrubPatientDataValue(value) {
   return collapseWhitespace(value)
-    .replace(/\b(?:Presentation|From the case:|Case Discussion|Discussion|Findings|Imaging)\b.*$/i, "")
+    .replace(
+      /\b(?:Presentation|From the case:|Case Discussion|Discussion|Findings|Imaging)\b.*$/i,
+      "",
+    )
     .replace(/[.;:,]+$/g, "")
     .trim();
 }
@@ -159,7 +222,10 @@ function formatPatientAgeForIntro(age) {
     return `${numericOnly[1]}-year-old`;
   }
 
-  const unitMatch = /^(\d+(?:\.\d+)?)\s*(years?|yrs?|y|months?|mos?|m|weeks?|wks?|w|days?|d)(?:\s*old)?$/i.exec(text);
+  const unitMatch =
+    /^(\d+(?:\.\d+)?)\s*(years?|yrs?|y|months?|mos?|m|weeks?|wks?|w|days?|d)(?:\s*old)?$/i.exec(
+      text,
+    );
   if (unitMatch) {
     const unitMap = {
       y: "year",
@@ -181,11 +247,16 @@ function formatPatientAgeForIntro(age) {
       day: "day",
       days: "day",
     };
-    const unit = unitMap[unitMatch[2].toLowerCase()] || unitMatch[2].toLowerCase();
+    const unit =
+      unitMap[unitMatch[2].toLowerCase()] || unitMatch[2].toLowerCase();
     return `${unitMatch[1]}-${unit}-old`;
   }
 
-  if (/^(adult|pediatric|paediatric|neonatal|infant|child|adolescent|elderly)$/i.test(text)) {
+  if (
+    /^(adult|pediatric|paediatric|neonatal|infant|child|adolescent|elderly)$/i.test(
+      text,
+    )
+  ) {
     return text.toLowerCase().replace("paediatric", "pediatric");
   }
 
@@ -207,7 +278,9 @@ function formatPatientGenderForIntro(gender) {
 }
 
 function articleForPhrase(phrase) {
-  return /^(?:8|11|18|adult|elderly|infant|adolescent|[aeiou])/i.test(phrase) ? "an" : "a";
+  return /^(?:8|11|18|adult|elderly|infant|adolescent|[aeiou])/i.test(phrase)
+    ? "an"
+    : "a";
 }
 
 function buildDemographicIntro(patientData) {
@@ -240,10 +313,19 @@ export function buildClinicalHistoryText({ request, patientData }) {
 function cleanRedactedTeachingText(text) {
   return cleanText(text)
     .replace(/\[[^\]]*hidden[^\]]*\]/gi, " ")
-    .replace(/\bcase of\s+(?:acute|chronic|typical|classic)\s+(?=with\b|without\b|in\b|on\b|for\b|$)/gi, "case ")
+    .replace(
+      /\bcase of\s+(?:acute|chronic|typical|classic)\s+(?=with\b|without\b|in\b|on\b|for\b|$)/gi,
+      "case ",
+    )
     .replace(/\bcase of\s+(?=with\b|without\b|in\b|on\b|for\b|$)/gi, "case ")
-    .replace(/\btypical\s+(?=with\b|without\b|in\b|on\b|for\b|$)/gi, "typical presentation ")
-    .replace(/\bconsistent\s+(?=with\b|without\b|in\b|on\b|for\b|$)/gi, "consistent appearance ")
+    .replace(
+      /\btypical\s+(?=with\b|without\b|in\b|on\b|for\b|$)/gi,
+      "typical presentation ",
+    )
+    .replace(
+      /\bconsistent\s+(?=with\b|without\b|in\b|on\b|for\b|$)/gi,
+      "consistent appearance ",
+    )
     .replace(/\s+([,.;:])/g, "$1")
     .replace(/^[,.;:\-\s]+/g, "")
     .replace(/\s{2,}/g, " ")
@@ -258,7 +340,8 @@ function sentenceSafeTrim(text, maxLength = 220) {
 
   const withoutTerminal = clean.replace(/[.!?]+$/u, "");
   const boundary = withoutTerminal.lastIndexOf(" ", maxLength - 1);
-  const cutAt = boundary >= Math.floor(maxLength * 0.6) ? boundary : maxLength - 1;
+  const cutAt =
+    boundary >= Math.floor(maxLength * 0.6) ? boundary : maxLength - 1;
   return withoutTerminal.slice(0, cutAt).trim();
 }
 
@@ -279,10 +362,17 @@ function sourceSentences(...values) {
 }
 
 function isCoreReviewRequest(request) {
-  return Boolean(request?.coreReviewPlan || request?.deckMode === "core-review");
+  return Boolean(
+    request?.coreReviewPlan || request?.deckMode === "core-review",
+  );
 }
 
-function diagnosisSearchText({ diagnosis, caseTitle, request, modalitySummary }) {
+function diagnosisSearchText({
+  diagnosis,
+  caseTitle,
+  request,
+  modalitySummary,
+}) {
   return [
     diagnosis,
     caseTitle,
@@ -308,7 +398,10 @@ function curatedCoreReviewPearls(context) {
 }
 
 function isRadiologySpecificTeachingPoint(point) {
-  return RADIOLOGY_TEACHING_PATTERN.test(point) && !LOW_VALUE_TEACHING_PATTERN.test(point);
+  return (
+    RADIOLOGY_TEACHING_PATTERN.test(point) &&
+    !LOW_VALUE_TEACHING_PATTERN.test(point)
+  );
 }
 
 function addUniqueTeachingPoint(points, seen, point) {
@@ -332,8 +425,13 @@ function buildCoreReviewTeachingPoints(context) {
     }
   }
 
-  for (const sentence of sourceSentences(context.findings, context.description)) {
-    const bullet = normalizeTeachingPoint(redactTerms(sentence, [context.diagnosis, context.caseTitle]));
+  for (const sentence of sourceSentences(
+    context.findings,
+    context.description,
+  )) {
+    const bullet = normalizeTeachingPoint(
+      redactTerms(sentence, [context.diagnosis, context.caseTitle]),
+    );
     if (!isRadiologySpecificTeachingPoint(bullet)) {
       continue;
     }
@@ -346,7 +444,15 @@ function buildCoreReviewTeachingPoints(context) {
   return bullets.slice(0, 3);
 }
 
-export function buildTeachingPoints({ request, description, findings, diagnosis, caseTitle, modalitySummary, images }) {
+export function buildTeachingPoints({
+  request,
+  description,
+  findings,
+  diagnosis,
+  caseTitle,
+  modalitySummary,
+  images,
+}) {
   if (isCoreReviewRequest(request)) {
     return buildCoreReviewTeachingPoints({
       request,
@@ -363,7 +469,9 @@ export function buildTeachingPoints({ request, description, findings, diagnosis,
   const seen = new Set();
 
   for (const sentence of sourceSentences(findings, description)) {
-    const bullet = normalizeTeachingPoint(redactTerms(sentence, [diagnosis, caseTitle]));
+    const bullet = normalizeTeachingPoint(
+      redactTerms(sentence, [diagnosis, caseTitle]),
+    );
     const key = normalizePhrase(bullet);
     if (!bullet || bullet.length < 18 || seen.has(key)) {
       continue;

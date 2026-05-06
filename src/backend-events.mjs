@@ -30,7 +30,12 @@ function formatDuration(durationMs) {
   return `${(durationMs / 1000).toFixed(1)} s`;
 }
 
-export async function withBackendStage(message, detail, callback, options = {}) {
+export async function withBackendStage(
+  message,
+  detail,
+  callback,
+  options = {},
+) {
   const stageDetail = detail && typeof detail === "object" ? detail : {};
   const startedAt = Date.now();
   emitBackendEvent("stage-start", message, stageDetail);
@@ -38,20 +43,28 @@ export async function withBackendStage(message, detail, callback, options = {}) 
   try {
     const result = await callback();
     const durationMs = Date.now() - startedAt;
-    emitBackendEvent("stage-complete", `Completed ${message} (${formatDuration(durationMs)})`, {
-      ...stageDetail,
-      durationMs,
-    });
+    emitBackendEvent(
+      "stage-complete",
+      `Completed ${message} (${formatDuration(durationMs)})`,
+      {
+        ...stageDetail,
+        durationMs,
+      },
+    );
     return result;
   } catch (error) {
     const durationMs = Date.now() - startedAt;
     const errorType = options.errorType || "stage-error";
     const errorVerb = options.errorVerb || "Failed";
-    emitBackendEvent(errorType, `${errorVerb} ${message} (${formatDuration(durationMs)})`, {
-      ...stageDetail,
-      durationMs,
-      error: error?.message || String(error),
-    });
+    emitBackendEvent(
+      errorType,
+      `${errorVerb} ${message} (${formatDuration(durationMs)})`,
+      {
+        ...stageDetail,
+        durationMs,
+        error: error?.message || String(error),
+      },
+    );
     throw error;
   }
 }

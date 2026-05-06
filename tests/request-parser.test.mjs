@@ -41,13 +41,16 @@ test("normalizes manual case paths without losing the source title", () => {
 
 test("derives readable titles from full Radiopaedia URLs", () => {
   assert.equal(
-    titleFromCasePath("https://radiopaedia.org/cases/hypothalamic-hamartoma-15?lang=us"),
+    titleFromCasePath(
+      "https://radiopaedia.org/cases/hypothalamic-hamartoma-15?lang=us",
+    ),
     "hypothalamic hamartoma",
   );
 
   const request = parseCaseRequest({
     requestMode: "manual",
-    selectedCasePath: "https://radiopaedia.org/cases/colonic-diverticulosis-1?lang=us",
+    selectedCasePath:
+      "https://radiopaedia.org/cases/colonic-diverticulosis-1?lang=us",
   });
 
   assert.equal(request.diagnosis, "colonic diverticulosis");
@@ -64,7 +67,10 @@ test("handles terse and misspelled random category requests", () => {
 
   const mixed = parseCaseRequest("random pediatric neuro MRI brain 100");
   assert.equal(mixed.randomSpec.count, 20);
-  assert.deepEqual(mixed.randomSpec.systems.sort(), ["Central Nervous System", "Paediatrics"].sort());
+  assert.deepEqual(
+    mixed.randomSpec.systems.sort(),
+    ["Central Nervous System", "Paediatrics"].sort(),
+  );
   assert.equal(mixed.studyHint, "mri brain");
   assert.deepEqual(mixed.preferredModalities, ["MRI"]);
 });
@@ -82,7 +88,10 @@ test("normalizes structured request dropdown edge values", () => {
 
   assert.equal(random.randomSpec.count, 1);
   assert.equal(random.studyHint, "Brain");
-  assert.deepEqual(random.randomSpec.systems.sort(), ["Paediatrics", "Trauma"].sort());
+  assert.deepEqual(
+    random.randomSpec.systems.sort(),
+    ["Paediatrics", "Trauma"].sort(),
+  );
   assert.equal(random.randomSpec.queryText, "pediatric trauma");
   assert.equal(random.randomSpec.systemMode, "any");
 });

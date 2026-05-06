@@ -10,10 +10,7 @@ import {
   renderPowerPoint,
   scoreImages,
 } from "./backend-api.mjs";
-import {
-  recordBackendJobFinish,
-  recordBackendJobStart,
-} from "./app-store.mjs";
+import { recordBackendJobFinish, recordBackendJobStart } from "./app-store.mjs";
 
 process.env.RADIOLOGY_PPT_BACKEND_SERVICE = "1";
 
@@ -64,7 +61,9 @@ async function runCommand(command, payload = {}) {
       handledRequests,
       startedAt: new Date(serviceStartedAt).toISOString(),
       uptimeMs: Date.now() - serviceStartedAt,
-      lastRequestAt: lastRequestAt ? new Date(lastRequestAt).toISOString() : null,
+      lastRequestAt: lastRequestAt
+        ? new Date(lastRequestAt).toISOString()
+        : null,
     };
   }
   if (command === "prepare") {
@@ -92,7 +91,10 @@ async function runCommand(command, payload = {}) {
     return ingestCoreReviewPdfFiles(payload.inputPaths || [], args);
   }
   if (command === "coreReviewQuiz") {
-    const session = await buildCoreReviewQuizFromFile(payload.questionBankPath, args);
+    const session = await buildCoreReviewQuizFromFile(
+      payload.questionBankPath,
+      args,
+    );
     return args.format === "text"
       ? { text: renderCoreReviewQuizSessionText(session) }
       : session;
@@ -136,7 +138,8 @@ async function handleLine(line) {
   if (request.command === "cancel") {
     eventFor(id, {
       type: "warning",
-      message: "Cancel requested; host will restart the backend service if needed.",
+      message:
+        "Cancel requested; host will restart the backend service if needed.",
       detail: {},
       createdAt: new Date().toISOString(),
     });
@@ -157,7 +160,9 @@ async function handleLine(line) {
         },
       });
     }
-    const payload = await withJobEvents(id, () => runCommand(request.command, request.payload || {}));
+    const payload = await withJobEvents(id, () =>
+      runCommand(request.command, request.payload || {}),
+    );
     if (shouldRecordJob) {
       await recordBackendJobFinish({
         jobId: id,
@@ -190,15 +195,24 @@ function summarizeResultPayload(payload) {
   }
   return {
     itemCount: Array.isArray(payload.items) ? payload.items.length : undefined,
-    failureCount: Array.isArray(payload.failures) ? payload.failures.length : undefined,
+    failureCount: Array.isArray(payload.failures)
+      ? payload.failures.length
+      : undefined,
     planCaseCount: payload.plan?.plannedCaseCount,
-    outputPath: typeof payload.outputPath === "string" ? payload.outputPath : undefined,
-    manifestPath: typeof payload.manifestPath === "string" ? payload.manifestPath : undefined,
+    outputPath:
+      typeof payload.outputPath === "string" ? payload.outputPath : undefined,
+    manifestPath:
+      typeof payload.manifestPath === "string"
+        ? payload.manifestPath
+        : undefined,
   };
 }
 
 rl.on("line", (line) => {
-  queue = queue.then(() => handleLine(line), () => handleLine(line));
+  queue = queue.then(
+    () => handleLine(line),
+    () => handleLine(line),
+  );
 });
 
 rl.on("close", () => {

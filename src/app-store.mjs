@@ -5,14 +5,27 @@ import { fileURLToPath } from "node:url";
 import { collapseWhitespace, dedupe } from "./utils.mjs";
 
 const RESOURCE_ROOT =
-  process.env.RADIOLOGY_PPT_RESOURCE_ROOT || path.resolve(fileURLToPath(new URL("..", import.meta.url)));
+  process.env.RADIOLOGY_PPT_RESOURCE_ROOT ||
+  path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const CACHE_SCHEMA_VERSION = 1;
 const NODE_STORAGE_MIGRATIONS = [
-  ["node-001-backend-store", "Create Node backend cache/history/decision tables."],
-  ["node-002-case-index", "Create reusable prepared case index for faster random workflows."],
-  ["node-003-schema-metadata", "Record Node backend schema ownership metadata."],
+  [
+    "node-001-backend-store",
+    "Create Node backend cache/history/decision tables.",
+  ],
+  [
+    "node-002-case-index",
+    "Create reusable prepared case index for faster random workflows.",
+  ],
+  [
+    "node-003-schema-metadata",
+    "Record Node backend schema ownership metadata.",
+  ],
   ["node-004-backend-jobs", "Record durable backend job status and timing."],
-  ["node-005-random-index-order", "Add random selection indexes that prefer less-used cases."],
+  [
+    "node-005-random-index-order",
+    "Add random selection indexes that prefer less-used cases.",
+  ],
 ];
 let sqlitePromise = null;
 let schemaReady = new Set();
@@ -22,7 +35,10 @@ function appRoot() {
 }
 
 function databasePath() {
-  return process.env.RADIOLOGY_PPT_DATABASE_PATH || path.join(appRoot(), "state", "radiology-ppt.sqlite");
+  return (
+    process.env.RADIOLOGY_PPT_DATABASE_PATH ||
+    path.join(appRoot(), "state", "radiology-ppt.sqlite")
+  );
 }
 
 async function sqlite() {
@@ -34,7 +50,10 @@ async function sqlite() {
 }
 
 function cacheKeyHash(namespace, key) {
-  return crypto.createHash("sha1").update(JSON.stringify({ namespace, key })).digest("hex");
+  return crypto
+    .createHash("sha1")
+    .update(JSON.stringify({ namespace, key }))
+    .digest("hex");
 }
 
 function timestamp() {
@@ -68,7 +87,10 @@ function safeJsonArray(values) {
 }
 
 function tableColumns(db, tableName) {
-  return db.prepare(`PRAGMA table_info(${tableName})`).all().map((row) => row.name);
+  return db
+    .prepare(`PRAGMA table_info(${tableName})`)
+    .all()
+    .map((row) => row.name);
 }
 
 function ensureColumn(db, tableName, columnName, ddl) {
@@ -195,36 +217,52 @@ function ensureSchema(db) {
   ensureColumn(db, "random_history", "use_count", "INTEGER NOT NULL DEFAULT 1");
   ensureColumn(db, "case_decisions", "count", "INTEGER NOT NULL DEFAULT 1");
   ensureColumn(db, "image_decisions", "count", "INTEGER NOT NULL DEFAULT 1");
-  db.exec("CREATE INDEX IF NOT EXISTS idx_random_history_use ON random_history(use_count ASC, last_seen_at ASC);");
+  db.exec(
+    "CREATE INDEX IF NOT EXISTS idx_random_history_use ON random_history(use_count ASC, last_seen_at ASC);",
+  );
   for (const [migrationId, description] of NODE_STORAGE_MIGRATIONS) {
     recordSchemaMigration(db, migrationId, description);
   }
-  writeMetadata(db, "node_schema_version", NODE_STORAGE_MIGRATIONS.at(-1)?.[0] || "");
+  writeMetadata(
+    db,
+    "node_schema_version",
+    NODE_STORAGE_MIGRATIONS.at(-1)?.[0] || "",
+  );
 }
 
 function recordSchemaMigration(db, migrationId, description) {
-  db.prepare(`
+  db.prepare(
+    `
     INSERT INTO schema_migrations (migration_id, description, applied_at)
     VALUES (?, ?, ?)
     ON CONFLICT(migration_id) DO NOTHING;
-  `).run(migrationId, description, timestamp());
+  `,
+  ).run(migrationId, description, timestamp());
 }
 
 function writeMetadata(db, key, value) {
-  db.prepare(`
+  db.prepare(
+    `
     INSERT INTO app_metadata (key, value, updated_at)
     VALUES (?, ?, ?)
     ON CONFLICT(key) DO UPDATE SET
       value = excluded.value,
       updated_at = excluded.updated_at;
-  `).run(key, value, timestamp());
+  `,
+  ).run(key, value, timestamp());
 }
 
-export async function readStoreCache(namespace, key, { ttlMs = 0, allowStale = false } = {}) {
+export async function readStoreCache(
+  namespace,
+  key,
+  { ttlMs = 0, allowStale = false } = {},
+) {
   return withDb((db) => {
     const keyHash = cacheKeyHash(namespace, key);
     const row = db
-      .prepare("SELECT value_json, schema_version, created_at FROM backend_cache WHERE namespace = ? AND key_hash = ?")
+      .prepare(
+        "SELECT value_json, schema_version, created_at FROM backend_cache WHERE namespace = ? AND key_hash = ?",
+      )
       .get(namespace, keyHash);
     if (!row || row.schema_version !== CACHE_SCHEMA_VERSION) {
       return null;
@@ -244,7 +282,8 @@ export async function writeStoreCache(namespace, key, value) {
   return withDb((db) => {
     const now = timestamp();
     const keyHash = cacheKeyHash(namespace, key);
-    db.prepare(`
+    db.prepare(
+      `
       INSERT INTO backend_cache
         (namespace, key_hash, key_json, value_json, schema_version, created_at, last_accessed_at, hit_count)
       VALUES (?, ?, ?, ?, ?, ?, ?, 0)
@@ -254,7 +293,16 @@ export async function writeStoreCache(namespace, key, value) {
         schema_version = excluded.schema_version,
         created_at = excluded.created_at,
         last_accessed_at = excluded.last_accessed_at;
-    `).run(namespace, keyHash, JSON.stringify(key), JSON.stringify(value), CACHE_SCHEMA_VERSION, now, now);
+    `,
+    ).run(
+      namespace,
+      keyHash,
+      JSON.stringify(key),
+      JSON.stringify(value),
+      CACHE_SCHEMA_VERSION,
+      now,
+      now,
+    );
     return keyHash;
   });
 }
@@ -262,13 +310,19 @@ export async function writeStoreCache(namespace, key, value) {
 export async function readRandomHistory({ limit = 1000 } = {}) {
   return withDb((db) =>
     db
-      .prepare("SELECT case_path FROM random_history ORDER BY last_seen_at DESC, rowid DESC LIMIT ?")
+      .prepare(
+        "SELECT case_path FROM random_history ORDER BY last_seen_at DESC, rowid DESC LIMIT ?",
+      )
       .all(limit)
       .map((row) => row.case_path),
   ).catch(() => []);
 }
 
-export async function recordBackendJobStart({ jobId, command, detail = {} } = {}) {
+export async function recordBackendJobStart({
+  jobId,
+  command,
+  detail = {},
+} = {}) {
   const cleanJobId = collapseWhitespace(jobId);
   const cleanCommand = collapseWhitespace(command);
   if (!cleanJobId || !cleanCommand) {
@@ -277,7 +331,8 @@ export async function recordBackendJobStart({ jobId, command, detail = {} } = {}
 
   await withDb((db) => {
     const now = timestamp();
-    db.prepare(`
+    db.prepare(
+      `
       INSERT INTO backend_jobs
         (job_id, command, status, started_at, updated_at, detail_json)
       VALUES
@@ -292,11 +347,18 @@ export async function recordBackendJobStart({ jobId, command, detail = {} } = {}
         summary = '',
         error = '',
         detail_json = excluded.detail_json;
-    `).run(cleanJobId, cleanCommand, now, now, JSON.stringify(detail || {}));
+    `,
+    ).run(cleanJobId, cleanCommand, now, now, JSON.stringify(detail || {}));
   }).catch(() => {});
 }
 
-export async function recordBackendJobFinish({ jobId, status, summary = "", error = "", detail = {} } = {}) {
+export async function recordBackendJobFinish({
+  jobId,
+  status,
+  summary = "",
+  error = "",
+  detail = {},
+} = {}) {
   const cleanJobId = collapseWhitespace(jobId);
   const cleanStatus = collapseWhitespace(status).toLowerCase();
   if (!cleanJobId || !cleanStatus) {
@@ -304,11 +366,16 @@ export async function recordBackendJobFinish({ jobId, status, summary = "", erro
   }
 
   await withDb((db) => {
-    const row = db.prepare("SELECT started_at FROM backend_jobs WHERE job_id = ?").get(cleanJobId);
+    const row = db
+      .prepare("SELECT started_at FROM backend_jobs WHERE job_id = ?")
+      .get(cleanJobId);
     const now = timestamp();
     const startedAt = Date.parse(row?.started_at || "");
-    const durationMs = Number.isFinite(startedAt) ? Math.max(0, Date.now() - startedAt) : 0;
-    db.prepare(`
+    const durationMs = Number.isFinite(startedAt)
+      ? Math.max(0, Date.now() - startedAt)
+      : 0;
+    db.prepare(
+      `
       UPDATE backend_jobs
       SET status = ?,
           updated_at = ?,
@@ -318,7 +385,8 @@ export async function recordBackendJobFinish({ jobId, status, summary = "", erro
           error = ?,
           detail_json = ?
       WHERE job_id = ?;
-    `).run(
+    `,
+    ).run(
       cleanStatus,
       now,
       now,
@@ -331,7 +399,10 @@ export async function recordBackendJobFinish({ jobId, status, summary = "", erro
   }).catch(() => {});
 }
 
-export async function writeRandomHistory(casePaths, { source = "prepare", limit = 240 } = {}) {
+export async function writeRandomHistory(
+  casePaths,
+  { source = "prepare", limit = 240 } = {},
+) {
   const cleanPaths = [];
   const seen = new Set();
   for (const casePath of casePaths || []) {
@@ -359,14 +430,20 @@ export async function writeRandomHistory(casePaths, { source = "prepare", limit 
     for (const casePath of cleanPaths) {
       statement.run(casePath, now, source);
     }
-    db.prepare(`
+    db.prepare(
+      `
       DELETE FROM random_history
       WHERE case_path NOT IN (
         SELECT case_path FROM random_history ORDER BY last_seen_at DESC LIMIT ?
       );
-    `).run(limit);
+    `,
+    ).run(limit);
   }).catch(async () => {
-    const historyPath = path.join(appRoot(), "cache", "random-selection-history.json");
+    const historyPath = path.join(
+      appRoot(),
+      "cache",
+      "random-selection-history.json",
+    );
     await fs.mkdir(path.dirname(historyPath), { recursive: true });
     await fs.writeFile(
       historyPath,
@@ -376,7 +453,12 @@ export async function writeRandomHistory(casePaths, { source = "prepare", limit 
   });
 }
 
-export async function recordCaseDecision({ casePath, caseTitle = "", decision, reason = "" }) {
+export async function recordCaseDecision({
+  casePath,
+  caseTitle = "",
+  decision,
+  reason = "",
+}) {
   const cleanCasePath = normalizedCasePath(casePath);
   const cleanDecision = collapseWhitespace(decision).toLowerCase();
   if (!cleanCasePath || !cleanDecision) {
@@ -384,7 +466,8 @@ export async function recordCaseDecision({ casePath, caseTitle = "", decision, r
   }
 
   await withDb((db) => {
-    db.prepare(`
+    db.prepare(
+      `
       INSERT INTO case_decisions (case_path, case_title, decision, reason, last_seen_at, count)
       VALUES (?, ?, ?, ?, ?, 1)
       ON CONFLICT(case_path) DO UPDATE SET
@@ -393,11 +476,25 @@ export async function recordCaseDecision({ casePath, caseTitle = "", decision, r
         reason = excluded.reason,
         last_seen_at = excluded.last_seen_at,
         count = case_decisions.count + 1;
-    `).run(cleanCasePath, collapseWhitespace(caseTitle), cleanDecision, collapseWhitespace(reason), timestamp());
+    `,
+    ).run(
+      cleanCasePath,
+      collapseWhitespace(caseTitle),
+      cleanDecision,
+      collapseWhitespace(reason),
+      timestamp(),
+    );
   }).catch(() => {});
 }
 
-export async function recordImageDecision({ casePath, frameId = "", url = "", label = "", decision, reason = "" }) {
+export async function recordImageDecision({
+  casePath,
+  frameId = "",
+  url = "",
+  label = "",
+  decision,
+  reason = "",
+}) {
   const cleanCasePath = normalizedCasePath(casePath);
   const cleanDecision = collapseWhitespace(decision).toLowerCase();
   if (!cleanCasePath || !cleanDecision) {
@@ -406,7 +503,8 @@ export async function recordImageDecision({ casePath, frameId = "", url = "", la
 
   await withDb((db) => {
     const now = timestamp();
-    db.prepare(`
+    db.prepare(
+      `
       INSERT INTO image_decisions
         (case_path, frame_id, url, label, decision, reason, created_at, last_seen_at, count)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
@@ -415,7 +513,8 @@ export async function recordImageDecision({ casePath, frameId = "", url = "", la
         reason = excluded.reason,
         last_seen_at = excluded.last_seen_at,
         count = image_decisions.count + 1;
-    `).run(
+    `,
+    ).run(
       cleanCasePath,
       collapseWhitespace(frameId),
       collapseWhitespace(url),
@@ -428,18 +527,29 @@ export async function recordImageDecision({ casePath, frameId = "", url = "", la
   }).catch(() => {});
 }
 
-export async function recordCaseIndex({ caseData, request = {}, source = "prepare" } = {}) {
-  const cleanCasePath = normalizedCasePath(caseData?.casePath || request?.selectedCasePath || "");
+export async function recordCaseIndex({
+  caseData,
+  request = {},
+  source = "prepare",
+} = {}) {
+  const cleanCasePath = normalizedCasePath(
+    caseData?.casePath || request?.selectedCasePath || "",
+  );
   if (!cleanCasePath) {
     return;
   }
 
-  const quality = caseData?.quality && typeof caseData.quality === "object" ? caseData.quality : {};
+  const quality =
+    caseData?.quality && typeof caseData.quality === "object"
+      ? caseData.quality
+      : {};
   const systems = [
     ...(Array.isArray(request?.randomSystems) ? request.randomSystems : []),
     ...(Array.isArray(request?.systems) ? request.systems : []),
     ...(Array.isArray(caseData?.systems) ? caseData.systems : []),
-  ].map((value) => collapseWhitespace(value)).filter(Boolean);
+  ]
+    .map((value) => collapseWhitespace(value))
+    .filter(Boolean);
   const selectedImageCount = Array.isArray(caseData?.images)
     ? caseData.images.length
     : Number.isFinite(quality.selectedCount)
@@ -450,7 +560,8 @@ export async function recordCaseIndex({ caseData, request = {}, source = "prepar
     : 0;
 
   await withDb((db) => {
-    db.prepare(`
+    db.prepare(
+      `
       INSERT INTO case_index
         (
           case_path,
@@ -487,9 +598,12 @@ export async function recordCaseIndex({ caseData, request = {}, source = "prepar
         source = excluded.source,
         last_prepared_at = excluded.last_prepared_at,
         prepared_count = case_index.prepared_count + 1;
-    `).run(
+    `,
+    ).run(
       cleanCasePath,
-      collapseWhitespace(caseData?.caseTitle || request?.selectedCaseTitle || ""),
+      collapseWhitespace(
+        caseData?.caseTitle || request?.selectedCaseTitle || "",
+      ),
       collapseWhitespace(caseData?.caseUrl || ""),
       collapseWhitespace(caseData?.displayUrl || ""),
       collapseWhitespace(caseData?.diagnosisQuery || request?.diagnosis || ""),
@@ -515,7 +629,11 @@ export async function readIndexedRandomCases({
   query = "",
   minSelectedImages = 1,
 } = {}) {
-  const excluded = dedupe((excludeCasePaths || []).map((value) => normalizedCasePath(value)).filter(Boolean));
+  const excluded = dedupe(
+    (excludeCasePaths || [])
+      .map((value) => normalizedCasePath(value))
+      .filter(Boolean),
+  );
   const clauses = ["ci.selected_image_count >= ?"];
   const parameters = [Math.max(0, Number.parseInt(minSelectedImages, 10) || 0)];
 
@@ -538,14 +656,20 @@ export async function readIndexedRandomCases({
 
   const cleanQuery = normalizedLower(query);
   if (cleanQuery) {
-    clauses.push("LOWER(ci.case_title || ' ' || ci.diagnosis_query || ' ' || ci.study_hint || ' ' || ci.modality_summary) LIKE ?");
+    clauses.push(
+      "LOWER(ci.case_title || ' ' || ci.diagnosis_query || ' ' || ci.study_hint || ' ' || ci.modality_summary) LIKE ?",
+    );
     parameters.push(`%${cleanQuery}%`);
   }
 
-  const effectiveLimit = Math.max(1, Math.min(200, Number.parseInt(limit, 10) || 20));
+  const effectiveLimit = Math.max(
+    1,
+    Math.min(200, Number.parseInt(limit, 10) || 20),
+  );
   return withDb((db) =>
     db
-      .prepare(`
+      .prepare(
+        `
         SELECT
           ci.case_path AS casePath,
           ci.case_title AS caseTitle,
@@ -575,7 +699,8 @@ export async function readIndexedRandomCases({
           ci.quality_score DESC,
           ci.last_prepared_at ASC
         LIMIT ?;
-      `)
+      `,
+      )
       .all(...parameters, effectiveLimit)
       .map((row) => ({
         ...row,
@@ -592,21 +717,28 @@ export async function readRejectedFrameIds(casePath) {
 
   return withDb((db) =>
     db
-      .prepare(`
+      .prepare(
+        `
         SELECT frame_id
         FROM image_decisions
         WHERE case_path = ?
           AND decision IN ('rejected', 'removed')
           AND frame_id <> ''
         ORDER BY last_seen_at DESC;
-      `)
+      `,
+      )
       .all(cleanCasePath)
       .map((row) => row.frame_id),
   ).catch(() => []);
 }
 
-export async function readAvoidedCasePaths({ decisions = ["skipped", "rejected"], limit = 500 } = {}) {
-  const decisionList = decisions.map((value) => collapseWhitespace(value).toLowerCase()).filter(Boolean);
+export async function readAvoidedCasePaths({
+  decisions = ["skipped", "rejected"],
+  limit = 500,
+} = {}) {
+  const decisionList = decisions
+    .map((value) => collapseWhitespace(value).toLowerCase())
+    .filter(Boolean);
   if (!decisionList.length) {
     return [];
   }
@@ -614,13 +746,15 @@ export async function readAvoidedCasePaths({ decisions = ["skipped", "rejected"]
   return withDb((db) => {
     const placeholders = decisionList.map(() => "?").join(", ");
     return db
-      .prepare(`
+      .prepare(
+        `
         SELECT case_path
         FROM case_decisions
         WHERE decision IN (${placeholders})
         ORDER BY last_seen_at DESC
         LIMIT ?;
-      `)
+      `,
+      )
       .all(...decisionList, limit)
       .map((row) => row.case_path);
   }).catch(() => []);

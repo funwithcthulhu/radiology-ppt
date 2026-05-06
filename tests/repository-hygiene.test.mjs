@@ -3,12 +3,21 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs/promises";
 
-const PUBLIC_TEXT_PATHS = ["README.md", "SECURITY.md", "docs", ".github", "examples"];
+const PUBLIC_TEXT_PATHS = [
+  "README.md",
+  "SECURITY.md",
+  "docs",
+  ".github",
+  "examples",
+];
 
 const personalPathPatterns = [
   { label: "Windows user profile path", pattern: /C:[\\/]+Users[\\/]/i },
   { label: "OneDrive desktop path", pattern: /OneDrive[\\/]+Desktop/i },
-  { label: "local project checkout path", pattern: /radiopaedia_case_powerpoint_builder/i },
+  {
+    label: "local project checkout path",
+    pattern: /radiopaedia_case_powerpoint_builder/i,
+  },
 ];
 
 test("public documentation avoids machine-specific paths", async () => {

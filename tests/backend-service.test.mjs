@@ -21,7 +21,10 @@ test("backend service responds to structured ping requests", async () => {
   child.stderr.on("data", (chunk) => stderr.push(chunk.toString("utf8")));
 
   try {
-    const lines = readline.createInterface({ input: child.stdout, crlfDelay: Infinity });
+    const lines = readline.createInterface({
+      input: child.stdout,
+      crlfDelay: Infinity,
+    });
     const responsePromise = new Promise((resolve, reject) => {
       const timeout = setTimeout(
         () => reject(new Error("Timed out waiting for backend service ping")),
@@ -33,7 +36,9 @@ test("backend service responds to structured ping requests", async () => {
       });
     });
 
-    child.stdin.write(`${JSON.stringify({ id: "ping-1", command: "ping", payload: {} })}\n`);
+    child.stdin.write(
+      `${JSON.stringify({ id: "ping-1", command: "ping", payload: {} })}\n`,
+    );
     const response = await responsePromise;
     assert.equal(response.id, "ping-1");
     assert.equal(response.type, "result");
@@ -63,10 +68,18 @@ test("backend service accepts BOM-prefixed first requests", async () => {
   child.stderr.on("data", (chunk) => stderr.push(chunk.toString("utf8")));
 
   try {
-    const lines = readline.createInterface({ input: child.stdout, crlfDelay: Infinity });
+    const lines = readline.createInterface({
+      input: child.stdout,
+      crlfDelay: Infinity,
+    });
     const responsePromise = new Promise((resolve, reject) => {
       const timeout = setTimeout(
-        () => reject(new Error("Timed out waiting for BOM-prefixed backend service ping")),
+        () =>
+          reject(
+            new Error(
+              "Timed out waiting for BOM-prefixed backend service ping",
+            ),
+          ),
         SERVICE_RESPONSE_TIMEOUT_MS,
       );
       lines.once("line", (line) => {
@@ -75,7 +88,9 @@ test("backend service accepts BOM-prefixed first requests", async () => {
       });
     });
 
-    child.stdin.write(`\ufeff${JSON.stringify({ id: "ping-bom", command: "ping", payload: {} })}\n`);
+    child.stdin.write(
+      `\ufeff${JSON.stringify({ id: "ping-bom", command: "ping", payload: {} })}\n`,
+    );
     const response = await responsePromise;
     assert.equal(response.id, "ping-bom");
     assert.equal(response.type, "result");

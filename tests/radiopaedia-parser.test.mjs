@@ -15,29 +15,40 @@ import {
 } from "../src/radiopaedia.mjs";
 
 test("parses Radiopaedia case search result fixtures without network access", async () => {
-  const html = await fs.readFile(path.resolve("tests", "fixtures", "radiopaedia-search-results.html"), "utf8");
+  const html = await fs.readFile(
+    path.resolve("tests", "fixtures", "radiopaedia-search-results.html"),
+    "utf8",
+  );
   const results = parseCaseSearchResults(html);
 
   assert.equal(results.length, 2);
-  assert.deepEqual(parseCaseSystemsFromHtml(html), ["Central Nervous System", "Paediatrics"]);
+  assert.deepEqual(parseCaseSystemsFromHtml(html), [
+    "Central Nervous System",
+    "Paediatrics",
+  ]);
   assert.equal(results[0].casePath, "/cases/multiple-sclerosis-42");
   assert.equal(results[0].title, "Multiple sclerosis");
   assert.match(results[0].snippet, /MRI brain/);
 });
 
 test("builds stable Radiopaedia case search URLs", () => {
-  const url = new URL(buildCaseSearchUrl({
-    query: "multiple sclerosis",
-    systems: ["Central Nervous System", "Paediatrics"],
-    page: 2,
-  }));
+  const url = new URL(
+    buildCaseSearchUrl({
+      query: "multiple sclerosis",
+      systems: ["Central Nervous System", "Paediatrics"],
+      page: 2,
+    }),
+  );
 
   assert.equal(url.origin, "https://radiopaedia.org");
   assert.equal(url.pathname, "/search");
   assert.equal(url.searchParams.get("scope"), "cases");
   assert.equal(url.searchParams.get("q"), "multiple sclerosis");
   assert.equal(url.searchParams.get("page"), "2");
-  assert.deepEqual(url.searchParams.getAll("system[]"), ["Central Nervous System", "Paediatrics"]);
+  assert.deepEqual(url.searchParams.getAll("system[]"), [
+    "Central Nervous System",
+    "Paediatrics",
+  ]);
 });
 
 test("extracts Radiopaedia search pages regardless of query parameter order", () => {
@@ -70,16 +81,17 @@ test("deduplicates search results by case path even when URLs differ", () => {
   const results = parseCaseSearchResults(html);
 
   assert.equal(results.length, 2);
-  assert.deepEqual(results.map((result) => result.casePath), [
-    "/cases/example-case-1?lang=us",
-    "/cases/another-case",
-  ]);
+  assert.deepEqual(
+    results.map((result) => result.casePath),
+    ["/cases/example-case-1?lang=us", "/cases/another-case"],
+  );
 });
 
 test("matches excluded manual case paths even when query strings differ", async () => {
   const result = await inspectRadiopaediaCaseCandidates({
     requestMode: "manual",
-    selectedCasePath: "https://radiopaedia.org/cases/colonic-diverticulosis-1?lang=us",
+    selectedCasePath:
+      "https://radiopaedia.org/cases/colonic-diverticulosis-1?lang=us",
     excludeCasePaths: ["/cases/colonic-diverticulosis-1?lang=us"],
   });
 
@@ -88,7 +100,10 @@ test("matches excluded manual case paths even when query strings differ", async 
 });
 
 test("falls back to broader case search when filtered Radiopaedia search fails", async () => {
-  const html = await fs.readFile(path.resolve("tests", "fixtures", "radiopaedia-search-results.html"), "utf8");
+  const html = await fs.readFile(
+    path.resolve("tests", "fixtures", "radiopaedia-search-results.html"),
+    "utf8",
+  );
   const fetchedUrls = [];
   const result = await inspectRadiopaediaCaseCandidates(
     {
@@ -108,13 +123,22 @@ test("falls back to broader case search when filtered Radiopaedia search fails",
     },
   );
 
-  assert.equal(new URL(fetchedUrls[0]).searchParams.getAll("system[]").length, 1);
-  assert.equal(new URL(fetchedUrls[1]).searchParams.getAll("system[]").length, 0);
+  assert.equal(
+    new URL(fetchedUrls[0]).searchParams.getAll("system[]").length,
+    1,
+  );
+  assert.equal(
+    new URL(fetchedUrls[1]).searchParams.getAll("system[]").length,
+    0,
+  );
   assert.equal(result.candidates[0].casePath, "/cases/multiple-sclerosis-42");
 });
 
 test("retries suspicious empty Radiopaedia search pages without cache", async () => {
-  const html = await fs.readFile(path.resolve("tests", "fixtures", "radiopaedia-search-results.html"), "utf8");
+  const html = await fs.readFile(
+    path.resolve("tests", "fixtures", "radiopaedia-search-results.html"),
+    "utf8",
+  );
   const calls = [];
   const result = await inspectRadiopaediaCaseCandidates(
     {
@@ -192,8 +216,18 @@ test("core review teaching points use board-style radiology pearls", () => {
   assert.match(points.join(" "), /MRI CORE discriminator/);
   assert.match(points.join(" "), /sphincter relationship/);
   assert.match(points.join(" "), /secondary tracts/);
-  assert.equal(points.some((point) => /Surgically proved|management's planning/i.test(point)), false);
-  assert.equal(points.some((point) => /This case is best reviewed|selected image/i.test(point)), false);
+  assert.equal(
+    points.some((point) =>
+      /Surgically proved|management's planning/i.test(point),
+    ),
+    false,
+  );
+  assert.equal(
+    points.some((point) =>
+      /This case is best reviewed|selected image/i.test(point),
+    ),
+    false,
+  );
 });
 
 test("core review teaching points do not pad with generic non-radiology filler", () => {
@@ -220,7 +254,8 @@ test("core review teaching points reject case-course text and use subdural pearl
       studyHint: "CT head",
     },
     description: "Improved mass effect in the orbit post resection of mass.",
-    findings: "Subdural collection along the cerebral convexity with mild mass effect.",
+    findings:
+      "Subdural collection along the cerebral convexity with mild mass effect.",
     diagnosis: "Subdural hematoma",
     caseTitle: "Subdural hematoma",
     modalitySummary: "CT head",
@@ -231,11 +266,16 @@ test("core review teaching points reject case-course text and use subdural pearl
   assert.match(points.join(" "), /crescentic extra-axial blood/);
   assert.match(points.join(" "), /midline shift/);
   assert.match(points.join(" "), /epidural hematoma/);
-  assert.equal(points.some((point) => /Improved mass effect|post resection/i.test(point)), false);
+  assert.equal(
+    points.some((point) => /Improved mass effect|post resection/i.test(point)),
+    false,
+  );
 });
 
 test("uses the local case index when live random search is disabled", async () => {
-  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "radiology-indexed-random-"));
+  const tempDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "radiology-indexed-random-"),
+  );
   process.env.RADIOLOGY_PPT_DATABASE_PATH = path.join(tempDir, "state.sqlite");
 
   await recordCaseIndex({
@@ -268,7 +308,11 @@ test("uses the local case index when live random search is disabled", async () =
         modality: "MRI",
       },
     ],
-    { readRandomHistory: false, writeRandomHistory: false, allowLiveSearch: false },
+    {
+      readRandomHistory: false,
+      writeRandomHistory: false,
+      allowLiveSearch: false,
+    },
   );
 
   assert.equal(expanded.length, 1);
@@ -277,7 +321,9 @@ test("uses the local case index when live random search is disabled", async () =
 });
 
 test("excludes previously selected random cases from later random runs", async () => {
-  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "radiology-random-history-"));
+  const tempDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "radiology-random-history-"),
+  );
   process.env.RADIOLOGY_PPT_DATABASE_PATH = path.join(tempDir, "state.sqlite");
 
   await recordCaseIndex({
@@ -314,7 +360,10 @@ test("excludes previously selected random cases from later random runs", async (
     request: {},
     source: "unit-test",
   });
-  await writeRandomHistory(["/cases/prior-random-case"], { source: "unit-test", limit: 10 });
+  await writeRandomHistory(["/cases/prior-random-case"], {
+    source: "unit-test",
+    limit: 10,
+  });
 
   const expanded = await expandCaseRequests(
     [
@@ -323,7 +372,11 @@ test("excludes previously selected random cases from later random runs", async (
         randomCount: 1,
       },
     ],
-    { readRandomHistory: true, writeRandomHistory: false, allowLiveSearch: false },
+    {
+      readRandomHistory: true,
+      writeRandomHistory: false,
+      allowLiveSearch: false,
+    },
   );
 
   assert.equal(expanded.length, 1);
@@ -331,7 +384,9 @@ test("excludes previously selected random cases from later random runs", async (
 });
 
 test("default random mode does not backfill with previous random cases", async () => {
-  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "radiology-only-new-random-"));
+  const tempDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "radiology-only-new-random-"),
+  );
   process.env.RADIOLOGY_PPT_DATABASE_PATH = path.join(tempDir, "state.sqlite");
 
   for (const [casePath, caseTitle] of [
@@ -356,7 +411,10 @@ test("default random mode does not backfill with previous random cases", async (
       source: "unit-test",
     });
   }
-  await writeRandomHistory(["/cases/used-random-case"], { source: "unit-test", limit: 10 });
+  await writeRandomHistory(["/cases/used-random-case"], {
+    source: "unit-test",
+    limit: 10,
+  });
 
   const expanded = await expandCaseRequests(
     [
@@ -373,11 +431,16 @@ test("default random mode does not backfill with previous random cases", async (
   );
 
   assert.equal(expanded.length, 1);
-  assert.deepEqual(expanded.map((entry) => entry.selectedCasePath), ["/cases/new-random-case"]);
+  assert.deepEqual(
+    expanded.map((entry) => entry.selectedCasePath),
+    ["/cases/new-random-case"],
+  );
 });
 
 test("random mode can explicitly backfill with previous cases", async () => {
-  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "radiology-random-backfill-"));
+  const tempDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "radiology-random-backfill-"),
+  );
   process.env.RADIOLOGY_PPT_DATABASE_PATH = path.join(tempDir, "state.sqlite");
 
   for (const [casePath, caseTitle] of [
@@ -402,7 +465,10 @@ test("random mode can explicitly backfill with previous cases", async () => {
       source: "unit-test",
     });
   }
-  await writeRandomHistory(["/cases/used-random-case"], { source: "unit-test", limit: 10 });
+  await writeRandomHistory(["/cases/used-random-case"], {
+    source: "unit-test",
+    limit: 10,
+  });
 
   const expanded = await expandCaseRequests(
     [
@@ -420,8 +486,8 @@ test("random mode can explicitly backfill with previous cases", async () => {
   );
 
   assert.equal(expanded.length, 2);
-  assert.deepEqual(
-    expanded.map((entry) => entry.selectedCasePath).sort(),
-    ["/cases/new-random-case", "/cases/used-random-case"],
-  );
+  assert.deepEqual(expanded.map((entry) => entry.selectedCasePath).sort(), [
+    "/cases/new-random-case",
+    "/cases/used-random-case",
+  ]);
 });

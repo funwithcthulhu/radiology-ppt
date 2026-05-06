@@ -1,20 +1,72 @@
 export const CORE_REVIEW_DOMAINS = [
   { id: "breast", label: "Breast Imaging", abrCategory: "Breast imaging" },
-  { id: "cardiovascular", label: "Cardiovascular Imaging", abrCategory: "Cardiovascular imaging" },
-  { id: "ct", label: "Computed Tomography", abrCategory: "Computed tomography" },
-  { id: "gi", label: "Gastrointestinal Imaging", abrCategory: "Gastrointestinal imaging" },
-  { id: "gu", label: "Genitourinary Imaging", abrCategory: "Genitourinary imaging" },
-  { id: "ir", label: "Interventional Radiology", abrCategory: "Interventional radiology" },
-  { id: "mr", label: "Magnetic Resonance Imaging", abrCategory: "Magnetic resonance imaging" },
-  { id: "msk", label: "Musculoskeletal Radiology", abrCategory: "Musculoskeletal radiology" },
+  {
+    id: "cardiovascular",
+    label: "Cardiovascular Imaging",
+    abrCategory: "Cardiovascular imaging",
+  },
+  {
+    id: "ct",
+    label: "Computed Tomography",
+    abrCategory: "Computed tomography",
+  },
+  {
+    id: "gi",
+    label: "Gastrointestinal Imaging",
+    abrCategory: "Gastrointestinal imaging",
+  },
+  {
+    id: "gu",
+    label: "Genitourinary Imaging",
+    abrCategory: "Genitourinary imaging",
+  },
+  {
+    id: "ir",
+    label: "Interventional Radiology",
+    abrCategory: "Interventional radiology",
+  },
+  {
+    id: "mr",
+    label: "Magnetic Resonance Imaging",
+    abrCategory: "Magnetic resonance imaging",
+  },
+  {
+    id: "msk",
+    label: "Musculoskeletal Radiology",
+    abrCategory: "Musculoskeletal radiology",
+  },
   { id: "neuro", label: "Neuroradiology", abrCategory: "Neuroradiology" },
-  { id: "nis", label: "Noninterpretive Skills", abrCategory: "Noninterpretive skills" },
-  { id: "nuclear", label: "Nuclear Radiology", abrCategory: "Nuclear radiology" },
-  { id: "pediatric", label: "Pediatric Radiology", abrCategory: "Pediatric radiology" },
+  {
+    id: "nis",
+    label: "Noninterpretive Skills",
+    abrCategory: "Noninterpretive skills",
+  },
+  {
+    id: "nuclear",
+    label: "Nuclear Radiology",
+    abrCategory: "Nuclear radiology",
+  },
+  {
+    id: "pediatric",
+    label: "Pediatric Radiology",
+    abrCategory: "Pediatric radiology",
+  },
   { id: "physics", label: "Physics", abrCategory: "Physics" },
-  { id: "risc", label: "Radioisotope Safety Content", abrCategory: "Radioisotope Safety Content" },
-  { id: "radiography_fluoroscopy", label: "Radiography/Fluoroscopy", abrCategory: "Radiography/fluoroscopy" },
-  { id: "thoracic", label: "Thoracic Radiology", abrCategory: "Thoracic radiology" },
+  {
+    id: "risc",
+    label: "Radioisotope Safety Content",
+    abrCategory: "Radioisotope Safety Content",
+  },
+  {
+    id: "radiography_fluoroscopy",
+    label: "Radiography/Fluoroscopy",
+    abrCategory: "Radiography/fluoroscopy",
+  },
+  {
+    id: "thoracic",
+    label: "Thoracic Radiology",
+    abrCategory: "Thoracic radiology",
+  },
   { id: "ultrasound", label: "Ultrasound", abrCategory: "Ultrasound" },
 ];
 
@@ -22,7 +74,8 @@ export const CORE_REVIEW_QUESTION_TYPES = [
   {
     id: "single_best_answer",
     label: "Single Best Answer",
-    officialPattern: "Most ABR computer-based items are standard multiple-choice questions.",
+    officialPattern:
+      "Most ABR computer-based items are standard multiple-choice questions.",
     answerShape: "One keyed option from a homogeneous option set.",
     generatorNotes: [
       "Ask one focused task.",
@@ -33,8 +86,10 @@ export const CORE_REVIEW_QUESTION_TYPES = [
   {
     id: "image_hotspot",
     label: "Image Hotspot / Anatomy Localization",
-    officialPattern: "ABR sample/readiness materials describe drag-and-drop anatomical localization.",
-    answerShape: "One target region on an image, stored as normalized x/y/width/height.",
+    officialPattern:
+      "ABR sample/readiness materials describe drag-and-drop anatomical localization.",
+    answerShape:
+      "One target region on an image, stored as normalized x/y/width/height.",
     generatorNotes: [
       "Use only when a finding or structure can be localized unambiguously.",
       "Require one target per item.",
@@ -44,8 +99,10 @@ export const CORE_REVIEW_QUESTION_TYPES = [
   {
     id: "gold_marker_abnormality",
     label: "Gold Marker Abnormality Localization",
-    officialPattern: "Gold-marker questions ask the learner to place a marker on the abnormal finding.",
-    answerShape: "One abnormality target region, stored as normalized image coordinates.",
+    officialPattern:
+      "Gold-marker questions ask the learner to place a marker on the abnormal finding.",
+    answerShape:
+      "One abnormality target region, stored as normalized image coordinates.",
     generatorNotes: [
       "Best for radiographs and other single-image cases with one visible abnormality.",
       "Use normalized coordinates so the answer remains valid after resizing.",
@@ -55,7 +112,8 @@ export const CORE_REVIEW_QUESTION_TYPES = [
   {
     id: "numeric_fill_blank",
     label: "Numeric Fill-in-the-Blank",
-    officialPattern: "ABR item guidance describes rare numeric fill-in-the-blank items.",
+    officialPattern:
+      "ABR item guidance describes rare numeric fill-in-the-blank items.",
     answerShape: "Numeric value or accepted range with required precision.",
     generatorNotes: [
       "Reserve for physics, dosimetry, nuclear medicine, or statistics calculations.",
@@ -66,8 +124,10 @@ export const CORE_REVIEW_QUESTION_TYPES = [
   {
     id: "multi_correct",
     label: "Multiple Correct Options",
-    officialPattern: "Useful sandbox type for practice even when not the default Core style.",
-    answerShape: "Two or more keyed options from a longer homogeneous option set.",
+    officialPattern:
+      "Useful sandbox type for practice even when not the default Core style.",
+    answerShape:
+      "Two or more keyed options from a longer homogeneous option set.",
     generatorNotes: [
       "Tell the learner how many options to select.",
       "Use at least twice as many options as correct answers.",
@@ -77,8 +137,10 @@ export const CORE_REVIEW_QUESTION_TYPES = [
   {
     id: "linked_options",
     label: "Linked Options Set",
-    officialPattern: "Classic review-bank pattern where several stems share one option list.",
-    answerShape: "Multiple stems, each with one keyed option from a shared list.",
+    officialPattern:
+      "Classic review-bank pattern where several stems share one option list.",
+    answerShape:
+      "Multiple stems, each with one keyed option from a shared list.",
     generatorNotes: [
       "Keep every stem parallel in length and data type.",
       "Allow options to be used once, more than once, or not at all.",
@@ -143,19 +205,26 @@ QUESTION_TYPE_ALIASES.set("hotspot", "image_hotspot");
 QUESTION_TYPE_ALIASES.set("gold_marker", "gold_marker_abnormality");
 QUESTION_TYPE_ALIASES.set("gold-marker", "gold_marker_abnormality");
 QUESTION_TYPE_ALIASES.set("abnormality_marker", "gold_marker_abnormality");
-QUESTION_TYPE_ALIASES.set("abnormality-localization", "gold_marker_abnormality");
+QUESTION_TYPE_ALIASES.set(
+  "abnormality-localization",
+  "gold_marker_abnormality",
+);
 QUESTION_TYPE_ALIASES.set("fill_blank", "numeric_fill_blank");
 QUESTION_TYPE_ALIASES.set("numeric", "numeric_fill_blank");
 QUESTION_TYPE_ALIASES.set("select_all", "multi_correct");
 QUESTION_TYPE_ALIASES.set("r_type", "linked_options");
 
 export function normalizeCoreReviewDomain(value) {
-  const normalized = String(value || "").trim().toLowerCase();
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
   return DOMAIN_ALIASES.get(normalized) || "";
 }
 
 export function normalizeCoreReviewQuestionType(value) {
-  const normalized = String(value || "").trim().toLowerCase();
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
   return QUESTION_TYPE_ALIASES.get(normalized) || "";
 }
 

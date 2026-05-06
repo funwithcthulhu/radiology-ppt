@@ -43,11 +43,18 @@ function normalizeOptions(options) {
   return options
     .map((option, index) => {
       if (typeof option === "string") {
-        return { id: String.fromCharCode(65 + index), text: collapseWhitespace(option) };
+        return {
+          id: String.fromCharCode(65 + index),
+          text: collapseWhitespace(option),
+        };
       }
       return {
-        id: collapseWhitespace(option?.id || option?.key || String.fromCharCode(65 + index)),
-        text: collapseWhitespace(option?.text || option?.label || option?.value || ""),
+        id: collapseWhitespace(
+          option?.id || option?.key || String.fromCharCode(65 + index),
+        ),
+        text: collapseWhitespace(
+          option?.text || option?.label || option?.value || "",
+        ),
       };
     })
     .filter((option) => option.id && option.text);
@@ -94,13 +101,24 @@ function pointInHotspot(point, hotspot) {
   if (![left, top, width, height].every(Number.isFinite)) {
     return false;
   }
-  return point.x >= left && point.x <= left + width && point.y >= top && point.y <= top + height;
+  return (
+    point.x >= left &&
+    point.x <= left + width &&
+    point.y >= top &&
+    point.y <= top + height
+  );
 }
 
 export function normalizeCoreReviewQuestion(rawQuestion, index = 0) {
-  const type = normalizeCoreReviewQuestionType(rawQuestion?.type || rawQuestion?.questionType || "single_best_answer");
-  const domain = normalizeCoreReviewDomain(rawQuestion?.domain || rawQuestion?.category || "");
-  const options = normalizeOptions(rawQuestion?.options || rawQuestion?.choices);
+  const type = normalizeCoreReviewQuestionType(
+    rawQuestion?.type || rawQuestion?.questionType || "single_best_answer",
+  );
+  const domain = normalizeCoreReviewDomain(
+    rawQuestion?.domain || rawQuestion?.category || "",
+  );
+  const options = normalizeOptions(
+    rawQuestion?.options || rawQuestion?.choices,
+  );
   const id =
     collapseWhitespace(rawQuestion?.id || rawQuestion?.questionId || "") ||
     `${slugify(domain || "core-review")}-${String(index + 1).padStart(4, "0")}`;
@@ -111,19 +129,31 @@ export function normalizeCoreReviewQuestion(rawQuestion, index = 0) {
     domain,
     modality: collapseWhitespace(rawQuestion?.modality || ""),
     difficulty: collapseWhitespace(rawQuestion?.difficulty || "core"),
-    cognitiveLevel: collapseWhitespace(rawQuestion?.cognitiveLevel || rawQuestion?.task || ""),
-    stem: collapseWhitespace(rawQuestion?.stem || rawQuestion?.prompt || rawQuestion?.question || ""),
+    cognitiveLevel: collapseWhitespace(
+      rawQuestion?.cognitiveLevel || rawQuestion?.task || "",
+    ),
+    stem: collapseWhitespace(
+      rawQuestion?.stem || rawQuestion?.prompt || rawQuestion?.question || "",
+    ),
     options,
-    answerKey: collapseWhitespace(rawQuestion?.answerKey || rawQuestion?.key || rawQuestion?.answer || ""),
+    answerKey: collapseWhitespace(
+      rawQuestion?.answerKey || rawQuestion?.key || rawQuestion?.answer || "",
+    ),
     answerKeys: Array.isArray(rawQuestion?.answerKeys)
       ? rawQuestion.answerKeys.map(collapseWhitespace).filter(Boolean)
       : [],
     numericAnswer: rawQuestion?.numericAnswer || rawQuestion?.numeric || null,
     hotspot: rawQuestion?.hotspot || rawQuestion?.target || null,
     image: rawQuestion?.image || rawQuestion?.images?.[0] || null,
-    explanation: collapseWhitespace(rawQuestion?.explanation || rawQuestion?.rationale || ""),
-    references: Array.isArray(rawQuestion?.references) ? rawQuestion.references : [],
-    sourceChunkIds: Array.isArray(rawQuestion?.sourceChunkIds) ? rawQuestion.sourceChunkIds : [],
+    explanation: collapseWhitespace(
+      rawQuestion?.explanation || rawQuestion?.rationale || "",
+    ),
+    references: Array.isArray(rawQuestion?.references)
+      ? rawQuestion.references
+      : [],
+    sourceChunkIds: Array.isArray(rawQuestion?.sourceChunkIds)
+      ? rawQuestion.sourceChunkIds
+      : [],
   };
 }
 
@@ -149,8 +179,13 @@ export function validateCoreReviewQuestion(question) {
     if (!question.answerKey) {
       errors.push("Single-best-answer questions need answerKey.");
     }
-    if (question.answerKey && !question.options.some((option) => option.id === question.answerKey)) {
-      errors.push(`answerKey '${question.answerKey}' does not match an option id.`);
+    if (
+      question.answerKey &&
+      !question.options.some((option) => option.id === question.answerKey)
+    ) {
+      errors.push(
+        `answerKey '${question.answerKey}' does not match an option id.`,
+      );
     }
   }
 
@@ -167,7 +202,10 @@ export function validateCoreReviewQuestion(question) {
     errors.push("Numeric fill-in-the-blank questions need numericAnswer.");
   }
 
-  if (question.type === "image_hotspot" || question.type === "gold_marker_abnormality") {
+  if (
+    question.type === "image_hotspot" ||
+    question.type === "gold_marker_abnormality"
+  ) {
     if (!question.image) {
       errors.push("Image localization questions need image metadata.");
     }
@@ -177,7 +215,9 @@ export function validateCoreReviewQuestion(question) {
   }
 
   if (!question.references.length && !question.sourceChunkIds.length) {
-    errors.push("Question should include at least one reference or sourceChunkIds entry.");
+    errors.push(
+      "Question should include at least one reference or sourceChunkIds entry.",
+    );
   }
 
   return {
@@ -188,7 +228,9 @@ export function validateCoreReviewQuestion(question) {
 
 export function scoreCoreReviewAnswer(question, response) {
   if (question.type === "single_best_answer") {
-    const selected = collapseWhitespace(response?.answerKey ?? response?.answer ?? response);
+    const selected = collapseWhitespace(
+      response?.answerKey ?? response?.answer ?? response,
+    );
     return {
       correct: selected === question.answerKey,
       expected: question.answerKey,
@@ -197,7 +239,9 @@ export function scoreCoreReviewAnswer(question, response) {
   }
 
   if (question.type === "multi_correct") {
-    const selected = Array.isArray(response) ? response : response?.answerKeys || response?.answers || [];
+    const selected = Array.isArray(response)
+      ? response
+      : response?.answerKeys || response?.answers || [];
     const normalized = selected.map(collapseWhitespace).filter(Boolean).sort();
     const expected = [...question.answerKeys].sort();
     return {
@@ -212,15 +256,23 @@ export function scoreCoreReviewAnswer(question, response) {
     const expected = Number(question.numericAnswer?.value);
     const tolerance = Number(question.numericAnswer?.tolerance ?? 0);
     return {
-      correct: Number.isFinite(value) && Number.isFinite(expected) && Math.abs(value - expected) <= tolerance,
+      correct:
+        Number.isFinite(value) &&
+        Number.isFinite(expected) &&
+        Math.abs(value - expected) <= tolerance,
       expected,
       received: value,
       tolerance,
     };
   }
 
-  if (question.type === "image_hotspot" || question.type === "gold_marker_abnormality") {
-    const point = parsePointResponse(response?.point ?? response?.marker ?? response);
+  if (
+    question.type === "image_hotspot" ||
+    question.type === "gold_marker_abnormality"
+  ) {
+    const point = parsePointResponse(
+      response?.point ?? response?.marker ?? response,
+    );
     return {
       correct: pointInHotspot(point, question.hotspot),
       expected: question.hotspot,
@@ -241,7 +293,9 @@ export async function loadCoreReviewQuestionBank(questionBankPath) {
   const parsed = JSON.parse(raw);
   const rawQuestions = Array.isArray(parsed) ? parsed : parsed.questions;
   if (!Array.isArray(rawQuestions)) {
-    throw new Error("Core Review question bank must be a JSON array or an object with a questions array.");
+    throw new Error(
+      "Core Review question bank must be a JSON array or an object with a questions array.",
+    );
   }
 
   const questions = rawQuestions.map(normalizeCoreReviewQuestion);
@@ -252,7 +306,9 @@ export async function loadCoreReviewQuestionBank(questionBankPath) {
 
   return {
     path: resolvedPath,
-    title: collapseWhitespace(parsed.title || parsed.name || "Core Review Question Bank"),
+    title: collapseWhitespace(
+      parsed.title || parsed.name || "Core Review Question Bank",
+    ),
     questions,
     validation,
   };
@@ -260,9 +316,13 @@ export async function loadCoreReviewQuestionBank(questionBankPath) {
 
 export function buildCoreReviewQuizSession(questionBank, options = {}) {
   const domain = normalizeCoreReviewDomain(options.domain || "");
-  const questionType = normalizeCoreReviewQuestionType(options.questionType || "");
+  const questionType = normalizeCoreReviewQuestionType(
+    options.questionType || "",
+  );
   const count = Math.max(1, Number.parseInt(options.count ?? 10, 10) || 10);
-  const seed = collapseWhitespace(options.seed || new Date().toISOString().slice(0, 10));
+  const seed = collapseWhitespace(
+    options.seed || new Date().toISOString().slice(0, 10),
+  );
 
   const eligible = questionBank.questions.filter((question) => {
     if (domain && question.domain !== domain) {
@@ -296,7 +356,10 @@ export function renderCoreReviewQuestionText(question, index = 0) {
   ];
 
   if (question.image) {
-    const imageLabel = typeof question.image === "string" ? question.image : question.image.path || question.image.url || "image";
+    const imageLabel =
+      typeof question.image === "string"
+        ? question.image
+        : question.image.path || question.image.url || "image";
     lines.push(`   Image: ${imageLabel}`);
   }
 

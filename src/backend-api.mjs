@@ -13,7 +13,11 @@ import {
   renderCoreReviewQuizText,
 } from "./core_review/index.mjs";
 import { ingestCoreReviewPdfs } from "./core_review/pdf-ingest.mjs";
-import { emitProgress, emitWarning, withBackendStage } from "./backend-events.mjs";
+import {
+  emitProgress,
+  emitWarning,
+  withBackendStage,
+} from "./backend-events.mjs";
 import { recordCaseIndex } from "./app-store.mjs";
 import { scorePreparedItemsWithOllama } from "./ollama-review.mjs";
 import {
@@ -22,11 +26,17 @@ import {
   saveRandomHistory,
 } from "./radiopaedia.mjs";
 import { parseCaseRequest } from "./request-parser.mjs";
-import { collapseWhitespace, dedupe, formatTimestamp, slugify } from "./utils.mjs";
+import {
+  collapseWhitespace,
+  dedupe,
+  formatTimestamp,
+  slugify,
+} from "./utils.mjs";
 import { radiopaediaProvider } from "./providers/radiopaedia-provider.mjs";
 
 const RESOURCE_ROOT =
-  process.env.RADIOLOGY_PPT_RESOURCE_ROOT || path.resolve(fileURLToPath(new URL("..", import.meta.url)));
+  process.env.RADIOLOGY_PPT_RESOURCE_ROOT ||
+  path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const APP_ROOT = process.env.RADIOLOGY_PPT_APP_ROOT || RESOURCE_ROOT;
 const RANDOM_PREPARE_FALLBACK_ATTEMPTS = boundedInteger(
   process.env.RADIOLOGY_PPT_RANDOM_PREPARE_FALLBACK_ATTEMPTS,
@@ -40,7 +50,12 @@ const RANDOM_PREPARE_REPLACEMENT_ATTEMPTS = boundedInteger(
   0,
   40,
 );
-const CORE_REVIEW_PREPARE_BATCH_SIZE = boundedInteger(process.env.RADIOLOGY_PPT_CORE_REVIEW_PREPARE_BATCH_SIZE, 6, 1, 30);
+const CORE_REVIEW_PREPARE_BATCH_SIZE = boundedInteger(
+  process.env.RADIOLOGY_PPT_CORE_REVIEW_PREPARE_BATCH_SIZE,
+  6,
+  1,
+  30,
+);
 const CORE_REVIEW_CANDIDATE_MULTIPLIER = boundedInteger(
   process.env.RADIOLOGY_PPT_CORE_REVIEW_CANDIDATE_MULTIPLIER,
   8,
@@ -53,7 +68,12 @@ const CORE_REVIEW_CASE_CANDIDATE_LIMIT = boundedInteger(
   3,
   20,
 );
-const CASE_PREPARE_CONCURRENCY = boundedInteger(process.env.RADIOLOGY_PPT_CASE_PREPARE_CONCURRENCY, 2, 1, 6);
+const CASE_PREPARE_CONCURRENCY = boundedInteger(
+  process.env.RADIOLOGY_PPT_CASE_PREPARE_CONCURRENCY,
+  2,
+  1,
+  6,
+);
 const CORE_REVIEW_DEFAULT_QUESTION_BANK_PATH = path.join(
   RESOURCE_ROOT,
   "src",
@@ -72,7 +92,11 @@ const CORE_REVIEW_LIBRARY_PDF_CORPUS_PATH = path.join(
   "board-review",
   "pdf-corpus.json",
 );
-const CORE_REVIEW_QUESTION_SOURCE_MODES = new Set(["bundled", "library", "question-bank"]);
+const CORE_REVIEW_QUESTION_SOURCE_MODES = new Set([
+  "bundled",
+  "library",
+  "question-bank",
+]);
 
 function boundedInteger(rawValue, defaultValue, minimum, maximum) {
   const parsed = Number.parseInt(rawValue ?? "", 10);
@@ -95,7 +119,9 @@ function standaloneQuestionTotal(counts = {}) {
   return normalized.nis + normalized.physics;
 }
 
-export function coreReviewStandaloneQuestionCountsForTotal(totalReviewItemCount) {
+export function coreReviewStandaloneQuestionCountsForTotal(
+  totalReviewItemCount,
+) {
   const requestedTotal = boundedInteger(totalReviewItemCount, 50, 1, 150);
   if (requestedTotal < 4) {
     return { nis: 0, physics: 0 };
@@ -108,7 +134,13 @@ export function coreReviewStandaloneQuestionCountsForTotal(totalReviewItemCount)
 
 export function coreReviewCaseCountForTotal(totalReviewItemCount) {
   const requestedTotal = boundedInteger(totalReviewItemCount, 50, 1, 150);
-  return Math.max(1, requestedTotal - standaloneQuestionTotal(coreReviewStandaloneQuestionCountsForTotal(requestedTotal)));
+  return Math.max(
+    1,
+    requestedTotal -
+      standaloneQuestionTotal(
+        coreReviewStandaloneQuestionCountsForTotal(requestedTotal),
+      ),
+  );
 }
 
 async function buildDeck(options) {
@@ -158,38 +190,67 @@ export function normalizePreparedItems(payload) {
 
   return items
     .map((item) => ({
-      request: parseCaseRequest(item.request || item.entry || item.sourceRequest || item),
+      request: parseCaseRequest(
+        item.request || item.entry || item.sourceRequest || item,
+      ),
       caseData: item.caseData || item.case || item,
     }))
     .filter((item) => item.request?.rawInput && item.caseData?.caseTitle);
 }
 
-export async function prepareCaseItems(rawEntries, args, { readRandomHistory = true, writeRandomHistory = false } = {}) {
+export async function prepareCaseItems(
+  rawEntries,
+  args,
+  { readRandomHistory = true, writeRandomHistory = false } = {},
+) {
   emitProgress("Normalizing case requests");
   let entries = normalizeCaseRequestEntries(rawEntries).map((entry) =>
     parseCaseRequest({
       ...entry,
       includeClinicalHistory: Boolean(args.useClinicalHistory),
       useOllamaAssist: Boolean(args.useOllamaAssist || entry.useOllamaAssist),
-      ollamaModel: collapseWhitespace(args.ollamaModel || entry.ollamaModel || ""),
+      ollamaModel: collapseWhitespace(
+        args.ollamaModel || entry.ollamaModel || "",
+      ),
     }),
   );
-  entries = await withBackendStage("case request expansion", { inputCount: entries.length }, () =>
-    expandCaseRequests(entries, {
-      readRandomHistory,
-      writeRandomHistory,
-      allowRandomHistoryFallback: args.onlyNewRandomCases === false,
-    }),
+  entries = await withBackendStage(
+    "case request expansion",
+    { inputCount: entries.length },
+    () =>
+      expandCaseRequests(entries, {
+        readRandomHistory,
+        writeRandomHistory,
+        allowRandomHistoryFallback: args.onlyNewRandomCases === false,
+      }),
   );
   emitProgress("Preparing case previews", { requestCount: entries.length });
 
   const cacheDir = path.join(APP_ROOT, "cache");
-  const prepareConcurrency = boundedInteger(args.casePrepareConcurrency, CASE_PREPARE_CONCURRENCY, 1, 6);
-  const preparedResults = await withBackendStage("case preview preparation", { requestCount: entries.length }, () =>
-    mapWithConcurrency(entries, prepareConcurrency, (entry) => prepareEntry(entry, args, cacheDir)),
+  const prepareConcurrency = boundedInteger(
+    args.casePrepareConcurrency,
+    CASE_PREPARE_CONCURRENCY,
+    1,
+    6,
   );
-  const uniqueResults = await withBackendStage("duplicate random case check", { requestCount: preparedResults.length }, () =>
-    replaceDuplicateRandomPreparedResults(preparedResults, entries, args, cacheDir),
+  const preparedResults = await withBackendStage(
+    "case preview preparation",
+    { requestCount: entries.length },
+    () =>
+      mapWithConcurrency(entries, prepareConcurrency, (entry) =>
+        prepareEntry(entry, args, cacheDir),
+      ),
+  );
+  const uniqueResults = await withBackendStage(
+    "duplicate random case check",
+    { requestCount: preparedResults.length },
+    () =>
+      replaceDuplicateRandomPreparedResults(
+        preparedResults,
+        entries,
+        args,
+        cacheDir,
+      ),
   );
   const items = uniqueResults.map((result) => result.item).filter(Boolean);
   if (writeRandomHistory) {
@@ -215,12 +276,25 @@ export async function prepareCases(entries, args) {
 
 export async function prepareCoreReviewDeck(args) {
   emitProgress("Planning Core Review case requests");
-  const requestedReviewItemCount = boundedInteger(args.caseCount || args.count, 50, 1, 150);
-  const standaloneQuestionCounts = coreReviewStandaloneQuestionCountsForTotal(requestedReviewItemCount);
-  const requestedCaseCount = coreReviewCaseCountForTotal(requestedReviewItemCount);
+  const requestedReviewItemCount = boundedInteger(
+    args.caseCount || args.count,
+    50,
+    1,
+    150,
+  );
+  const standaloneQuestionCounts = coreReviewStandaloneQuestionCountsForTotal(
+    requestedReviewItemCount,
+  );
+  const requestedCaseCount = coreReviewCaseCountForTotal(
+    requestedReviewItemCount,
+  );
   const candidateCaseCount = Math.min(
     300,
-    Math.max(requestedCaseCount, requestedCaseCount * CORE_REVIEW_CANDIDATE_MULTIPLIER, requestedCaseCount + 120),
+    Math.max(
+      requestedCaseCount,
+      requestedCaseCount * CORE_REVIEW_CANDIDATE_MULTIPLIER,
+      requestedCaseCount + 120,
+    ),
   );
   const plan = await buildCoreReviewCasePlan({
     ...args,
@@ -243,7 +317,8 @@ export async function prepareCoreReviewDeck(args) {
     {
       ...args,
       onlyNewRandomCases: args.onlyNewRandomCases !== false,
-      caseCandidateLimit: args.caseCandidateLimit || CORE_REVIEW_CASE_CANDIDATE_LIMIT,
+      caseCandidateLimit:
+        args.caseCandidateLimit || CORE_REVIEW_CASE_CANDIDATE_LIMIT,
       casePrepareConcurrency: args.casePrepareConcurrency || 1,
     },
     requestedCaseCount,
@@ -269,14 +344,26 @@ async function prepareCoreReviewCaseItems(entries, args, requestedCaseCount) {
   const attemptedEntries = [];
   const usedCasePaths = new Set();
 
-  for (let index = 0; index < entries.length && items.length < requestedCaseCount; index += CORE_REVIEW_PREPARE_BATCH_SIZE) {
-    const batch = entries.slice(index, index + CORE_REVIEW_PREPARE_BATCH_SIZE).map((entry) =>
-      parseCaseRequest({
-        ...entry,
-        caseCandidateLimit: entry.caseCandidateLimit || args.caseCandidateLimit || CORE_REVIEW_CASE_CANDIDATE_LIMIT,
-        excludeCasePaths: dedupe([...(entry.excludeCasePaths || []), ...usedCasePaths]),
-      }),
-    );
+  for (
+    let index = 0;
+    index < entries.length && items.length < requestedCaseCount;
+    index += CORE_REVIEW_PREPARE_BATCH_SIZE
+  ) {
+    const batch = entries
+      .slice(index, index + CORE_REVIEW_PREPARE_BATCH_SIZE)
+      .map((entry) =>
+        parseCaseRequest({
+          ...entry,
+          caseCandidateLimit:
+            entry.caseCandidateLimit ||
+            args.caseCandidateLimit ||
+            CORE_REVIEW_CASE_CANDIDATE_LIMIT,
+          excludeCasePaths: dedupe([
+            ...(entry.excludeCasePaths || []),
+            ...usedCasePaths,
+          ]),
+        }),
+      );
     attemptedEntries.push(...batch);
     emitProgress("Preparing Core Review candidate batch", {
       targetCaseCount: requestedCaseCount,
@@ -293,13 +380,19 @@ async function prepareCoreReviewCaseItems(entries, args, requestedCaseCount) {
     candidateFailures.push(...prepared.failures);
 
     for (const item of prepared.items) {
-      const casePath = normalizedCasePath(item.caseData?.casePath || item.request?.selectedCasePath || "");
+      const casePath = normalizedCasePath(
+        item.caseData?.casePath || item.request?.selectedCasePath || "",
+      );
       if (casePath && usedCasePaths.has(casePath)) {
-        const title = item.caseData?.caseTitle || item.request?.rawInput || casePath;
-        emitWarning("Duplicate Core Review case skipped while filling requested count", {
-          caseTitle: title,
-          casePath,
-        });
+        const title =
+          item.caseData?.caseTitle || item.request?.rawInput || casePath;
+        emitWarning(
+          "Duplicate Core Review case skipped while filling requested count",
+          {
+            caseTitle: title,
+            casePath,
+          },
+        );
         failures.push(`Skipped duplicate Core Review case "${title}".`);
         continue;
       }
@@ -315,11 +408,14 @@ async function prepareCoreReviewCaseItems(entries, args, requestedCaseCount) {
   }
 
   if (items.length < requestedCaseCount) {
-    emitWarning("Core Review prepared fewer cases than requested after exhausting the candidate pool", {
-      requestedCaseCount,
-      preparedCaseCount: items.length,
-      candidatePoolSize: entries.length,
-    });
+    emitWarning(
+      "Core Review prepared fewer cases than requested after exhausting the candidate pool",
+      {
+        requestedCaseCount,
+        preparedCaseCount: items.length,
+        candidatePoolSize: entries.length,
+      },
+    );
     failures.push(
       `Core Review prepared ${items.length} of ${requestedCaseCount} requested case(s) after trying ${attemptedEntries.length} candidate request(s). ${candidateFailures.slice(0, 3).join(" ")}`,
     );
@@ -363,10 +459,19 @@ export async function renderPowerPoint(payload, args) {
   const stamp = formatTimestamp();
   const fileStem = `${slugify(deckTitle) || "radiology-case-deck"}-${stamp}`;
   const outputPath = ensurePptxPath(
-    path.resolve(args.out || path.join(APP_ROOT, "outputs", `${fileStem}.pptx`)),
+    path.resolve(
+      args.out || path.join(APP_ROOT, "outputs", `${fileStem}.pptx`),
+    ),
   );
-  const manifestPath = path.join(path.dirname(outputPath), `${path.parse(outputPath).name}.json`);
-  const scratchDir = path.join(APP_ROOT, "scratch", path.parse(outputPath).name);
+  const manifestPath = path.join(
+    path.dirname(outputPath),
+    `${path.parse(outputPath).name}.json`,
+  );
+  const scratchDir = path.join(
+    APP_ROOT,
+    "scratch",
+    path.parse(outputPath).name,
+  );
   const deckMode = args.deckMode || "case-conference";
   const coreReviewQuestions =
     deckMode === "core-review"
@@ -380,18 +485,21 @@ export async function renderPowerPoint(payload, args) {
     "utf8",
   );
 
-  const result = await withBackendStage("PowerPoint render", { caseCount: cases.length, outputPath }, () =>
-    buildDeck({
-      cases,
-      deckTitle,
-      outputPath,
-      scratchDir,
-      deckMode,
-      coreReviewQuestions,
-      coreReviewCaseBankPath: args.caseBankPath || "",
-      theme: args.theme || "classic",
-      includeTeachingPoints: Boolean(args.includeTeachingPoints),
-    }),
+  const result = await withBackendStage(
+    "PowerPoint render",
+    { caseCount: cases.length, outputPath },
+    () =>
+      buildDeck({
+        cases,
+        deckTitle,
+        outputPath,
+        scratchDir,
+        deckMode,
+        coreReviewQuestions,
+        coreReviewCaseBankPath: args.caseBankPath || "",
+        theme: args.theme || "classic",
+        includeTeachingPoints: Boolean(args.includeTeachingPoints),
+      }),
   );
 
   emitProgress("PowerPoint render complete", { outputPath: result.outputPath });
@@ -407,7 +515,9 @@ export function getCoreReviewSchema() {
 }
 
 export async function ingestCoreReviewTextFiles(inputPaths, args) {
-  emitProgress("Importing Core Review text sources", { sourceCount: inputPaths.length });
+  emitProgress("Importing Core Review text sources", {
+    sourceCount: inputPaths.length,
+  });
   const outputPath = path.resolve(
     args.out || path.join(APP_ROOT, "library", "board-review", "corpus.json"),
   );
@@ -421,9 +531,12 @@ export async function ingestCoreReviewTextFiles(inputPaths, args) {
 }
 
 export async function ingestCoreReviewPdfFiles(inputPaths, args) {
-  emitProgress("Importing Core Boards PDFs", { sourceCount: inputPaths.length });
+  emitProgress("Importing Core Boards PDFs", {
+    sourceCount: inputPaths.length,
+  });
   const outputPath = path.resolve(
-    args.out || path.join(APP_ROOT, "library", "board-review", "pdf-corpus.json"),
+    args.out ||
+      path.join(APP_ROOT, "library", "board-review", "pdf-corpus.json"),
   );
   return ingestCoreReviewPdfs(inputPaths, {
     outputPath,
@@ -479,26 +592,43 @@ async function prepareEntry(entry, args, cacheDir) {
       fetchRadiopaediaCase(entry, {
         cacheDir,
         imagesPerCase: entry.requestedImagesPerCase || args.imagesPerCase,
-        maxFallbackAttempts: isRandomPreparedRequest(entry) ? RANDOM_PREPARE_FALLBACK_ATTEMPTS : null,
-        candidateLimit: entry.caseCandidateLimit || args.caseCandidateLimit || 6,
+        maxFallbackAttempts: isRandomPreparedRequest(entry)
+          ? RANDOM_PREPARE_FALLBACK_ATTEMPTS
+          : null,
+        candidateLimit:
+          entry.caseCandidateLimit || args.caseCandidateLimit || 6,
         acceptFirstUsable: isCoreReviewCandidate,
       });
-    const caseData = await withBackendStage("case preparation", { request: entry.rawInput }, fetchCase, {
-      errorType: isCoreReviewCandidate ? "progress" : "stage-error",
-      errorVerb: isCoreReviewCandidate ? "Skipped" : "Failed",
-    });
+    const caseData = await withBackendStage(
+      "case preparation",
+      { request: entry.rawInput },
+      fetchCase,
+      {
+        errorType: isCoreReviewCandidate ? "progress" : "stage-error",
+        errorVerb: isCoreReviewCandidate ? "Skipped" : "Failed",
+      },
+    );
     await recordCaseIndex({
       caseData,
       request: entry,
       source: isRandomPreparedRequest(entry) ? "random" : "specific",
     });
-    emitProgress("Prepared case", { request: entry.rawInput, caseTitle: caseData.caseTitle });
+    emitProgress("Prepared case", {
+      request: entry.rawInput,
+      caseTitle: caseData.caseTitle,
+    });
     return { item: { request: entry, caseData }, failure: null };
   } catch (error) {
     if (isCoreReviewCandidate) {
-      emitProgress("Skipped Core Review candidate", { request: entry.rawInput, reason: error.message });
+      emitProgress("Skipped Core Review candidate", {
+        request: entry.rawInput,
+        reason: error.message,
+      });
     } else {
-      emitWarning("Case preparation failed", { request: entry.rawInput, error: error.message });
+      emitWarning("Case preparation failed", {
+        request: entry.rawInput,
+        error: error.message,
+      });
     }
     return {
       item: null,
@@ -541,11 +671,22 @@ function retryEntryForDuplicateRandomCase(request, excludedPaths) {
   });
 }
 
-async function prepareReplacementRandomCase(request, excludedPaths, args, cacheDir) {
-  let exclusions = dedupe(excludedPaths.map((value) => normalizedCasePath(value)).filter(Boolean));
+async function prepareReplacementRandomCase(
+  request,
+  excludedPaths,
+  args,
+  cacheDir,
+) {
+  let exclusions = dedupe(
+    excludedPaths.map((value) => normalizedCasePath(value)).filter(Boolean),
+  );
   let lastFailure = null;
 
-  for (let attempt = 1; attempt <= RANDOM_PREPARE_REPLACEMENT_ATTEMPTS; attempt += 1) {
+  for (
+    let attempt = 1;
+    attempt <= RANDOM_PREPARE_REPLACEMENT_ATTEMPTS;
+    attempt += 1
+  ) {
     const retrySeed = retryEntryForDuplicateRandomCase(request, exclusions);
     let retryEntries = [];
     try {
@@ -560,7 +701,9 @@ async function prepareReplacementRandomCase(request, excludedPaths, args, cacheD
     }
 
     const retryEntry = retryEntries[0];
-    const retryCasePath = normalizedCasePath(retryEntry?.selectedCasePath || "");
+    const retryCasePath = normalizedCasePath(
+      retryEntry?.selectedCasePath || "",
+    );
     if (!retryEntry || !retryCasePath || exclusions.includes(retryCasePath)) {
       lastFailure = "No unused replacement random case was found.";
       if (retryCasePath) {
@@ -576,7 +719,9 @@ async function prepareReplacementRandomCase(request, excludedPaths, args, cacheD
       title: retryEntry.selectedCaseTitle,
     });
     const retry = await prepareEntry(retryEntry, args, cacheDir);
-    const preparedPath = normalizedCasePath(retry.item?.caseData?.casePath || retryEntry.selectedCasePath);
+    const preparedPath = normalizedCasePath(
+      retry.item?.caseData?.casePath || retryEntry.selectedCasePath,
+    );
     if (retry.item && preparedPath && !exclusions.includes(preparedPath)) {
       return retry;
     }
@@ -584,7 +729,9 @@ async function prepareReplacementRandomCase(request, excludedPaths, args, cacheD
     lastFailure =
       retry.failure ||
       `Replacement random case "${retryEntry.selectedCaseTitle || retryEntry.selectedCasePath}" could not be prepared.`;
-    exclusions = dedupe([...exclusions, retryCasePath, preparedPath].filter(Boolean));
+    exclusions = dedupe(
+      [...exclusions, retryCasePath, preparedPath].filter(Boolean),
+    );
   }
 
   return {
@@ -593,7 +740,12 @@ async function prepareReplacementRandomCase(request, excludedPaths, args, cacheD
   };
 }
 
-async function replaceDuplicateRandomPreparedResults(preparedResults, entries, args, cacheDir) {
+async function replaceDuplicateRandomPreparedResults(
+  preparedResults,
+  entries,
+  args,
+  cacheDir,
+) {
   const uniqueResults = [];
   const usedCasePaths = new Set();
   const unavailableCasePaths = new Set();
@@ -618,11 +770,21 @@ async function replaceDuplicateRandomPreparedResults(preparedResults, entries, a
           .map((value) => normalizedCasePath(value))
           .filter(Boolean),
       );
-      result = await prepareReplacementRandomCase(request, excludedPaths, args, cacheDir);
+      result = await prepareReplacementRandomCase(
+        request,
+        excludedPaths,
+        args,
+        cacheDir,
+      );
       casePath = normalizedCasePath(result.item?.caseData?.casePath || "");
     }
 
-    if (result.item && casePath && usedCasePaths.has(casePath) && isRandomPreparedRequest(request)) {
+    if (
+      result.item &&
+      casePath &&
+      usedCasePaths.has(casePath) &&
+      isRandomPreparedRequest(request)
+    ) {
       emitWarning("Duplicate random case detected; looking for an alternate", {
         request: request.rawInput,
         duplicateCasePath: casePath,
@@ -638,17 +800,27 @@ async function replaceDuplicateRandomPreparedResults(preparedResults, entries, a
           .map((value) => normalizedCasePath(value))
           .filter(Boolean),
       );
-      const retry = await prepareReplacementRandomCase(request, excludedPaths, args, cacheDir);
-      const retryCasePath = normalizedCasePath(retry.item?.caseData?.casePath || "");
+      const retry = await prepareReplacementRandomCase(
+        request,
+        excludedPaths,
+        args,
+        cacheDir,
+      );
+      const retryCasePath = normalizedCasePath(
+        retry.item?.caseData?.casePath || "",
+      );
 
       if (retry.item && retryCasePath && !usedCasePaths.has(retryCasePath)) {
         result = retry;
         casePath = retryCasePath;
       } else {
-        emitWarning("No unique alternate random case was available; dropping duplicate case", {
-          request: request.rawInput,
-          duplicateCasePath: casePath,
-        });
+        emitWarning(
+          "No unique alternate random case was available; dropping duplicate case",
+          {
+            request: request.rawInput,
+            duplicateCasePath: casePath,
+          },
+        );
         uniqueResults.push({
           item: null,
           failure: `Skipped duplicate random case "${result.item.caseData.caseTitle}" because no unique alternate was available.`,
@@ -672,7 +844,12 @@ async function replaceDuplicateRandomPreparedResults(preparedResults, entries, a
 
 async function rememberRandomHistoryFromPreparedItems(items) {
   const casePaths = items
-    .filter((item) => item.request?.originalInput || item.request?.randomQuery || item.request?.randomSystems?.length)
+    .filter(
+      (item) =>
+        item.request?.originalInput ||
+        item.request?.randomQuery ||
+        item.request?.randomSystems?.length,
+    )
     .map((item) => item.caseData?.casePath || item.request?.selectedCasePath)
     .filter(Boolean);
 
@@ -709,10 +886,26 @@ function normalizeCoreReviewQuestionSource(value) {
   if (["bundled", "bundled-free", "default", "free"].includes(normalized)) {
     return "bundled";
   }
-  if (["library", "imported-library", "imported", "local-library", "corpus"].includes(normalized)) {
+  if (
+    [
+      "library",
+      "imported-library",
+      "imported",
+      "local-library",
+      "corpus",
+    ].includes(normalized)
+  ) {
     return "library";
   }
-  if (["question-bank", "question_bank", "json", "custom-bank", "custom-json"].includes(normalized)) {
+  if (
+    [
+      "question-bank",
+      "question_bank",
+      "json",
+      "custom-bank",
+      "custom-json",
+    ].includes(normalized)
+  ) {
     return "question-bank";
   }
   return "";
@@ -729,7 +922,9 @@ async function pathExists(targetPath) {
 
 async function tryLoadDefaultCoreReviewQuestionBank() {
   try {
-    return await loadCoreReviewQuestionBank(CORE_REVIEW_DEFAULT_QUESTION_BANK_PATH);
+    return await loadCoreReviewQuestionBank(
+      CORE_REVIEW_DEFAULT_QUESTION_BANK_PATH,
+    );
   } catch (error) {
     emitWarning("Bundled Core Review question bank could not be loaded", {
       questionBankPath: CORE_REVIEW_DEFAULT_QUESTION_BANK_PATH,
@@ -761,13 +956,20 @@ function resolveCoreReviewQuestionImage(question, questionBankPath) {
 
 function resolveCoreReviewQuestionBankSource(args = {}) {
   const requestedSource = normalizeCoreReviewQuestionSource(
-    args.coreReviewQuestionSource || process.env.RADIOLOGY_PPT_CORE_REVIEW_QUESTION_SOURCE || "",
+    args.coreReviewQuestionSource ||
+      process.env.RADIOLOGY_PPT_CORE_REVIEW_QUESTION_SOURCE ||
+      "",
   );
   const questionBankPath = collapseWhitespace(
-    args.coreReviewQuestionBankPath || process.env.RADIOLOGY_PPT_CORE_REVIEW_QUESTION_BANK || "",
+    args.coreReviewQuestionBankPath ||
+      process.env.RADIOLOGY_PPT_CORE_REVIEW_QUESTION_BANK ||
+      "",
   );
 
-  if (requestedSource && CORE_REVIEW_QUESTION_SOURCE_MODES.has(requestedSource)) {
+  if (
+    requestedSource &&
+    CORE_REVIEW_QUESTION_SOURCE_MODES.has(requestedSource)
+  ) {
     return {
       source: requestedSource,
       questionBankPath,
@@ -802,7 +1004,9 @@ async function loadCoreReviewQuestionBankForRender(args = {}) {
       return tryLoadDefaultCoreReviewQuestionBank();
     }
     try {
-      const questionBank = await loadCoreReviewQuestionBank(resolved.questionBankPath);
+      const questionBank = await loadCoreReviewQuestionBank(
+        resolved.questionBankPath,
+      );
       return resolveLoadedQuestionBank(questionBank);
     } catch (error) {
       emitWarning("Core Review question bank could not be loaded", {
@@ -814,7 +1018,10 @@ async function loadCoreReviewQuestionBankForRender(args = {}) {
   }
 
   if (resolved.source === "library") {
-    const corpusPaths = [CORE_REVIEW_LIBRARY_TEXT_CORPUS_PATH, CORE_REVIEW_LIBRARY_PDF_CORPUS_PATH];
+    const corpusPaths = [
+      CORE_REVIEW_LIBRARY_TEXT_CORPUS_PATH,
+      CORE_REVIEW_LIBRARY_PDF_CORPUS_PATH,
+    ];
     const existingPaths = [];
     for (const corpusPath of corpusPaths) {
       if (await pathExists(corpusPath)) {
@@ -822,22 +1029,30 @@ async function loadCoreReviewQuestionBankForRender(args = {}) {
       }
     }
     if (!existingPaths.length) {
-      emitWarning("No imported Core Review sources were found; falling back to bundled questions", {
-        expectedPaths: corpusPaths,
-      });
+      emitWarning(
+        "No imported Core Review sources were found; falling back to bundled questions",
+        {
+          expectedPaths: corpusPaths,
+        },
+      );
       return tryLoadDefaultCoreReviewQuestionBank();
     }
 
     try {
-      const corpora = await Promise.all(existingPaths.map((corpusPath) => loadCoreReviewCorpus(corpusPath)));
+      const corpora = await Promise.all(
+        existingPaths.map((corpusPath) => loadCoreReviewCorpus(corpusPath)),
+      );
       const mergedCorpus = mergeCoreReviewCorpora(corpora);
       const questionBank = buildCoreReviewQuestionBankFromCorpus(mergedCorpus, {
         title: "Imported Core Review Sources",
       });
       if (!questionBank.questions.length) {
-        emitWarning("Imported Core Review sources did not yield usable review questions", {
-          corpusPaths: existingPaths,
-        });
+        emitWarning(
+          "Imported Core Review sources did not yield usable review questions",
+          {
+            corpusPaths: existingPaths,
+          },
+        );
         return tryLoadDefaultCoreReviewQuestionBank();
       }
       return questionBank;
@@ -864,7 +1079,13 @@ function pickStandaloneDomainQuestions(questionBank, domain, count, seed) {
   }).questions;
 }
 
-function supplementStandaloneDomainQuestions(primary, fallback, domain, count, seed) {
+function supplementStandaloneDomainQuestions(
+  primary,
+  fallback,
+  domain,
+  count,
+  seed,
+) {
   const selected = pickStandaloneDomainQuestions(primary, domain, count, seed);
   if (selected.length >= count || !fallback || fallback === primary) {
     return selected;
@@ -874,7 +1095,9 @@ function supplementStandaloneDomainQuestions(primary, fallback, domain, count, s
   const fallbackQuestions = pickStandaloneDomainQuestions(
     {
       ...fallback,
-      questions: fallback.questions.filter((question) => !excludedIds.has(question.id)),
+      questions: fallback.questions.filter(
+        (question) => !excludedIds.has(question.id),
+      ),
     },
     domain,
     count - selected.length,
@@ -883,7 +1106,11 @@ function supplementStandaloneDomainQuestions(primary, fallback, domain, count, s
   return [...selected, ...fallbackQuestions];
 }
 
-async function selectCoreReviewStandaloneQuestions(cases, deckTitle, args = {}) {
+async function selectCoreReviewStandaloneQuestions(
+  cases,
+  deckTitle,
+  args = {},
+) {
   const questionBank = await loadCoreReviewQuestionBankForRender(args);
   if (!questionBank?.questions?.length) {
     return [];
@@ -894,11 +1121,15 @@ async function selectCoreReviewStandaloneQuestions(cases, deckTitle, args = {}) 
       : await tryLoadDefaultCoreReviewQuestionBank();
   const seedBase = [
     deckTitle,
-    ...cases.map((caseData) => caseData.casePath || caseData.caseTitle || caseData.rawInput || ""),
+    ...cases.map(
+      (caseData) =>
+        caseData.casePath || caseData.caseTitle || caseData.rawInput || "",
+    ),
   ]
     .filter(Boolean)
     .join("|");
-  const standaloneQuestionCounts = standaloneQuestionCountsFromPreparedCases(cases);
+  const standaloneQuestionCounts =
+    standaloneQuestionCountsFromPreparedCases(cases);
 
   return [
     ...supplementStandaloneDomainQuestions(
@@ -958,7 +1189,9 @@ function scheduleFallbackCasePrefetch(items) {
   setTimeout(async () => {
     for (const casePath of fallbackPaths) {
       try {
-        await radiopaediaProvider.fetchText(radiopaediaProvider.absoluteUrl(casePath));
+        await radiopaediaProvider.fetchText(
+          radiopaediaProvider.absoluteUrl(casePath),
+        );
       } catch {
         // Background cache warming must never affect the foreground review workflow.
       }
@@ -1008,7 +1241,9 @@ function toManifest(cases, entries, deckTitle, deckMode) {
       caseIntro: caseData.caseIntro,
       teachingPoints: caseData.teachingPoints || [],
       quality: caseData.quality,
-      imageCandidateCount: Array.isArray(caseData.imageCandidateBank) ? caseData.imageCandidateBank.length : null,
+      imageCandidateCount: Array.isArray(caseData.imageCandidateBank)
+        ? caseData.imageCandidateBank.length
+        : null,
       images: caseData.images.map((image) => ({
         label: image.label,
         url: image.url,

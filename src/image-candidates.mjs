@@ -18,9 +18,17 @@ export function buildImageCandidates(study) {
       continue;
     }
 
-    const currentIndex = Math.max(0, frames.findIndex((frame) => frame?.current));
-    const keyImageIndex = frames.findIndex((frame) => frame?.id === study.case_key_image_id);
-    const annotationIndices = extractSeriesAnnotationIndices(series, usableLength);
+    const currentIndex = Math.max(
+      0,
+      frames.findIndex((frame) => frame?.current),
+    );
+    const keyImageIndex = frames.findIndex(
+      (frame) => frame?.id === study.case_key_image_id,
+    );
+    const annotationIndices = extractSeriesAnnotationIndices(
+      series,
+      usableLength,
+    );
     const candidateIndices = buildRelevantFrameIndices({
       usableLength,
       currentIndex,
@@ -40,7 +48,8 @@ export function buildImageCandidates(study) {
 
       const annotationDistance = nearestDistance(index, annotationIndices);
       const isAnnotated = annotationIndices.includes(index);
-      const isKeyImage = Number.isInteger(keyImageIndex) && index === keyImageIndex;
+      const isKeyImage =
+        Number.isInteger(keyImageIndex) && index === keyImageIndex;
       const isCurrent = index === currentIndex;
       const focusPoints = extractFrameFocusPoints(series, index);
       const relevance = computeFrameRelevanceAudit({
@@ -53,13 +62,17 @@ export function buildImageCandidates(study) {
       });
       candidates.push({
         url: `${IMAGE_BASE_URL}/${frame.id}/${fileName}`,
-        label: [study.modality, series.specifics, series.perspective].filter(Boolean).join(" • "),
+        label: [study.modality, series.specifics, series.perspective]
+          .filter(Boolean)
+          .join(" • "),
         studyId: study.id,
         seriesId: series.series_id,
         modality: study.modality,
         frameId: frame.id,
         sliceIndex: index,
-        viewSignature: [series.specifics, series.perspective].filter(Boolean).join(" • "),
+        viewSignature: [series.specifics, series.perspective]
+          .filter(Boolean)
+          .join(" • "),
         annotationDistance,
         hasSeriesAnnotations: annotationIndices.length > 0,
         isAnnotated,
@@ -81,7 +94,9 @@ export function buildImageCandidates(study) {
     }
   }
 
-  return dedupe(candidates.map((candidate) => JSON.stringify(candidate))).map((value) => JSON.parse(value));
+  return dedupe(candidates.map((candidate) => JSON.stringify(candidate))).map(
+    (value) => JSON.parse(value),
+  );
 }
 
 function extractFrameFocusPoints(series, frameIndex) {
@@ -112,17 +127,26 @@ function extractFrameFocusPoints(series, frameIndex) {
     }
   }
 
-  return points.filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
+  return points.filter(
+    (point) => Number.isFinite(point.x) && Number.isFinite(point.y),
+  );
 }
 
 function extractSeriesAnnotationIndices(series, usableLength) {
   return dedupe(
     (series.annotations ?? [])
       .flatMap((annotation) => [
-        ...(annotation.label_positions ?? []).map((position) => position?.slice_idx),
-        ...(annotation.arrow_positions ?? []).map((position) => position?.slice_idx),
+        ...(annotation.label_positions ?? []).map(
+          (position) => position?.slice_idx,
+        ),
+        ...(annotation.arrow_positions ?? []).map(
+          (position) => position?.slice_idx,
+        ),
       ])
-      .filter((value) => Number.isInteger(value) && value >= 0 && value < usableLength),
+      .filter(
+        (value) =>
+          Number.isInteger(value) && value >= 0 && value < usableLength,
+      ),
   ).sort((left, right) => left - right);
 }
 
@@ -133,23 +157,33 @@ function nearestDistance(index, targets) {
   return Math.min(...targets.map((target) => Math.abs(target - index)));
 }
 
-function buildRelevantFrameIndices({ usableLength, currentIndex, keyImageIndex, annotationIndices, studyHasAnnotations }) {
+function buildRelevantFrameIndices({
+  usableLength,
+  currentIndex,
+  keyImageIndex,
+  annotationIndices,
+  studyHasAnnotations,
+}) {
   const indices = [];
 
   if (annotationIndices.length) {
     indices.push(...annotationIndices);
-    if (Number.isInteger(keyImageIndex) && keyImageIndex >= 0 && annotationIndices.includes(keyImageIndex)) {
+    if (
+      Number.isInteger(keyImageIndex) &&
+      keyImageIndex >= 0 &&
+      annotationIndices.includes(keyImageIndex)
+    ) {
       indices.push(keyImageIndex);
     }
-    if (Number.isInteger(currentIndex) && currentIndex >= 0 && annotationIndices.includes(currentIndex)) {
+    if (
+      Number.isInteger(currentIndex) &&
+      currentIndex >= 0 &&
+      annotationIndices.includes(currentIndex)
+    ) {
       indices.push(currentIndex);
     }
   } else if (!studyHasAnnotations) {
-    indices.push(
-      currentIndex - 1,
-      currentIndex,
-      currentIndex + 1,
-    );
+    indices.push(currentIndex - 1, currentIndex, currentIndex + 1);
     if (Number.isInteger(keyImageIndex) && keyImageIndex >= 0) {
       indices.unshift(keyImageIndex);
     }
@@ -163,11 +197,20 @@ function buildRelevantFrameIndices({ usableLength, currentIndex, keyImageIndex, 
   }
 
   return dedupe(
-    indices.filter((value) => Number.isInteger(value) && value >= 0 && value < usableLength),
+    indices.filter(
+      (value) => Number.isInteger(value) && value >= 0 && value < usableLength,
+    ),
   );
 }
 
-function computeFrameRelevanceAudit({ index, currentIndex, keyImageIndex, annotationIndices, annotationDistance, studyHasAnnotations }) {
+function computeFrameRelevanceAudit({
+  index,
+  currentIndex,
+  keyImageIndex,
+  annotationIndices,
+  annotationDistance,
+  studyHasAnnotations,
+}) {
   let score = 0;
   const components = [];
   const reasons = [];
@@ -184,7 +227,8 @@ function computeFrameRelevanceAudit({ index, currentIndex, keyImageIndex, annota
     score += 160;
     components.push({ name: "key-image", value: 160 });
     reasons.push("matches Radiopaedia key image");
-    candidateSource = candidateSource === "annotation" ? "annotation-key-image" : "key-image";
+    candidateSource =
+      candidateSource === "annotation" ? "annotation-key-image" : "key-image";
   } else if (annotationDistance !== null) {
     const value = Math.max(0, 70 - annotationDistance * 30);
     score += value;
@@ -242,8 +286,14 @@ function pickDistinctImages(imageCandidates, desiredCount) {
     }
   };
 
-  pick((candidate) => candidate.relevantScore >= 150 && !usedSeries.has(candidate.seriesId));
-  pick((candidate) => candidate.relevantScore >= 150 && !usedViews.has(candidate.viewSignature));
+  pick(
+    (candidate) =>
+      candidate.relevantScore >= 150 && !usedSeries.has(candidate.seriesId),
+  );
+  pick(
+    (candidate) =>
+      candidate.relevantScore >= 150 && !usedViews.has(candidate.viewSignature),
+  );
   pick((candidate) => candidate.relevantScore >= 150);
   pick((candidate) => !usedSeries.has(candidate.seriesId));
   pick((candidate) => !usedViews.has(candidate.viewSignature));
@@ -252,26 +302,51 @@ function pickDistinctImages(imageCandidates, desiredCount) {
   return selected.slice(0, desiredCount);
 }
 
-export function selectRelevantImages(imageCandidates, desiredCount, { excludeFrameIds = [], includeFrameIds = [] } = {}) {
-  const excluded = new Set((excludeFrameIds ?? []).map((value) => String(value)));
+export function selectRelevantImages(
+  imageCandidates,
+  desiredCount,
+  { excludeFrameIds = [], includeFrameIds = [] } = {},
+) {
+  const excluded = new Set(
+    (excludeFrameIds ?? []).map((value) => String(value)),
+  );
   const candidatePool = excluded.size
-    ? imageCandidates.filter((candidate) => !excluded.has(String(candidate.frameId)))
+    ? imageCandidates.filter(
+        (candidate) => !excluded.has(String(candidate.frameId)),
+      )
     : imageCandidates;
-  const included = new Set((includeFrameIds ?? []).map((value) => String(value)).filter(Boolean));
+  const included = new Set(
+    (includeFrameIds ?? []).map((value) => String(value)).filter(Boolean),
+  );
   if (included.size) {
-    const requestedCandidates = candidatePool.filter((candidate) => included.has(String(candidate.frameId)));
-    const requestedSelection = pickDistinctImages(requestedCandidates, Math.min(desiredCount, requestedCandidates.length));
+    const requestedCandidates = candidatePool.filter((candidate) =>
+      included.has(String(candidate.frameId)),
+    );
+    const requestedSelection = pickDistinctImages(
+      requestedCandidates,
+      Math.min(desiredCount, requestedCandidates.length),
+    );
     if (requestedSelection.length >= desiredCount) {
-      return annotateSelections(requestedSelection.slice(0, desiredCount), "explicitly requested frame");
+      return annotateSelections(
+        requestedSelection.slice(0, desiredCount),
+        "explicitly requested frame",
+      );
     }
 
-    const selectedFrames = new Set(requestedSelection.map((candidate) => String(candidate.frameId)));
+    const selectedFrames = new Set(
+      requestedSelection.map((candidate) => String(candidate.frameId)),
+    );
     const remainingSelection = selectRelevantImages(
-      candidatePool.filter((candidate) => !selectedFrames.has(String(candidate.frameId))),
+      candidatePool.filter(
+        (candidate) => !selectedFrames.has(String(candidate.frameId)),
+      ),
       desiredCount - requestedSelection.length,
       { excludeFrameIds: [] },
     );
-    return annotateSelections([...requestedSelection, ...remainingSelection].slice(0, desiredCount), "explicitly requested plus ranked fill");
+    return annotateSelections(
+      [...requestedSelection, ...remainingSelection].slice(0, desiredCount),
+      "explicitly requested plus ranked fill",
+    );
   }
 
   const effectivePool = candidatePool;
@@ -279,18 +354,29 @@ export function selectRelevantImages(imageCandidates, desiredCount, { excludeFra
     return [];
   }
 
-  const annotatedCandidates = effectivePool.filter((candidate) => candidate.isAnnotated);
+  const annotatedCandidates = effectivePool.filter(
+    (candidate) => candidate.isAnnotated,
+  );
   if (annotatedCandidates.length) {
     return annotateSelections(
-      pickDistinctImages(annotatedCandidates, Math.min(desiredCount, annotatedCandidates.length)),
+      pickDistinctImages(
+        annotatedCandidates,
+        Math.min(desiredCount, annotatedCandidates.length),
+      ),
       "annotated frame",
     );
   }
 
   const strongCandidates = effectivePool.filter(
-    (candidate) => candidate.isKeyImage || candidate.isCurrent || candidate.relevantScore >= 40,
+    (candidate) =>
+      candidate.isKeyImage ||
+      candidate.isCurrent ||
+      candidate.relevantScore >= 40,
   );
-  const selected = pickDistinctImages(strongCandidates.length ? strongCandidates : effectivePool, desiredCount);
+  const selected = pickDistinctImages(
+    strongCandidates.length ? strongCandidates : effectivePool,
+    desiredCount,
+  );
 
   while (
     selected.length > 1 &&
@@ -301,7 +387,10 @@ export function selectRelevantImages(imageCandidates, desiredCount, { excludeFra
     selected.pop();
   }
 
-  return annotateSelections(selected.slice(0, desiredCount), "ranked relevance");
+  return annotateSelections(
+    selected.slice(0, desiredCount),
+    "ranked relevance",
+  );
 }
 
 function annotateSelections(images, reason) {
@@ -317,14 +406,26 @@ function annotateSelections(images, reason) {
   }));
 }
 
-export function explainImageSelection(image, selectedReason = "", selectedRank = null) {
-  const reasons = Array.isArray(image.audit?.reasons) ? image.audit.reasons : [];
-  const reasonText = dedupe([
-    collapseWhitespace(selectedReason),
-    ...reasons.map((reason) => collapseWhitespace(reason)),
-  ].filter(Boolean)).join("; ");
-  const score = Number.isFinite(image.relevantScore) ? `score ${Math.round(image.relevantScore)}` : "unscored";
-  const rankText = Number.isInteger(selectedRank) ? `rank ${selectedRank}, ` : "";
+export function explainImageSelection(
+  image,
+  selectedReason = "",
+  selectedRank = null,
+) {
+  const reasons = Array.isArray(image.audit?.reasons)
+    ? image.audit.reasons
+    : [];
+  const reasonText = dedupe(
+    [
+      collapseWhitespace(selectedReason),
+      ...reasons.map((reason) => collapseWhitespace(reason)),
+    ].filter(Boolean),
+  ).join("; ");
+  const score = Number.isFinite(image.relevantScore)
+    ? `score ${Math.round(image.relevantScore)}`
+    : "unscored";
+  const rankText = Number.isInteger(selectedRank)
+    ? `rank ${selectedRank}, `
+    : "";
   const source = collapseWhitespace(image.audit?.candidateSource || "");
   const sourceText = source ? ` from ${source}` : "";
   return collapseWhitespace(
@@ -333,9 +434,15 @@ export function explainImageSelection(image, selectedReason = "", selectedRank =
 }
 
 function explainImageCandidate(image) {
-  const reasons = Array.isArray(image.audit?.reasons) ? image.audit.reasons : [];
-  const reasonText = dedupe(reasons.map((reason) => collapseWhitespace(reason)).filter(Boolean)).join("; ");
-  const score = Number.isFinite(image.relevantScore) ? `score ${Math.round(image.relevantScore)}` : "unscored";
+  const reasons = Array.isArray(image.audit?.reasons)
+    ? image.audit.reasons
+    : [];
+  const reasonText = dedupe(
+    reasons.map((reason) => collapseWhitespace(reason)).filter(Boolean),
+  ).join("; ");
+  const score = Number.isFinite(image.relevantScore)
+    ? `score ${Math.round(image.relevantScore)}`
+    : "unscored";
   const source = collapseWhitespace(image.audit?.candidateSource || "");
   const sourceText = source ? ` from ${source}` : "";
   return collapseWhitespace(
@@ -353,14 +460,22 @@ function serializeImageCandidate(candidate) {
     modality: candidate.modality ?? null,
     plane: candidate.plane ?? "",
     sliceIndex: candidate.sliceIndex ?? null,
-    relevantScore: Number.isFinite(candidate.relevantScore) ? candidate.relevantScore : 0,
+    relevantScore: Number.isFinite(candidate.relevantScore)
+      ? candidate.relevantScore
+      : 0,
     isAnnotated: Boolean(candidate.isAnnotated),
     isKeyImage: Boolean(candidate.isKeyImage),
     isCurrent: Boolean(candidate.isCurrent),
     viewSignature: candidate.viewSignature || "",
-    focusPoints: Array.isArray(candidate.focusPoints) ? candidate.focusPoints : [],
-    selectionExplanation: candidate.selectionExplanation || explainImageCandidate(candidate),
-    audit: candidate.audit && typeof candidate.audit === "object" ? candidate.audit : {},
+    focusPoints: Array.isArray(candidate.focusPoints)
+      ? candidate.focusPoints
+      : [],
+    selectionExplanation:
+      candidate.selectionExplanation || explainImageCandidate(candidate),
+    audit:
+      candidate.audit && typeof candidate.audit === "object"
+        ? candidate.audit
+        : {},
   };
 }
 
@@ -369,7 +484,10 @@ export function normalizeImageCandidateBank(candidates) {
     return [];
   }
   return candidates
-    .filter((candidate) => candidate && typeof candidate === "object" && candidate.url)
+    .filter(
+      (candidate) =>
+        candidate && typeof candidate === "object" && candidate.url,
+    )
     .map((candidate) => ({
       ...serializeImageCandidate(candidate),
       localPath: undefined,
@@ -379,31 +497,65 @@ export function normalizeImageCandidateBank(candidates) {
 export function imageCandidateCacheKey(casePath, preferredModalities = []) {
   return {
     casePath: collapseWhitespace(casePath).replace(/\?.*$/, ""),
-    preferredModalities: dedupe((preferredModalities || []).map((value) => collapseWhitespace(value)).filter(Boolean)),
+    preferredModalities: dedupe(
+      (preferredModalities || [])
+        .map((value) => collapseWhitespace(value))
+        .filter(Boolean),
+    ),
   };
 }
 
 function imageStrengthScore(image) {
-  const ollamaBonus = Number.isFinite(image.ollamaScore) ? image.ollamaScore * 8 : 0;
-  return image.relevantScore + ollamaBonus + (image.isAnnotated ? 120 : 0) + (image.isKeyImage ? 40 : 0);
+  const ollamaBonus = Number.isFinite(image.ollamaScore)
+    ? image.ollamaScore * 8
+    : 0;
+  return (
+    image.relevantScore +
+    ollamaBonus +
+    (image.isAnnotated ? 120 : 0) +
+    (image.isKeyImage ? 40 : 0)
+  );
 }
 
-export function evaluateSelectedImages(images, requestedCount, difficulty = "") {
-  const strongImages = images.filter((image) => image.isAnnotated || image.isKeyImage || imageStrengthScore(image) >= 180);
-  const adequateImages = images.filter((image) => image.isAnnotated || image.isKeyImage || imageStrengthScore(image) >= 120);
+export function evaluateSelectedImages(
+  images,
+  requestedCount,
+  difficulty = "",
+) {
+  const strongImages = images.filter(
+    (image) =>
+      image.isAnnotated || image.isKeyImage || imageStrengthScore(image) >= 180,
+  );
+  const adequateImages = images.filter(
+    (image) =>
+      image.isAnnotated || image.isKeyImage || imageStrengthScore(image) >= 120,
+  );
   const warnings = [];
   const difficultyMode = normalizedDifficulty(difficulty);
 
   if (images.length < Math.min(requestedCount, 2)) {
-    warnings.push(`Only ${images.length} clearly relevant image${images.length === 1 ? "" : "s"} found.`);
+    warnings.push(
+      `Only ${images.length} clearly relevant image${images.length === 1 ? "" : "s"} found.`,
+    );
   }
   if (!adequateImages.length) {
-    warnings.push("Selected images do not convincingly show the relevant pathology.");
-  } else if (difficultyMode !== "hard" && requestedCount >= 3 && strongImages.length < 2) {
+    warnings.push(
+      "Selected images do not convincingly show the relevant pathology.",
+    );
+  } else if (
+    difficultyMode !== "hard" &&
+    requestedCount >= 3 &&
+    strongImages.length < 2
+  ) {
     warnings.push("The image set is still weak for a 3-image teaching slide.");
   }
-  if (difficultyMode === "easy" && strongImages.length < Math.min(requestedCount, 2)) {
-    warnings.push("Easy mode prefers cases with at least two very conspicuous teaching images.");
+  if (
+    difficultyMode === "easy" &&
+    strongImages.length < Math.min(requestedCount, 2)
+  ) {
+    warnings.push(
+      "Easy mode prefers cases with at least two very conspicuous teaching images.",
+    );
   }
 
   return {

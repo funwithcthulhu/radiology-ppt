@@ -10,10 +10,22 @@
       "cognitiveLevel": "patient_safety",
       "stem": "A resident identifies a near miss in which the wrong prior examination was almost compared before finalizing a report. Which response best supports a just-culture review?",
       "options": [
-        { "id": "A", "text": "Issue a private warning to the resident and close the event without discussion" },
-        { "id": "B", "text": "Conduct a de-identified review that looks for system contributors and shares lessons with the team" },
-        { "id": "C", "text": "Avoid documenting the event because no patient harm occurred" },
-        { "id": "D", "text": "Report the resident to the credentialing committee before any local review" }
+        {
+          "id": "A",
+          "text": "Issue a private warning to the resident and close the event without discussion"
+        },
+        {
+          "id": "B",
+          "text": "Conduct a de-identified review that looks for system contributors and shares lessons with the team"
+        },
+        {
+          "id": "C",
+          "text": "Avoid documenting the event because no patient harm occurred"
+        },
+        {
+          "id": "D",
+          "text": "Report the resident to the credentialing committee before any local review"
+        }
       ],
       "answerKey": "B",
       "explanation": "Near misses are most useful when reviewed in a structured, non-punitive way that looks for latent system causes and opportunities for safer workflow design.",
@@ -32,10 +44,22 @@
       "cognitiveLevel": "critical_results",
       "stem": "A chest radiograph obtained in the emergency department shows a new tension pneumothorax. What is the best next step for result communication?",
       "options": [
-        { "id": "A", "text": "Finalize the report promptly and rely on the electronic inbox" },
-        { "id": "B", "text": "Send a routine secure message to the ordering team" },
-        { "id": "C", "text": "Directly contact the responsible clinician immediately and document the communication" },
-        { "id": "D", "text": "Wait for a second attending to confirm the interpretation before notifying anyone" }
+        {
+          "id": "A",
+          "text": "Finalize the report promptly and rely on the electronic inbox"
+        },
+        {
+          "id": "B",
+          "text": "Send a routine secure message to the ordering team"
+        },
+        {
+          "id": "C",
+          "text": "Directly contact the responsible clinician immediately and document the communication"
+        },
+        {
+          "id": "D",
+          "text": "Wait for a second attending to confirm the interpretation before notifying anyone"
+        }
       ],
       "answerKey": "C",
       "explanation": "Unexpected, potentially life-threatening findings require direct, timely communication plus documentation that the message reached a responsible clinician.",
@@ -54,10 +78,19 @@
       "cognitiveLevel": "mri_safety",
       "stem": "A patient reports a prior intracranial aneurysm clip, but no operative record or implant card is available. Which action is most appropriate before MRI?",
       "options": [
-        { "id": "A", "text": "Proceed if the patient has previously undergone CT without issue" },
+        {
+          "id": "A",
+          "text": "Proceed if the patient has previously undergone CT without issue"
+        },
         { "id": "B", "text": "Proceed using a low-field-strength magnet only" },
-        { "id": "C", "text": "Delay the MRI until implant compatibility is verified through reliable documentation" },
-        { "id": "D", "text": "Proceed if a screening form was signed by the patient" }
+        {
+          "id": "C",
+          "text": "Delay the MRI until implant compatibility is verified through reliable documentation"
+        },
+        {
+          "id": "D",
+          "text": "Proceed if a screening form was signed by the patient"
+        }
       ],
       "answerKey": "C",
       "explanation": "Unknown implant compatibility is an MRI safety issue. Reliable documentation is needed before the patient enters the scanner environment.",
@@ -76,8 +109,14 @@
       "cognitiveLevel": "quality_improvement",
       "stem": "A department wants to track a process measure for a quality-improvement project focused on emergency department radiology workflow. Which metric is a process measure?",
       "options": [
-        { "id": "A", "text": "Mean time from image completion to final report for emergency department CT studies" },
-        { "id": "B", "text": "Five-year hospital mortality for all emergency department patients" },
+        {
+          "id": "A",
+          "text": "Mean time from image completion to final report for emergency department CT studies"
+        },
+        {
+          "id": "B",
+          "text": "Five-year hospital mortality for all emergency department patients"
+        },
         { "id": "C", "text": "Regional population life expectancy" },
         { "id": "D", "text": "Annual hospital operating margin" }
       ],
@@ -98,10 +137,19 @@
       "cognitiveLevel": "contrast_reaction",
       "stem": "A patient develops limited urticaria shortly after iodinated contrast administration but remains hemodynamically stable without respiratory symptoms. Which immediate management is most appropriate?",
       "options": [
-        { "id": "A", "text": "Recognize a mild reaction, assess for progression, and provide symptomatic treatment or observation as needed" },
+        {
+          "id": "A",
+          "text": "Recognize a mild reaction, assess for progression, and provide symptomatic treatment or observation as needed"
+        },
         { "id": "B", "text": "Initiate chest compressions immediately" },
-        { "id": "C", "text": "Send the patient home without assessment because hives are always self-limited" },
-        { "id": "D", "text": "Assume this is vasovagal syncope and place the patient in Trendelenburg position" }
+        {
+          "id": "C",
+          "text": "Send the patient home without assessment because hives are always self-limited"
+        },
+        {
+          "id": "D",
+          "text": "Assume this is vasovagal syncope and place the patient in Trendelenburg position"
+        }
       ],
       "answerKey": "A",
       "explanation": "Limited urticaria without cardiopulmonary compromise is typically managed as a mild contrast reaction with observation and symptom-based treatment.",
@@ -120,10 +168,22 @@
       "cognitiveLevel": "informatics",
       "stem": "Which workflow change most directly reduces the risk of reports being finalized on the wrong patient or wrong study?",
       "options": [
-        { "id": "A", "text": "Suppress patient identifiers on the reporting screen to reduce clutter" },
-        { "id": "B", "text": "Require active verification of patient and accession information before final signature" },
-        { "id": "C", "text": "Allow dictation to continue even after a study is switched in the PACS viewer" },
-        { "id": "D", "text": "Shorten all reports so fewer details are available for review" }
+        {
+          "id": "A",
+          "text": "Suppress patient identifiers on the reporting screen to reduce clutter"
+        },
+        {
+          "id": "B",
+          "text": "Require active verification of patient and accession information before final signature"
+        },
+        {
+          "id": "C",
+          "text": "Allow dictation to continue even after a study is switched in the PACS viewer"
+        },
+        {
+          "id": "D",
+          "text": "Shorten all reports so fewer details are available for review"
+        }
       ],
       "answerKey": "B",
       "explanation": "High-reliability workflow design uses deliberate patient-and-study verification steps at the point of interpretation and finalization.",
@@ -211,7 +271,10 @@
         { "id": "A", "text": "Lower the pulse repetition frequency" },
         { "id": "B", "text": "Increase the pulse repetition frequency" },
         { "id": "C", "text": "Increase transducer contact pressure only" },
-        { "id": "D", "text": "Switch from color Doppler to B-mode without changing any settings" }
+        {
+          "id": "D",
+          "text": "Switch from color Doppler to B-mode without changing any settings"
+        }
       ],
       "answerKey": "B",
       "explanation": "Raising the pulse repetition frequency increases the Nyquist limit and is one of the standard ways to reduce Doppler aliasing.",
@@ -251,9 +314,15 @@
       "stem": "What does the half-value layer of an x-ray beam represent?",
       "options": [
         { "id": "A", "text": "The tube current that doubles photon output" },
-        { "id": "B", "text": "The absorber thickness that reduces beam intensity to one half" },
+        {
+          "id": "B",
+          "text": "The absorber thickness that reduces beam intensity to one half"
+        },
         { "id": "C", "text": "The anode angle that eliminates heel effect" },
-        { "id": "D", "text": "The detector exposure needed to avoid quantum mottle" }
+        {
+          "id": "D",
+          "text": "The detector exposure needed to avoid quantum mottle"
+        }
       ],
       "answerKey": "B",
       "explanation": "Half-value layer is the thickness of specified absorbing material required to reduce x-ray beam intensity to 50 percent of its original value.",

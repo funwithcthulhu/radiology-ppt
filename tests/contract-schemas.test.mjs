@@ -16,7 +16,9 @@ function loadSchema(name) {
   return JSON.parse(fs.readFileSync(path.join(CONTRACT_DIR, name), "utf8"));
 }
 
-const schemas = Object.fromEntries(SCHEMA_NAMES.map((name) => [name, loadSchema(name)]));
+const schemas = Object.fromEntries(
+  SCHEMA_NAMES.map((name) => [name, loadSchema(name)]),
+);
 
 function resolveReference(reference, rootSchema) {
   if (reference.startsWith("#/")) {
@@ -40,7 +42,12 @@ function resolveReference(reference, rootSchema) {
 
 function validate(schema, value, location = "$", rootSchema = schema) {
   if (schema.$ref) {
-    return validate(resolveReference(schema.$ref, rootSchema), value, location, rootSchema);
+    return validate(
+      resolveReference(schema.$ref, rootSchema),
+      value,
+      location,
+      rootSchema,
+    );
   }
 
   if (schema.anyOf) {
@@ -59,19 +66,35 @@ function validate(schema, value, location = "$", rootSchema = schema) {
   if (schema.type) {
     const types = Array.isArray(schema.type) ? schema.type : [schema.type];
     if (!types.some((type) => matchesType(type, value))) {
-      throw new Error(`${location} expected ${types.join("|")} but got ${Array.isArray(value) ? "array" : typeof value}`);
+      throw new Error(
+        `${location} expected ${types.join("|")} but got ${Array.isArray(value) ? "array" : typeof value}`,
+      );
     }
   }
 
-  if (typeof value === "string" && schema.minLength && value.length < schema.minLength) {
-    throw new Error(`${location} must be at least ${schema.minLength} characters`);
+  if (
+    typeof value === "string" &&
+    schema.minLength &&
+    value.length < schema.minLength
+  ) {
+    throw new Error(
+      `${location} must be at least ${schema.minLength} characters`,
+    );
   }
 
-  if (Number.isInteger(value) && Number.isInteger(schema.minimum) && value < schema.minimum) {
+  if (
+    Number.isInteger(value) &&
+    Number.isInteger(schema.minimum) &&
+    value < schema.minimum
+  ) {
     throw new Error(`${location} must be >= ${schema.minimum}`);
   }
 
-  if (Number.isInteger(value) && Number.isInteger(schema.maximum) && value > schema.maximum) {
+  if (
+    Number.isInteger(value) &&
+    Number.isInteger(schema.maximum) &&
+    value > schema.maximum
+  ) {
     throw new Error(`${location} must be <= ${schema.maximum}`);
   }
 
@@ -81,10 +104,14 @@ function validate(schema, value, location = "$", rootSchema = schema) {
 
   if (Array.isArray(value)) {
     if (schema.minItems && value.length < schema.minItems) {
-      throw new Error(`${location} must include at least ${schema.minItems} item(s)`);
+      throw new Error(
+        `${location} must include at least ${schema.minItems} item(s)`,
+      );
     }
     if (schema.items) {
-      value.forEach((item, index) => validate(schema.items, item, `${location}[${index}]`, rootSchema));
+      value.forEach((item, index) =>
+        validate(schema.items, item, `${location}[${index}]`, rootSchema),
+      );
     }
   }
 
@@ -94,7 +121,9 @@ function validate(schema, value, location = "$", rootSchema = schema) {
         throw new Error(`${location}.${required} is required`);
       }
     }
-    for (const [key, propertySchema] of Object.entries(schema.properties ?? {})) {
+    for (const [key, propertySchema] of Object.entries(
+      schema.properties ?? {},
+    )) {
       if (key in value) {
         validate(propertySchema, value[key], `${location}.${key}`, rootSchema);
       }
@@ -168,7 +197,11 @@ const preparedOutput = {
 
 test("contract schemas load with stable ids", () => {
   for (const [name, schema] of Object.entries(schemas)) {
-    assert.equal(schema.$schema, "https://json-schema.org/draft/2020-12/schema", name);
+    assert.equal(
+      schema.$schema,
+      "https://json-schema.org/draft/2020-12/schema",
+      name,
+    );
     assert.match(schema.$id, /radiology-ppt/);
   }
 });
@@ -206,7 +239,12 @@ test("prepared output and render input schemas accept backend payloads", () => {
 
 test("prepared output schema rejects missing case data", () => {
   assert.throws(
-    () => validate(schemas["prepared-output.schema.json"], { entries: [request], items: [{ request }], failures: [] }),
+    () =>
+      validate(schemas["prepared-output.schema.json"], {
+        entries: [request],
+        items: [{ request }],
+        failures: [],
+      }),
     /caseData is required/,
   );
 });
@@ -217,26 +255,28 @@ test("contracts reject empty and out-of-range GUI payloads", () => {
     /must include at least 1 item/,
   );
   assert.throws(
-    () => validate(schemas["prepare-input.schema.json"], {
-      entries: [
-        {
-          ...request,
-          requestMode: "random",
-          randomCount: 21,
-        },
-      ],
-    }),
+    () =>
+      validate(schemas["prepare-input.schema.json"], {
+        entries: [
+          {
+            ...request,
+            requestMode: "random",
+            randomCount: 21,
+          },
+        ],
+      }),
     /randomCount must be <= 20/,
   );
   assert.throws(
-    () => validate(schemas["prepare-input.schema.json"], {
-      entries: [
-        {
-          ...request,
-          requestMode: "surprise-me",
-        },
-      ],
-    }),
+    () =>
+      validate(schemas["prepare-input.schema.json"], {
+        entries: [
+          {
+            ...request,
+            requestMode: "surprise-me",
+          },
+        ],
+      }),
     /requestMode must be one of/,
   );
   assert.throws(

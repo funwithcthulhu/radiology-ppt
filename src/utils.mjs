@@ -12,19 +12,25 @@ export function dedupe(values) {
 }
 
 export function collapseWhitespace(value) {
-  return String(value ?? "").replace(/\s+/g, " ").trim();
+  return String(value ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 export function decodeHtmlEntities(value) {
   return String(value ?? "")
     .replace(/&nbsp;/gi, " ")
     .replace(/&amp;/gi, "&")
-    .replace(/&quot;/gi, "\"")
+    .replace(/&quot;/gi, '"')
     .replace(/&#39;/gi, "'")
     .replace(/&lt;/gi, "<")
     .replace(/&gt;/gi, ">")
-    .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number.parseInt(code, 10)))
-    .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCodePoint(Number.parseInt(code, 16)));
+    .replace(/&#(\d+);/g, (_, code) =>
+      String.fromCodePoint(Number.parseInt(code, 10)),
+    )
+    .replace(/&#x([0-9a-f]+);/gi, (_, code) =>
+      String.fromCodePoint(Number.parseInt(code, 16)),
+    );
 }
 
 export function stripTags(value) {
@@ -59,7 +65,9 @@ export function redactTerms(text, terms) {
         if (!normalized) {
           return [];
         }
-        const pieces = normalized.includes(" ") ? [] : normalized.split(/\s+/).filter((item) => item.length >= 5);
+        const pieces = normalized.includes(" ")
+          ? []
+          : normalized.split(/\s+/).filter((item) => item.length >= 5);
         return [normalized, ...pieces];
       })
       .filter((term) => term.length >= 5),

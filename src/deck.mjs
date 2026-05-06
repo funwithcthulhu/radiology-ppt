@@ -61,8 +61,68 @@ const DIAGNOSIS_DISPLAY_ACRONYMS = [
   "SCFE",
   "US",
 ];
-const PIN_TARGET_ABNORMALITY_PATTERN =
-  /\b(?:abscess|aneurysm|atelectasis|avulsion|calcification|calcifications|carcinoma|collection|consolidation|contusion|defect|dilatation|dilation|dissection|edema|embol(?:us|i|ism)|effusion|enhancement|erosion|fistula|fracture|haematoma|haemorrhage|hematoma|hemorrhage|hernia|hydro(?:nephrosis|cephalus)|infarct|inflammation|ischemia|ischaemia|laceration|lesion|lucency|lymphoma|malformation|mass|metastasis|narrowing|necrosis|neoplasm|nodule|obstruction|opacity|oedema|perforation|pneumo(?:mediastinum|peritoneum|thorax)|rupture|sclerosis|stenosis|stone|tear|thickening|thrombus|thrombosis|torsion|tumou?r)\b/i;
+const PIN_TARGET_ABNORMALITY_PATTERN = new RegExp(
+  String.raw`\b(?:${[
+    "abscess",
+    "aneurysm",
+    "atelectasis",
+    "avulsion",
+    "calcification",
+    "calcifications",
+    "carcinoma",
+    "collection",
+    "consolidation",
+    "contusion",
+    "defect",
+    "dilatation",
+    "dilation",
+    "dissection",
+    "edema",
+    "embol(?:us|i|ism)",
+    "effusion",
+    "enhancement",
+    "erosion",
+    "fistula",
+    "fracture",
+    "haematoma",
+    "haemorrhage",
+    "hematoma",
+    "hemorrhage",
+    "hernia",
+    "hydro(?:nephrosis|cephalus)",
+    "infarct",
+    "inflammation",
+    "ischemia",
+    "ischaemia",
+    "laceration",
+    "lesion",
+    "lucency",
+    "lymphoma",
+    "malformation",
+    "mass",
+    "metastasis",
+    "narrowing",
+    "necrosis",
+    "neoplasm",
+    "nodule",
+    "obstruction",
+    "opacity",
+    "oedema",
+    "perforation",
+    "pneumo(?:mediastinum|peritoneum|thorax)",
+    "rupture",
+    "sclerosis",
+    "stenosis",
+    "stone",
+    "tear",
+    "thickening",
+    "thrombus",
+    "thrombosis",
+    "torsion",
+    "tumou?r",
+  ].join("|")})\b`,
+  "i",
+);
 const BROAD_ANATOMY_PIN_TARGETS = new Set([
   "abdomen",
   "abdomen pelvis",
@@ -91,79 +151,197 @@ const BROAD_ANATOMY_PIN_TARGETS = new Set([
   "wrist",
 ]);
 const DIAGNOSIS_MODALITY_HINTS = [
-  { label: "MRI", patterns: [/\bmri\b/i, /\bmr\b/i, /\bmagnetic resonance\b/i] },
+  {
+    label: "MRI",
+    patterns: [/\bmri\b/i, /\bmr\b/i, /\bmagnetic resonance\b/i],
+  },
   { label: "CT", patterns: [/\bct\b/i, /\bcomputed tomography\b/i] },
-  { label: "X-ray", patterns: [/\bx-?ray\b/i, /\bradiograph(?:y|ic)?\b/i, /\bcxr\b/i] },
-  { label: "Ultrasound", patterns: [/\bultrasound\b/i, /\bsonograph(?:y|ic)?\b/i, /\bus\b/i] },
+  {
+    label: "X-ray",
+    patterns: [/\bx-?ray\b/i, /\bradiograph(?:y|ic)?\b/i, /\bcxr\b/i],
+  },
+  {
+    label: "Ultrasound",
+    patterns: [/\bultrasound\b/i, /\bsonograph(?:y|ic)?\b/i, /\bus\b/i],
+  },
   { label: "Fluoroscopy", patterns: [/\bfluoro(?:scopy)?\b/i] },
-  { label: "Angiography", patterns: [/\bangiograph(?:y|ic)?\b/i, /\bangio\b/i] },
-  { label: "Nuclear Medicine", patterns: [/\bnuclear medicine\b/i, /\bnuc med\b/i, /\bscintigraph(?:y|ic)?\b/i, /\bpet\b/i, /\bspect\b/i, /\bhida\b/i] },
-  { label: "Mammography", patterns: [/\bmammograph(?:y|ic)?\b/i, /\bmammo\b/i] },
+  {
+    label: "Angiography",
+    patterns: [/\bangiograph(?:y|ic)?\b/i, /\bangio\b/i],
+  },
+  {
+    label: "Nuclear Medicine",
+    patterns: [
+      /\bnuclear medicine\b/i,
+      /\bnuc med\b/i,
+      /\bscintigraph(?:y|ic)?\b/i,
+      /\bpet\b/i,
+      /\bspect\b/i,
+      /\bhida\b/i,
+    ],
+  },
+  {
+    label: "Mammography",
+    patterns: [/\bmammograph(?:y|ic)?\b/i, /\bmammo\b/i],
+  },
 ];
 const DIAGNOSIS_DIFFERENTIAL_GROUPS = [
   {
     id: "perianal-pelvis",
-    patterns: [/\bperianal\b/i, /\bfistula(?:-in-ano)?\b/i, /\banal fistula\b/i],
-    terms: ["perianal", "anal", "rectal", "ischioanal", "intersphincteric", "pelvis", "pelvic"],
+    patterns: [
+      /\bperianal\b/i,
+      /\bfistula(?:-in-ano)?\b/i,
+      /\banal fistula\b/i,
+    ],
+    terms: [
+      "perianal",
+      "anal",
+      "rectal",
+      "ischioanal",
+      "intersphincteric",
+      "pelvis",
+      "pelvic",
+    ],
     domains: ["gi", "gu", "mr"],
     systems: ["Gastrointestinal", "Urogenital", "Gynaecology"],
-    distractors: ["Perianal abscess", "Hidradenitis suppurativa", "Pilonidal sinus disease", "Low rectal carcinoma"],
+    distractors: [
+      "Perianal abscess",
+      "Hidradenitis suppurativa",
+      "Pilonidal sinus disease",
+      "Low rectal carcinoma",
+    ],
   },
   {
     id: "renal-colic",
-    patterns: [/\bureter(?:ic|al)? stone\b/i, /\burolithiasis\b/i, /\bobstructing.*stone\b/i, /\bhydronephrosis\b/i],
+    patterns: [
+      /\bureter(?:ic|al)? stone\b/i,
+      /\burolithiasis\b/i,
+      /\bobstructing.*stone\b/i,
+      /\bhydronephrosis\b/i,
+    ],
     terms: ["ureter", "urinary", "kidney", "renal", "flank", "hydronephrosis"],
     domains: ["gu", "ct", "ultrasound", "nuclear"],
     systems: ["Urogenital"],
-    distractors: ["Ureteral stricture", "Pyelonephritis", "Papillary necrosis", "Upper tract urothelial carcinoma"],
+    distractors: [
+      "Ureteral stricture",
+      "Pyelonephritis",
+      "Papillary necrosis",
+      "Upper tract urothelial carcinoma",
+    ],
   },
   {
     id: "shoulder-soft-tissue",
-    patterns: [/\brotator cuff\b/i, /\bsupraspinatus\b/i, /\bsubscapularis\b/i, /\bshoulder\b/i],
+    patterns: [
+      /\brotator cuff\b/i,
+      /\bsupraspinatus\b/i,
+      /\bsubscapularis\b/i,
+      /\bshoulder\b/i,
+    ],
     terms: ["shoulder", "rotator", "cuff", "supraspinatus", "subacromial"],
     domains: ["msk", "mr", "ultrasound"],
     systems: ["Musculoskeletal"],
-    distractors: ["Adhesive capsulitis", "Calcific tendinopathy", "Labral tear", "Subacromial-subdeltoid bursitis"],
+    distractors: [
+      "Adhesive capsulitis",
+      "Calcific tendinopathy",
+      "Labral tear",
+      "Subacromial-subdeltoid bursitis",
+    ],
   },
   {
     id: "pulmonary-vascular",
-    patterns: [/\bpulmonary embol/i, /\bpulmonary arteries?\b/i, /\bcta chest\b/i],
+    patterns: [
+      /\bpulmonary embol/i,
+      /\bpulmonary arteries?\b/i,
+      /\bcta chest\b/i,
+    ],
     terms: ["pulmonary", "artery", "chest", "vascular", "embol"],
     domains: ["thoracic", "cardiovascular", "ct"],
     systems: ["Chest", "Vascular", "Cardiac"],
-    distractors: ["Pulmonary arterial hypertension", "Aortic dissection", "Pulmonary vein thrombosis", "Septic pulmonary emboli"],
+    distractors: [
+      "Pulmonary arterial hypertension",
+      "Aortic dissection",
+      "Pulmonary vein thrombosis",
+      "Septic pulmonary emboli",
+    ],
   },
   {
     id: "cpa-iac",
-    patterns: [/\bvestibular schwannoma\b/i, /\bacoustic neuroma\b/i, /\binternal auditory canal\b/i, /\bcpa\b/i],
-    terms: ["cpa", "internal auditory canal", "iac", "cerebellopontine", "posterior fossa"],
+    patterns: [
+      /\bvestibular schwannoma\b/i,
+      /\bacoustic neuroma\b/i,
+      /\binternal auditory canal\b/i,
+      /\bcpa\b/i,
+    ],
+    terms: [
+      "cpa",
+      "internal auditory canal",
+      "iac",
+      "cerebellopontine",
+      "posterior fossa",
+    ],
     domains: ["neuro", "mr"],
     systems: ["Central Nervous System", "Head & Neck"],
-    distractors: ["Cerebellopontine angle meningioma", "Epidermoid cyst", "Facial nerve schwannoma", "Arachnoid cyst"],
+    distractors: [
+      "Cerebellopontine angle meningioma",
+      "Epidermoid cyst",
+      "Facial nerve schwannoma",
+      "Arachnoid cyst",
+    ],
   },
   {
     id: "hindbrain-csf",
     patterns: [/\bchiari\b/i, /\bcerebellar tonsil/i, /\bforamen magnum\b/i],
-    terms: ["posterior fossa", "foramen magnum", "cerebellar", "tonsil", "hindbrain"],
+    terms: [
+      "posterior fossa",
+      "foramen magnum",
+      "cerebellar",
+      "tonsil",
+      "hindbrain",
+    ],
     domains: ["neuro", "pediatric", "mr"],
     systems: ["Central Nervous System", "Spine"],
-    distractors: ["Intracranial hypotension", "Dandy-Walker malformation", "Basilar invagination", "Normal tonsillar ectopia"],
+    distractors: [
+      "Intracranial hypotension",
+      "Dandy-Walker malformation",
+      "Basilar invagination",
+      "Normal tonsillar ectopia",
+    ],
   },
   {
     id: "intracranial-mass",
-    patterns: [/\bglioblastoma\b/i, /\bmeningioma\b/i, /\bpituitary macroadenoma\b/i, /\bbrain mass\b/i],
+    patterns: [
+      /\bglioblastoma\b/i,
+      /\bmeningioma\b/i,
+      /\bpituitary macroadenoma\b/i,
+      /\bbrain mass\b/i,
+    ],
     terms: ["brain", "intracranial", "sella", "tumor", "mass"],
     domains: ["neuro", "mr", "ct"],
     systems: ["Central Nervous System"],
-    distractors: ["Solitary metastasis", "Primary CNS lymphoma", "Tumefactive demyelination", "High-grade glioma"],
+    distractors: [
+      "Solitary metastasis",
+      "Primary CNS lymphoma",
+      "Tumefactive demyelination",
+      "High-grade glioma",
+    ],
   },
   {
     id: "bowel-inflammatory",
-    patterns: [/\bcrohn\b/i, /\bulcerative colitis\b/i, /\bcolitis\b/i, /\benteritis\b/i],
+    patterns: [
+      /\bcrohn\b/i,
+      /\bulcerative colitis\b/i,
+      /\bcolitis\b/i,
+      /\benteritis\b/i,
+    ],
     terms: ["bowel", "colon", "ileum", "colitis", "enteritis"],
     domains: ["gi", "ct", "mr"],
     systems: ["Gastrointestinal"],
-    distractors: ["Infectious colitis", "Ischemic colitis", "Ulcerative colitis", "Crohn disease"],
+    distractors: [
+      "Infectious colitis",
+      "Ischemic colitis",
+      "Ulcerative colitis",
+      "Crohn disease",
+    ],
   },
   {
     id: "right-lower-quadrant",
@@ -171,39 +349,91 @@ const DIAGNOSIS_DIFFERENTIAL_GROUPS = [
     terms: ["appendix", "right lower quadrant", "cecum", "terminal ileum"],
     domains: ["gi", "pediatric", "ct", "ultrasound"],
     systems: ["Gastrointestinal", "Paediatrics"],
-    distractors: ["Terminal ileitis", "Epiploic appendagitis", "Cecal diverticulitis", "Mesenteric adenitis"],
+    distractors: [
+      "Terminal ileitis",
+      "Epiploic appendagitis",
+      "Cecal diverticulitis",
+      "Mesenteric adenitis",
+    ],
   },
   {
     id: "biliary",
-    patterns: [/\bcholecystitis\b/i, /\bcholedocholithiasis\b/i, /\bgallstones?\b/i, /\bbile duct\b/i],
-    terms: ["gallbladder", "biliary", "bile duct", "liver", "right upper quadrant"],
+    patterns: [
+      /\bcholecystitis\b/i,
+      /\bcholedocholithiasis\b/i,
+      /\bgallstones?\b/i,
+      /\bbile duct\b/i,
+    ],
+    terms: [
+      "gallbladder",
+      "biliary",
+      "bile duct",
+      "liver",
+      "right upper quadrant",
+    ],
     domains: ["gi", "ultrasound", "nuclear", "mr"],
     systems: ["Hepatobiliary", "Gastrointestinal"],
-    distractors: ["Biliary colic", "Acute cholangitis", "Gallbladder carcinoma", "Hepatitis"],
+    distractors: [
+      "Biliary colic",
+      "Acute cholangitis",
+      "Gallbladder carcinoma",
+      "Hepatitis",
+    ],
   },
   {
     id: "adnexal-pelvis",
-    patterns: [/\bovarian torsion\b/i, /\badnexa/i, /\bectopic pregnancy\b/i, /\buter/i, /\bplacenta\b/i],
+    patterns: [
+      /\bovarian torsion\b/i,
+      /\badnexa/i,
+      /\bectopic pregnancy\b/i,
+      /\buter/i,
+      /\bplacenta\b/i,
+    ],
     terms: ["ovary", "adnexa", "uterus", "pelvis", "pregnancy", "placenta"],
     domains: ["gu", "ultrasound", "mr", "pediatric"],
     systems: ["Gynaecology", "Obstetrics", "Urogenital"],
-    distractors: ["Hemorrhagic ovarian cyst", "Tubo-ovarian abscess", "Degenerating fibroid", "Ectopic pregnancy"],
+    distractors: [
+      "Hemorrhagic ovarian cyst",
+      "Tubo-ovarian abscess",
+      "Degenerating fibroid",
+      "Ectopic pregnancy",
+    ],
   },
   {
     id: "renal-mass",
-    patterns: [/\brenal cell carcinoma\b/i, /\bangiomyolipoma\b/i, /\brenal mass\b/i, /\bwilms\b/i],
+    patterns: [
+      /\brenal cell carcinoma\b/i,
+      /\bangiomyolipoma\b/i,
+      /\brenal mass\b/i,
+      /\bwilms\b/i,
+    ],
     terms: ["kidney", "renal", "mass", "neoplasm"],
     domains: ["gu", "pediatric", "ct", "mr", "ultrasound"],
     systems: ["Urogenital", "Paediatrics"],
-    distractors: ["Lipid-poor angiomyolipoma", "Oncocytoma", "Renal lymphoma", "Renal abscess"],
+    distractors: [
+      "Lipid-poor angiomyolipoma",
+      "Oncocytoma",
+      "Renal lymphoma",
+      "Renal abscess",
+    ],
   },
   {
     id: "bone-tumor",
-    patterns: [/\bosteosarcoma\b/i, /\bewing\b/i, /\bgiant cell tumor\b/i, /\bbone metastases\b/i],
+    patterns: [
+      /\bosteosarcoma\b/i,
+      /\bewing\b/i,
+      /\bgiant cell tumor\b/i,
+      /\bbone metastases\b/i,
+    ],
     terms: ["bone", "osseous", "metaphysis", "diaphysis", "skeleton", "tumor"],
     domains: ["msk", "pediatric", "nuclear", "mr"],
     systems: ["Musculoskeletal", "Paediatrics", "Oncology"],
-    distractors: ["Osteomyelitis", "Langerhans cell histiocytosis", "Chondrosarcoma", "Stress fracture"],
+    distractors: [
+      "Osteomyelitis",
+      "Langerhans cell histiocytosis",
+      "Chondrosarcoma",
+      "Stress fracture",
+    ],
   },
   {
     id: "knee-internal-derangement",
@@ -211,53 +441,226 @@ const DIAGNOSIS_DIFFERENTIAL_GROUPS = [
     terms: ["knee", "meniscus", "acl", "ligament"],
     domains: ["msk", "mr"],
     systems: ["Musculoskeletal"],
-    distractors: ["PCL tear", "Bucket-handle meniscal tear", "Osteochondral injury", "Collateral ligament sprain"],
+    distractors: [
+      "PCL tear",
+      "Bucket-handle meniscal tear",
+      "Osteochondral injury",
+      "Collateral ligament sprain",
+    ],
   },
   {
     id: "hip-femoral-head",
-    patterns: [/\bavascular necrosis\b/i, /\bfemoral head\b/i, /\bhip\b/i, /\bslipped capital femoral epiphysis\b/i, /\bscfe\b/i],
-    terms: ["hip", "femoral", "femoral head", "epiphysis", "physis", "acetabulum"],
+    patterns: [
+      /\bavascular necrosis\b/i,
+      /\bfemoral head\b/i,
+      /\bhip\b/i,
+      /\bslipped capital femoral epiphysis\b/i,
+      /\bscfe\b/i,
+    ],
+    terms: [
+      "hip",
+      "femoral",
+      "femoral head",
+      "epiphysis",
+      "physis",
+      "acetabulum",
+    ],
     domains: ["msk", "pediatric", "mr", "radiography_fluoroscopy"],
     systems: ["Musculoskeletal", "Paediatrics"],
-    distractors: ["Subchondral insufficiency fracture", "Transient osteoporosis of the hip", "Slipped capital femoral epiphysis", "Femoral neck stress fracture"],
+    distractors: [
+      "Subchondral insufficiency fracture",
+      "Transient osteoporosis of the hip",
+      "Slipped capital femoral epiphysis",
+      "Femoral neck stress fracture",
+    ],
   },
   {
     id: "wrist-hand",
-    patterns: [/\bscaphoid\b/i, /\bwrist\b/i, /\bcarpal\b/i, /\blunate\b/i, /\bperilunate\b/i, /\bscapholunate\b/i, /\bkienb(?:o|\u00f6)ck\b/i],
-    terms: ["wrist", "hand", "carpal", "scaphoid", "lunate", "perilunate", "scapholunate", "distal radius"],
+    patterns: [
+      /\bscaphoid\b/i,
+      /\bwrist\b/i,
+      /\bcarpal\b/i,
+      /\blunate\b/i,
+      /\bperilunate\b/i,
+      /\bscapholunate\b/i,
+      /\bkienb(?:o|\u00f6)ck\b/i,
+    ],
+    terms: [
+      "wrist",
+      "hand",
+      "carpal",
+      "scaphoid",
+      "lunate",
+      "perilunate",
+      "scapholunate",
+      "distal radius",
+    ],
     domains: ["msk", "mr", "ct", "radiography_fluoroscopy"],
     systems: ["Musculoskeletal"],
-    distractors: ["Lunate dislocation", "Perilunate dislocation", "Scapholunate ligament injury", "Kienbock disease", "Distal radius fracture"],
+    distractors: [
+      "Lunate dislocation",
+      "Perilunate dislocation",
+      "Scapholunate ligament injury",
+      "Kienbock disease",
+      "Distal radius fracture",
+    ],
   },
   {
     id: "pediatric-bowel",
-    patterns: [/\bintussusception\b/i, /\bmalrotation\b/i, /\bmidgut volvulus\b/i, /\bpyloric stenosis\b/i],
-    terms: ["pediatric", "paediatric", "bowel", "neonatal", "abdomen", "upper gi"],
+    patterns: [
+      /\bintussusception\b/i,
+      /\bmalrotation\b/i,
+      /\bmidgut volvulus\b/i,
+      /\bpyloric stenosis\b/i,
+    ],
+    terms: [
+      "pediatric",
+      "paediatric",
+      "bowel",
+      "neonatal",
+      "abdomen",
+      "upper gi",
+    ],
     domains: ["pediatric", "gi", "ultrasound", "radiography_fluoroscopy"],
     systems: ["Paediatrics", "Gastrointestinal"],
-    distractors: ["Malrotation with midgut volvulus", "Pyloric stenosis", "Intussusception", "Necrotizing enterocolitis"],
+    distractors: [
+      "Malrotation with midgut volvulus",
+      "Pyloric stenosis",
+      "Intussusception",
+      "Necrotizing enterocolitis",
+    ],
   },
   {
     id: "breast-mass",
-    patterns: [/\bbreast\b/i, /\bfibroadenoma\b/i, /\bductal carcinoma\b/i, /\bradial scar\b/i],
+    patterns: [
+      /\bbreast\b/i,
+      /\bfibroadenoma\b/i,
+      /\bductal carcinoma\b/i,
+      /\bradial scar\b/i,
+    ],
     terms: ["breast", "mammography", "mass", "calcifications"],
     domains: ["breast"],
     systems: ["Breast"],
-    distractors: ["Fibroadenoma", "Invasive ductal carcinoma", "Fat necrosis", "Intraductal papilloma"],
+    distractors: [
+      "Fibroadenoma",
+      "Invasive ductal carcinoma",
+      "Fat necrosis",
+      "Intraductal papilloma",
+    ],
   },
 ];
 const DIAGNOSIS_ANATOMY_REGION_HINTS = [
-  { id: "shoulder", patterns: [/\bshoulder\b/i, /\brotator cuff\b/i, /\bsupraspinatus\b/i, /\bsubscapularis\b/i, /\blabrum\b/i] },
-  { id: "elbow", patterns: [/\belbow\b/i, /\bradial head\b/i, /\bolecranon\b/i] },
-  { id: "wrist-hand", patterns: [/\bwrist\b/i, /\bhand(?:s)?\b/i, /\bcarpal\b/i, /\bmetacarpal\b/i, /\bscaphoid\b/i, /\blunate\b/i, /\bperilunate\b/i, /\bscapholunate\b/i, /\bkienb(?:o|\u00f6)ck\b/i] },
-  { id: "hip", patterns: [/\bhip\b/i, /\bfemoral head\b/i, /\bavascular necrosis\b/i, /\bscfe\b/i, /\bslipped capital femoral epiphysis\b/i, /\bacetabulum\b/i] },
-  { id: "knee", patterns: [/\bknee\b/i, /\bmenisc(?:us|al)\b/i, /\bacl\b/i, /\bpcl\b/i, /\bpatella\b/i] },
-  { id: "ankle-foot", patterns: [/\bankle\b/i, /\bfoot\b/i, /\bcalcaneus\b/i, /\btalus\b/i, /\bmetatarsal\b/i] },
-  { id: "spine", patterns: [/\bspine\b/i, /\bcervical\b/i, /\bthoracic\b/i, /\blumbar\b/i, /\bsacrum\b/i, /\bvertebr/i] },
-  { id: "pelvis", patterns: [/\bpelvis\b/i, /\bpelvic\b/i, /\bsacroiliac\b/i, /\bperianal\b/i, /\brectal\b/i] },
-  { id: "chest", patterns: [/\bchest\b/i, /\bpulmonary\b/i, /\blung\b/i, /\bpleura\b/i, /\bmediastin/i] },
-  { id: "brain", patterns: [/\bbrain\b/i, /\bintracranial\b/i, /\bcerebell/i, /\bposterior fossa\b/i, /\bcpa\b/i, /\biac\b/i] },
-  { id: "kidney-urinary", patterns: [/\bkidney\b/i, /\brenal\b/i, /\bureter\b/i, /\burinary\b/i, /\bhydronephrosis\b/i] },
+  {
+    id: "shoulder",
+    patterns: [
+      /\bshoulder\b/i,
+      /\brotator cuff\b/i,
+      /\bsupraspinatus\b/i,
+      /\bsubscapularis\b/i,
+      /\blabrum\b/i,
+    ],
+  },
+  {
+    id: "elbow",
+    patterns: [/\belbow\b/i, /\bradial head\b/i, /\bolecranon\b/i],
+  },
+  {
+    id: "wrist-hand",
+    patterns: [
+      /\bwrist\b/i,
+      /\bhand(?:s)?\b/i,
+      /\bcarpal\b/i,
+      /\bmetacarpal\b/i,
+      /\bscaphoid\b/i,
+      /\blunate\b/i,
+      /\bperilunate\b/i,
+      /\bscapholunate\b/i,
+      /\bkienb(?:o|\u00f6)ck\b/i,
+    ],
+  },
+  {
+    id: "hip",
+    patterns: [
+      /\bhip\b/i,
+      /\bfemoral head\b/i,
+      /\bavascular necrosis\b/i,
+      /\bscfe\b/i,
+      /\bslipped capital femoral epiphysis\b/i,
+      /\bacetabulum\b/i,
+    ],
+  },
+  {
+    id: "knee",
+    patterns: [
+      /\bknee\b/i,
+      /\bmenisc(?:us|al)\b/i,
+      /\bacl\b/i,
+      /\bpcl\b/i,
+      /\bpatella\b/i,
+    ],
+  },
+  {
+    id: "ankle-foot",
+    patterns: [
+      /\bankle\b/i,
+      /\bfoot\b/i,
+      /\bcalcaneus\b/i,
+      /\btalus\b/i,
+      /\bmetatarsal\b/i,
+    ],
+  },
+  {
+    id: "spine",
+    patterns: [
+      /\bspine\b/i,
+      /\bcervical\b/i,
+      /\bthoracic\b/i,
+      /\blumbar\b/i,
+      /\bsacrum\b/i,
+      /\bvertebr/i,
+    ],
+  },
+  {
+    id: "pelvis",
+    patterns: [
+      /\bpelvis\b/i,
+      /\bpelvic\b/i,
+      /\bsacroiliac\b/i,
+      /\bperianal\b/i,
+      /\brectal\b/i,
+    ],
+  },
+  {
+    id: "chest",
+    patterns: [
+      /\bchest\b/i,
+      /\bpulmonary\b/i,
+      /\blung\b/i,
+      /\bpleura\b/i,
+      /\bmediastin/i,
+    ],
+  },
+  {
+    id: "brain",
+    patterns: [
+      /\bbrain\b/i,
+      /\bintracranial\b/i,
+      /\bcerebell/i,
+      /\bposterior fossa\b/i,
+      /\bcpa\b/i,
+      /\biac\b/i,
+    ],
+  },
+  {
+    id: "kidney-urinary",
+    patterns: [
+      /\bkidney\b/i,
+      /\brenal\b/i,
+      /\bureter\b/i,
+      /\burinary\b/i,
+      /\bhydronephrosis\b/i,
+    ],
+  },
 ];
 
 const THEMES = {
@@ -364,7 +767,9 @@ function resolveTheme(themeName = "classic") {
 }
 
 function resolveDeckMode(deckMode = DECK_MODES.caseConference) {
-  const normalized = String(deckMode || "").trim().toLowerCase();
+  const normalized = String(deckMode || "")
+    .trim()
+    .toLowerCase();
   if (normalized === DECK_MODES.coreReview || normalized === "core") {
     return DECK_MODES.coreReview;
   }
@@ -372,13 +777,20 @@ function resolveDeckMode(deckMode = DECK_MODES.caseConference) {
 }
 
 function cleanColor(color) {
-  return String(color || "#FFFFFF").replace(/^#/, "").slice(0, 6).padEnd(6, "0");
+  return String(color || "#FFFFFF")
+    .replace(/^#/, "")
+    .slice(0, 6)
+    .padEnd(6, "0");
 }
 
 function isTransparent(color) {
   const text = String(color || "").toLowerCase();
   const hex = text.replace(/^#/, "");
-  return !text || text === TRANSPARENT.toLowerCase() || (hex.length === 8 && hex.endsWith("00"));
+  return (
+    !text ||
+    text === TRANSPARENT.toLowerCase() ||
+    (hex.length === 8 && hex.endsWith("00"))
+  );
 }
 
 function fillOption(color) {
@@ -402,7 +814,14 @@ function pos(position) {
   };
 }
 
-function addShape(slide, geometry, position, fill = TRANSPARENT, stroke = TRANSPARENT, strokeWidth = 0) {
+function addShape(
+  slide,
+  geometry,
+  position,
+  fill = TRANSPARENT,
+  stroke = TRANSPARENT,
+  strokeWidth = 0,
+) {
   const shapeType = SHAPE_TYPES[geometry] || geometry;
   slide.addShape(shapeType, {
     ...pos(position),
@@ -489,7 +908,8 @@ async function powerPointSafeImagePath(imagePath) {
 
   if (
     expectedExtension &&
-    (existingExtension === expectedExtension || (format === "jpeg" && existingExtension === ".jpeg"))
+    (existingExtension === expectedExtension ||
+      (format === "jpeg" && existingExtension === ".jpeg"))
   ) {
     return imagePath;
   }
@@ -548,39 +968,36 @@ function shuffle(items, seed) {
 function addTopBar(slide, title, theme, { dark = true } = {}) {
   const fill = dark ? theme.colors.dark : theme.colors.white;
   const textColor = dark ? theme.colors.white : theme.colors.ink;
-  addShape(slide, "rect", { left: 0, top: 0, width: W, height: 52 }, fill, TRANSPARENT, 0);
-  addText(
+  addShape(
     slide,
-    title,
-    { left: 42, top: 16, width: 900, height: 22 },
-    theme,
-    {
-      fontSize: 16,
-      color: textColor,
-      face: theme.fonts.mono,
-      bold: true,
-      autoFit: null,
-    },
+    "rect",
+    { left: 0, top: 0, width: W, height: 52 },
+    fill,
+    TRANSPARENT,
+    0,
   );
+  addText(slide, title, { left: 42, top: 16, width: 900, height: 22 }, theme, {
+    fontSize: 16,
+    color: textColor,
+    face: theme.fonts.mono,
+    bold: true,
+    autoFit: null,
+  });
 }
 
 function addFooter(slide, text, theme, { dark = false } = {}) {
-  addText(
-    slide,
-    text,
-    { left: 36, top: 694, width: 1208, height: 14 },
-    theme,
-    {
-      fontSize: 9,
-      color: dark ? theme.colors.footerDark : theme.colors.footerLight,
-      face: theme.fonts.body,
-      autoFit: null,
-    },
-  );
+  addText(slide, text, { left: 36, top: 694, width: 1208, height: 14 }, theme, {
+    fontSize: 9,
+    color: dark ? theme.colors.footerDark : theme.colors.footerLight,
+    face: theme.fonts.body,
+    autoFit: null,
+  });
 }
 
 function truncateText(value, maxLength) {
-  const text = String(value ?? "").replace(/\s+/g, " ").trim();
+  const text = String(value ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
   if (text.length <= maxLength) {
     return text;
   }
@@ -607,12 +1024,17 @@ function truncateAtSentence(value, maxLength) {
     return output;
   }
 
-  const clipped = text.slice(0, maxLength).replace(/\s+\S*$/, "").trim();
+  const clipped = text
+    .slice(0, maxLength)
+    .replace(/\s+\S*$/, "")
+    .trim();
   return clipped ? `${clipped}.` : "";
 }
 
 function normalizeText(value) {
-  return String(value ?? "").replace(/\s+/g, " ").trim();
+  return String(value ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function optionId(index) {
@@ -620,7 +1042,9 @@ function optionId(index) {
 }
 
 function domainLabel(domain) {
-  const normalized = String(domain || "").trim().toLowerCase();
+  const normalized = String(domain || "")
+    .trim()
+    .toLowerCase();
   const labels = {
     nis: "NIS",
     physics: "Physics",
@@ -662,15 +1086,30 @@ function boundedImageLayouts(count, bounds) {
     const width = (bounds.width - gap) / 2;
     return [
       { left: bounds.left, top: bounds.top, width, height: bounds.height },
-      { left: bounds.left + width + gap, top: bounds.top, width, height: bounds.height },
+      {
+        left: bounds.left + width + gap,
+        top: bounds.top,
+        width,
+        height: bounds.height,
+      },
     ];
   }
   if (count === 3) {
     const width = (bounds.width - gap * 2) / 3;
     return [
       { left: bounds.left, top: bounds.top, width, height: bounds.height },
-      { left: bounds.left + width + gap, top: bounds.top, width, height: bounds.height },
-      { left: bounds.left + (width + gap) * 2, top: bounds.top, width, height: bounds.height },
+      {
+        left: bounds.left + width + gap,
+        top: bounds.top,
+        width,
+        height: bounds.height,
+      },
+      {
+        left: bounds.left + (width + gap) * 2,
+        top: bounds.top,
+        width,
+        height: bounds.height,
+      },
     ];
   }
 
@@ -680,7 +1119,12 @@ function boundedImageLayouts(count, bounds) {
     { left: bounds.left, top: bounds.top, width, height },
     { left: bounds.left + width + gap, top: bounds.top, width, height },
     { left: bounds.left, top: bounds.top + height + gap, width, height },
-    { left: bounds.left + width + gap, top: bounds.top + height + gap, width, height },
+    {
+      left: bounds.left + width + gap,
+      top: bounds.top + height + gap,
+      width,
+      height,
+    },
   ].slice(0, count);
 }
 
@@ -701,10 +1145,16 @@ function normalizeHotspot(hotspot, imageMeta = {}) {
   }
 
   const imageWidth = Number(
-    imageMeta.width ?? imageMeta.frameWidth ?? imageMeta.naturalWidth ?? imageMeta.pixelWidth,
+    imageMeta.width ??
+      imageMeta.frameWidth ??
+      imageMeta.naturalWidth ??
+      imageMeta.pixelWidth,
   );
   const imageHeight = Number(
-    imageMeta.height ?? imageMeta.frameHeight ?? imageMeta.naturalHeight ?? imageMeta.pixelHeight,
+    imageMeta.height ??
+      imageMeta.frameHeight ??
+      imageMeta.naturalHeight ??
+      imageMeta.pixelHeight,
   );
   const x = toNormalizedUnit(hotspot.x ?? hotspot.left, imageWidth);
   const y = toNormalizedUnit(hotspot.y ?? hotspot.top, imageHeight);
@@ -768,7 +1218,12 @@ function markerDiameter(imageFrame, hotspot) {
   }
   const width = Number(hotspot?.width);
   const height = Number(hotspot?.height);
-  if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
+  if (
+    Number.isFinite(width) &&
+    Number.isFinite(height) &&
+    width > 0 &&
+    height > 0
+  ) {
     return Math.max(0.24, minDimension * Math.max(width, height) * 1.4);
   }
   return Math.max(0.24, minDimension * 0.08);
@@ -791,7 +1246,12 @@ function emuSafeFrame(frame) {
   };
 }
 
-function addMarkerOverlay(slide, imageFrame, hotspot, color = CORE_REVIEW_MARKER_COLOR) {
+function addMarkerOverlay(
+  slide,
+  imageFrame,
+  hotspot,
+  color = CORE_REVIEW_MARKER_COLOR,
+) {
   const center = hotspotCenter(hotspot);
   if (!center) {
     return;
@@ -822,7 +1282,11 @@ function addMarkerOverlay(slide, imageFrame, hotspot, color = CORE_REVIEW_MARKER
   });
 }
 
-function addMoveableFocusMarker(slide, imageFrame, color = CORE_REVIEW_MARKER_COLOR) {
+function addMoveableFocusMarker(
+  slide,
+  imageFrame,
+  color = CORE_REVIEW_MARKER_COLOR,
+) {
   const diameter = Math.max(0.34, Math.min(imageFrame.w, imageFrame.h) * 0.11);
   const markerFrame = {
     x: imageFrame.x + Math.max(0.08, imageFrame.w * 0.04),
@@ -842,10 +1306,17 @@ function imageLocalPath(image) {
 }
 
 function imageAltText(image, fallback) {
-  return collapseWhitespace(image?.label || image?.series || image?.alt || fallback);
+  return collapseWhitespace(
+    image?.label || image?.series || image?.alt || fallback,
+  );
 }
 
-async function addImageGallery(slide, images, bounds, { marker = null, emptyMessage = "" } = {}) {
+async function addImageGallery(
+  slide,
+  images,
+  bounds,
+  { marker = null, emptyMessage = "" } = {},
+) {
   const layouts = boundedImageLayouts(images.length, bounds);
   if (!layouts.length) {
     if (emptyMessage) {
@@ -907,7 +1378,10 @@ function patientAgeIntro(age) {
     return `${numericOnly[1]}-year-old`;
   }
 
-  const unitMatch = /^(\d+(?:\.\d+)?)\s*(years?|yrs?|y|months?|mos?|m|weeks?|wks?|w|days?|d)(?:\s*old)?$/i.exec(text);
+  const unitMatch =
+    /^(\d+(?:\.\d+)?)\s*(years?|yrs?|y|months?|mos?|m|weeks?|wks?|w|days?|d)(?:\s*old)?$/i.exec(
+      text,
+    );
   if (unitMatch) {
     const unitMap = {
       y: "year",
@@ -932,14 +1406,20 @@ function patientAgeIntro(age) {
     return `${unitMatch[1]}-${unitMap[unitMatch[2].toLowerCase()] || unitMatch[2].toLowerCase()}-old`;
   }
 
-  if (/^(adult|pediatric|paediatric|neonatal|infant|child|adolescent|elderly)$/i.test(text)) {
+  if (
+    /^(adult|pediatric|paediatric|neonatal|infant|child|adolescent|elderly)$/i.test(
+      text,
+    )
+  ) {
     return text.toLowerCase().replace("paediatric", "pediatric");
   }
   return "";
 }
 
 function patientGenderIntro(gender) {
-  const text = normalizeText(gender).replace(/[.;:,]+$/g, "").toLowerCase();
+  const text = normalizeText(gender)
+    .replace(/[.;:,]+$/g, "")
+    .toLowerCase();
   if (/^m(?:ale)?$/.test(text)) {
     return "male";
   }
@@ -950,7 +1430,9 @@ function patientGenderIntro(gender) {
 }
 
 function articleForPhrase(phrase) {
-  return /^(?:8|11|18|adult|elderly|infant|adolescent|[aeiou])/i.test(phrase) ? "an" : "a";
+  return /^(?:8|11|18|adult|elderly|infant|adolescent|[aeiou])/i.test(phrase)
+    ? "an"
+    : "a";
 }
 
 function demographicIntro(caseData) {
@@ -1030,7 +1512,9 @@ function imageLayouts(count) {
 
 function addCaseSlide(slide, caseData, caseNumber, deckTitle, theme) {
   slide.background = { color: cleanColor(theme.colors.caseBg) };
-  addTopBar(slide, deckTitle, theme, { dark: theme === THEMES["conference-dark"] });
+  addTopBar(slide, deckTitle, theme, {
+    dark: theme === THEMES["conference-dark"],
+  });
   const caseIntro = safeCaseIntro(caseData);
 
   addText(
@@ -1062,8 +1546,19 @@ function addCaseSlide(slide, caseData, caseNumber, deckTitle, theme) {
     );
   }
 
-  addShape(slide, "rect", { left: 84, top: 406, width: 420, height: 4 }, theme.colors.accent, TRANSPARENT, 0);
-  addFooter(slide, `Case ${caseNumber}${caseIntro ? ` • ${caseIntro}` : ""}`, theme);
+  addShape(
+    slide,
+    "rect",
+    { left: 84, top: 406, width: 420, height: 4 },
+    theme.colors.accent,
+    TRANSPARENT,
+    0,
+  );
+  addFooter(
+    slide,
+    `Case ${caseNumber}${caseIntro ? ` • ${caseIntro}` : ""}`,
+    theme,
+  );
   addSpeakerNotes(slide, caseData, caseNumber);
 }
 
@@ -1142,7 +1637,9 @@ async function addImagesSlide(slide, caseData, caseNumber, deckTitle, theme) {
 
 function addDiagnosisSlide(slide, caseData, caseNumber, deckTitle, theme) {
   slide.background = { color: cleanColor(theme.colors.diagnosisBg) };
-  addTopBar(slide, deckTitle, theme, { dark: theme === THEMES["conference-dark"] });
+  addTopBar(slide, deckTitle, theme, {
+    dark: theme === THEMES["conference-dark"],
+  });
 
   addText(
     slide,
@@ -1207,9 +1704,18 @@ function addDiagnosisSlide(slide, caseData, caseNumber, deckTitle, theme) {
   addSpeakerNotes(slide, caseData, caseNumber);
 }
 
-function addTeachingPointsSlide(slide, caseData, caseNumber, deckTitle, theme, { title = "Teaching Points" } = {}) {
+function addTeachingPointsSlide(
+  slide,
+  caseData,
+  caseNumber,
+  deckTitle,
+  theme,
+  { title = "Teaching Points" } = {},
+) {
   slide.background = { color: cleanColor(theme.colors.teachingBg) };
-  addTopBar(slide, deckTitle, theme, { dark: theme === THEMES["conference-dark"] });
+  addTopBar(slide, deckTitle, theme, {
+    dark: theme === THEMES["conference-dark"],
+  });
 
   addText(
     slide,
@@ -1224,19 +1730,13 @@ function addTeachingPointsSlide(slide, caseData, caseNumber, deckTitle, theme, {
       autoFit: null,
     },
   );
-  addText(
-    slide,
-    title,
-    { left: 82, top: 140, width: 520, height: 58 },
-    theme,
-    {
-      fontSize: 42,
-      color: theme.colors.ink,
-      face: theme.fonts.title,
-      bold: true,
-      autoFit: null,
-    },
-  );
+  addText(slide, title, { left: 82, top: 140, width: 520, height: 58 }, theme, {
+    fontSize: 42,
+    color: theme.colors.ink,
+    face: theme.fonts.title,
+    bold: true,
+    autoFit: null,
+  });
   addText(
     slide,
     caseData.caseTitle,
@@ -1250,14 +1750,25 @@ function addTeachingPointsSlide(slide, caseData, caseNumber, deckTitle, theme, {
     },
   );
 
-  const bullets = Array.isArray(caseData.teachingPoints) ? caseData.teachingPoints.filter(Boolean) : [];
+  const bullets = Array.isArray(caseData.teachingPoints)
+    ? caseData.teachingPoints.filter(Boolean)
+    : [];
   const visibleBullets = bullets.slice(0, 3);
   const firstBulletTop = 302;
   const bottomLimit = 648;
-  const slotHeight = visibleBullets.length ? (bottomLimit - firstBulletTop) / visibleBullets.length : 0;
+  const slotHeight = visibleBullets.length
+    ? (bottomLimit - firstBulletTop) / visibleBullets.length
+    : 0;
   visibleBullets.forEach((bullet, index) => {
     const top = firstBulletTop + index * slotHeight;
-    addShape(slide, "ellipse", { left: 92, top: top + 10, width: 16, height: 16 }, theme.colors.accent, TRANSPARENT, 0);
+    addShape(
+      slide,
+      "ellipse",
+      { left: 92, top: top + 10, width: 16, height: 16 },
+      theme.colors.accent,
+      TRANSPARENT,
+      0,
+    );
     addText(
       slide,
       truncateAtSentence(bullet, 260),
@@ -1290,21 +1801,22 @@ function normalizeDiagnosisKey(value) {
 }
 
 function formatDiagnosisDisplayLabel(value) {
-  let text = normalizeText(value)
-    .replace(/[–—]/g, "-")
-    .replace(/\s+/g, " ");
+  let text = normalizeText(value).replace(/[–—]/g, "-").replace(/\s+/g, " ");
   while (DIAGNOSIS_DISPLAY_TRAILING_QUALIFIER_PATTERN.test(text)) {
-    text = text.replace(DIAGNOSIS_DISPLAY_TRAILING_QUALIFIER_PATTERN, "").trim();
+    text = text
+      .replace(DIAGNOSIS_DISPLAY_TRAILING_QUALIFIER_PATTERN, "")
+      .trim();
   }
   if (!text) {
     return "";
   }
 
-  let formatted = text
-    .toLocaleLowerCase()
-    .replace(/\s*-\s*/g, "-");
+  let formatted = text.toLocaleLowerCase().replace(/\s*-\s*/g, "-");
   for (const acronym of DIAGNOSIS_DISPLAY_ACRONYMS) {
-    formatted = formatted.replace(new RegExp(`\\b${acronym.toLocaleLowerCase()}\\b`, "g"), acronym);
+    formatted = formatted.replace(
+      new RegExp(`\\b${acronym.toLocaleLowerCase()}\\b`, "g"),
+      acronym,
+    );
   }
   formatted = formatted
     .replace(/\bcrohn\b/g, "Crohn")
@@ -1338,16 +1850,16 @@ function arrayText(value) {
 
 function detectDiagnosisModalities(...values) {
   const sourceText = values.flatMap(arrayText).join(" ");
-  return DIAGNOSIS_MODALITY_HINTS
-    .filter((hint) => hint.patterns.some((pattern) => pattern.test(sourceText)))
-    .map((hint) => hint.label.toLowerCase());
+  return DIAGNOSIS_MODALITY_HINTS.filter((hint) =>
+    hint.patterns.some((pattern) => pattern.test(sourceText)),
+  ).map((hint) => hint.label.toLowerCase());
 }
 
 function detectDiagnosisAnatomyRegions(...values) {
   const sourceText = values.flatMap(arrayText).join(" ");
-  return DIAGNOSIS_ANATOMY_REGION_HINTS
-    .filter((hint) => hint.patterns.some((pattern) => pattern.test(sourceText)))
-    .map((hint) => hint.id);
+  return DIAGNOSIS_ANATOMY_REGION_HINTS.filter((hint) =>
+    hint.patterns.some((pattern) => pattern.test(sourceText)),
+  ).map((hint) => hint.id);
 }
 
 function matchingDifferentialGroups(text) {
@@ -1376,35 +1888,53 @@ function collectProfileTextParts(item) {
 function diagnosisProfile(item, forcedGroupIds = []) {
   const textParts = collectProfileTextParts(item);
   const text = textParts.map(normalizeText).join(" ");
-  const groups = new Map(matchingDifferentialGroups(text).map((group) => [group.id, group]));
+  const groups = new Map(
+    matchingDifferentialGroups(text).map((group) => [group.id, group]),
+  );
   for (const groupId of forcedGroupIds) {
-    const group = DIAGNOSIS_DIFFERENTIAL_GROUPS.find((candidate) => candidate.id === groupId);
+    const group = DIAGNOSIS_DIFFERENTIAL_GROUPS.find(
+      (candidate) => candidate.id === groupId,
+    );
     if (group) {
       groups.set(group.id, group);
     }
   }
-  const domain = normalizeText(item?.coreReviewPlan?.domain || item?.domain).toLowerCase();
+  const domain = normalizeText(
+    item?.coreReviewPlan?.domain || item?.domain,
+  ).toLowerCase();
   const systems = arrayText(item?.systems).map((value) => value.toLowerCase());
-  const anatomy = normalizeText(item?.coreReviewPlan?.anatomyPrompt || item?.anatomy || "").toLowerCase();
+  const anatomy = normalizeText(
+    item?.coreReviewPlan?.anatomyPrompt || item?.anatomy || "",
+  ).toLowerCase();
   const groupTerms = [...groups.values()].flatMap((group) => group.terms || []);
-  const groupDomains = [...groups.values()].flatMap((group) => group.domains || []);
-  const groupSystems = [...groups.values()].flatMap((group) => group.systems || []);
+  const groupDomains = [...groups.values()].flatMap(
+    (group) => group.domains || [],
+  );
+  const groupSystems = [...groups.values()].flatMap(
+    (group) => group.systems || [],
+  );
   const topicFocus = normalizeText(item?.topicFocus).toLowerCase();
-  const anatomyRegions = dedupe(detectDiagnosisAnatomyRegions(text, anatomy, groupTerms, topicFocus));
+  const anatomyRegions = dedupe(
+    detectDiagnosisAnatomyRegions(text, anatomy, groupTerms, topicFocus),
+  );
 
   return {
     text: text.toLowerCase(),
     domain,
-    domains: dedupe([domain, ...groupDomains].filter(Boolean).map((value) => value.toLowerCase())),
-    systems: dedupe([...systems, ...groupSystems.map((value) => value.toLowerCase())]),
+    domains: dedupe(
+      [domain, ...groupDomains]
+        .filter(Boolean)
+        .map((value) => value.toLowerCase()),
+    ),
+    systems: dedupe([
+      ...systems,
+      ...groupSystems.map((value) => value.toLowerCase()),
+    ]),
     modalities: dedupe(detectDiagnosisModalities(text, item?.modalities || [])),
     anatomy,
     anatomyRegions,
     terms: dedupe(
-      [
-        ...groupTerms,
-        ...anatomy.split(/\s+/),
-      ]
+      [...groupTerms, ...anatomy.split(/\s+/)]
         .map((value) => normalizeText(value).toLowerCase())
         .filter((value) => value.length >= 3),
     ),
@@ -1414,7 +1944,9 @@ function diagnosisProfile(item, forcedGroupIds = []) {
 }
 
 function diagnosisCandidateFromCase(candidate, source, bias = 0) {
-  const text = normalizeText(candidate?.caseTitle || candidate?.diagnosisQuery || candidate?.diagnosis);
+  const text = normalizeText(
+    candidate?.caseTitle || candidate?.diagnosisQuery || candidate?.diagnosis,
+  );
   if (!text) {
     return null;
   }
@@ -1449,8 +1981,14 @@ function intersects(left = [], right = []) {
 }
 
 function textTokenOverlap(left, right) {
-  const leftTokens = new Set(normalizeDiagnosisKey(left).split(/\s+/).filter((token) => token.length >= 4));
-  const rightTokens = normalizeDiagnosisKey(right).split(/\s+/).filter((token) => token.length >= 4);
+  const leftTokens = new Set(
+    normalizeDiagnosisKey(left)
+      .split(/\s+/)
+      .filter((token) => token.length >= 4),
+  );
+  const rightTokens = normalizeDiagnosisKey(right)
+    .split(/\s+/)
+    .filter((token) => token.length >= 4);
   return rightTokens.filter((token) => leftTokens.has(token)).length;
 }
 
@@ -1463,7 +2001,10 @@ function diagnosisCandidateScore(candidate, targetProfile, targetText) {
   }
   if (intersects(profile.anatomyRegions, targetProfile.anatomyRegions)) {
     score += 85;
-  } else if (profile.anatomyRegions?.length && targetProfile.anatomyRegions?.length) {
+  } else if (
+    profile.anatomyRegions?.length &&
+    targetProfile.anatomyRegions?.length
+  ) {
     score -= 90;
   }
   if (intersects(profile.terms, targetProfile.terms)) {
@@ -1471,7 +2012,11 @@ function diagnosisCandidateScore(candidate, targetProfile, targetText) {
   }
   if (profile.domain && targetProfile.domains.includes(profile.domain)) {
     score += 35;
-  } else if (profile.domain && targetProfile.domain && profile.domain !== targetProfile.domain) {
+  } else if (
+    profile.domain &&
+    targetProfile.domain &&
+    profile.domain !== targetProfile.domain
+  ) {
     score -= 18;
   }
   if (intersects(profile.domains, targetProfile.domains)) {
@@ -1495,19 +2040,31 @@ function diagnosisCandidateScore(candidate, targetProfile, targetText) {
   return score;
 }
 
-function rankedDiagnosisDistractors(caseData, allCases, caseBankCases, correctText, caseNumber) {
+function rankedDiagnosisDistractors(
+  caseData,
+  allCases,
+  caseBankCases,
+  correctText,
+  caseNumber,
+) {
   const targetProfile = diagnosisProfile(caseData);
   const correctKey = normalizeDiagnosisKey(correctText);
   const candidates = [];
 
-  for (const group of matchingDifferentialGroups(collectProfileTextParts(caseData).join(" "))) {
+  for (const group of matchingDifferentialGroups(
+    collectProfileTextParts(caseData).join(" "),
+  )) {
     for (const text of group.distractors || []) {
       candidates.push(diagnosisCandidateFromDifferential(text, group));
     }
   }
 
   for (const candidate of allCases || []) {
-    const normalized = diagnosisCandidateFromCase(candidate, "selected-case", 12);
+    const normalized = diagnosisCandidateFromCase(
+      candidate,
+      "selected-case",
+      12,
+    );
     if (normalized) {
       candidates.push(normalized);
     }
@@ -1526,7 +2083,11 @@ function rankedDiagnosisDistractors(caseData, allCases, caseBankCases, correctTe
     if (!key || diagnosisKeysLookEquivalent(key, correctKey)) {
       continue;
     }
-    const score = diagnosisCandidateScore(candidate, targetProfile, correctText);
+    const score = diagnosisCandidateScore(
+      candidate,
+      targetProfile,
+      correctText,
+    );
     const current = bestByKey.get(key);
     if (!current || score > current.score) {
       bestByKey.set(key, { ...candidate, score });
@@ -1539,13 +2100,31 @@ function rankedDiagnosisDistractors(caseData, allCases, caseBankCases, correctTe
   ).sort((left, right) => right.score - left.score);
 }
 
-function selectDiagnosisDistractors(caseData, allCases, caseBankCases, correctText, caseNumber) {
-  const ranked = rankedDiagnosisDistractors(caseData, allCases, caseBankCases, correctText, caseNumber);
+function selectDiagnosisDistractors(
+  caseData,
+  allCases,
+  caseBankCases,
+  correctText,
+  caseNumber,
+) {
+  const ranked = rankedDiagnosisDistractors(
+    caseData,
+    allCases,
+    caseBankCases,
+    correctText,
+    caseNumber,
+  );
   const plausible = ranked.filter((candidate) => candidate.score >= 55);
   const selected = plausible.slice(0, 3);
   if (selected.length < 3) {
     for (const candidate of ranked) {
-      if (selected.some((item) => normalizeDiagnosisKey(item.text) === normalizeDiagnosisKey(candidate.text))) {
+      if (
+        selected.some(
+          (item) =>
+            normalizeDiagnosisKey(item.text) ===
+            normalizeDiagnosisKey(candidate.text),
+        )
+      ) {
         continue;
       }
       selected.push(candidate);
@@ -1557,11 +2136,26 @@ function selectDiagnosisDistractors(caseData, allCases, caseBankCases, correctTe
   return selected.slice(0, 3).map((candidate) => candidate.text);
 }
 
-function buildDiagnosisQuestion(caseData, allCases, caseNumber, caseBankCases = [], { multipleChoice = true } = {}) {
-  const correctRawText = normalizeText(caseData.caseTitle || caseData.diagnosisQuery);
-  const correctText = formatDiagnosisDisplayLabel(correctRawText) || correctRawText;
+function buildDiagnosisQuestion(
+  caseData,
+  allCases,
+  caseNumber,
+  caseBankCases = [],
+  { multipleChoice = true } = {},
+) {
+  const correctRawText = normalizeText(
+    caseData.caseTitle || caseData.diagnosisQuery,
+  );
+  const correctText =
+    formatDiagnosisDisplayLabel(correctRawText) || correctRawText;
   const distractors = multipleChoice
-    ? selectDiagnosisDistractors(caseData, allCases, caseBankCases, correctRawText, caseNumber)
+    ? selectDiagnosisDistractors(
+        caseData,
+        allCases,
+        caseBankCases,
+        correctRawText,
+        caseNumber,
+      )
     : [];
   const optionCandidates = [
     { text: correctText, isCorrect: true },
@@ -1593,7 +2187,10 @@ function buildDiagnosisQuestion(caseData, allCases, caseNumber, caseBankCases = 
   }));
 
   return {
-    stem: options.length >= 2 ? "What is the most likely diagnosis?" : "What is the diagnosis?",
+    stem:
+      options.length >= 2
+        ? "What is the most likely diagnosis?"
+        : "What is the diagnosis?",
     options,
     answerKey: options.find((option) => option.isCorrect)?.id || "",
     correctText,
@@ -1607,17 +2204,27 @@ function firstCaseImage(caseData) {
 function buildCaseAnatomyQuestion(caseData) {
   for (const image of caseData.images || []) {
     const localPath = imageLocalPath(image);
-    if (!localPath || !Array.isArray(image.focusPoints) || !image.focusPoints.length) {
+    if (
+      !localPath ||
+      !Array.isArray(image.focusPoints) ||
+      !image.focusPoints.length
+    ) {
       continue;
     }
 
-    const labeledPoint = image.focusPoints.find((point) => normalizeText(point.label)) || image.focusPoints[0];
+    const labeledPoint =
+      image.focusPoints.find((point) => normalizeText(point.label)) ||
+      image.focusPoints[0];
     const answerText = normalizeText(labeledPoint?.label);
     const hotspot = normalizeHotspot(
       {
         x: labeledPoint?.x,
         y: labeledPoint?.y,
-        radius: Math.max(Number(image.frameWidth) || 0, Number(image.frameHeight) || 0) * 0.03,
+        radius:
+          Math.max(
+            Number(image.frameWidth) || 0,
+            Number(image.frameHeight) || 0,
+          ) * 0.03,
       },
       {
         width: image.frameWidth,
@@ -1651,14 +2258,19 @@ function buildCaseAnatomyQuestion(caseData) {
 }
 
 function buildVerbalAnatomyAnswer(caseData) {
-  const plannedAnatomy = normalizeText(caseData?.coreReviewPlan?.anatomyPrompt || "");
+  const plannedAnatomy = normalizeText(
+    caseData?.coreReviewPlan?.anatomyPrompt || "",
+  );
   if (plannedAnatomy) {
     return plannedAnatomy;
   }
 
   const studyHint = normalizeText(caseData?.studyHint || "");
   const withoutModality = studyHint
-    .replace(/\b(MRI|MR|CT|X-ray|radiograph|ultrasound|US|fluoroscopy|PET|mammography|angiography|nuclear medicine)\b/gi, "")
+    .replace(
+      /\b(MRI|MR|CT|X-ray|radiograph|ultrasound|US|fluoroscopy|PET|mammography|angiography|nuclear medicine)\b/gi,
+      "",
+    )
     .replace(/[,\-_/]+/g, " ");
   return collapseWhitespace(withoutModality);
 }
@@ -1673,8 +2285,14 @@ function isLikelyAbnormalityPinTarget(answerText, caseData) {
   }
 
   const labelKey = normalizeDiagnosisKey(label);
-  const diagnosisKey = normalizeDiagnosisKey(caseData?.caseTitle || caseData?.diagnosisQuery || "");
-  return Boolean(labelKey && diagnosisKey && diagnosisKeysLookEquivalent(labelKey, diagnosisKey));
+  const diagnosisKey = normalizeDiagnosisKey(
+    caseData?.caseTitle || caseData?.diagnosisQuery || "",
+  );
+  return Boolean(
+    labelKey &&
+      diagnosisKey &&
+      diagnosisKeysLookEquivalent(labelKey, diagnosisKey),
+  );
 }
 
 function isBroadAnatomyPinTarget(answerText) {
@@ -1683,20 +2301,51 @@ function isBroadAnatomyPinTarget(answerText) {
 }
 
 function normalizeCoreReviewExerciseOverride(value) {
-  const normalized = normalizeText(value).toLowerCase().replace(/[\s-]+/g, "_");
+  const normalized = normalizeText(value)
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
   if (!normalized || normalized === "auto") {
     return "";
   }
-  if (["diagnosis", "diagnosis_open", "open", "open_answer", "short_answer", "free_response"].includes(normalized)) {
+  if (
+    [
+      "diagnosis",
+      "diagnosis_open",
+      "open",
+      "open_answer",
+      "short_answer",
+      "free_response",
+    ].includes(normalized)
+  ) {
     return "diagnosis_open";
   }
-  if (["diagnosis_mcq", "mcq", "multiple_choice", "multiplechoice", "single_best_answer"].includes(normalized)) {
+  if (
+    [
+      "diagnosis_mcq",
+      "mcq",
+      "multiple_choice",
+      "multiplechoice",
+      "single_best_answer",
+    ].includes(normalized)
+  ) {
     return "diagnosis_mcq";
   }
-  if (["pin", "pin_abnormality", "pin_finding", "abnormality", "finding"].includes(normalized)) {
+  if (
+    [
+      "pin",
+      "pin_abnormality",
+      "pin_finding",
+      "abnormality",
+      "finding",
+    ].includes(normalized)
+  ) {
     return "pin_abnormality";
   }
-  if (["pin_anatomy", "pin_structure", "anatomy", "structure"].includes(normalized)) {
+  if (
+    ["pin_anatomy", "pin_structure", "anatomy", "structure"].includes(
+      normalized,
+    )
+  ) {
     return "pin_anatomy";
   }
   return "";
@@ -1704,11 +2353,11 @@ function normalizeCoreReviewExerciseOverride(value) {
 
 function coreReviewExerciseOverride(caseData) {
   return normalizeCoreReviewExerciseOverride(
-    caseData?.coreReviewExerciseType
-      || caseData?.questionType
-      || caseData?.coreReviewPlan?.exerciseType
-      || caseData?.coreReviewPlan?.questionType
-      || "",
+    caseData?.coreReviewExerciseType ||
+      caseData?.questionType ||
+      caseData?.coreReviewPlan?.exerciseType ||
+      caseData?.coreReviewPlan?.questionType ||
+      "",
   );
 }
 
@@ -1726,33 +2375,40 @@ function coreReviewExerciseType(caseData, caseNumber, anatomyQuestion) {
       return "diagnosis_open";
     }
     if (
-      override === "pin_anatomy"
-      && (
-        isLikelyAbnormalityPinTarget(anatomyQuestion.answerText, caseData)
-        || isBroadAnatomyPinTarget(anatomyQuestion.answerText)
-      )
+      override === "pin_anatomy" &&
+      (isLikelyAbnormalityPinTarget(anatomyQuestion.answerText, caseData) ||
+        isBroadAnatomyPinTarget(anatomyQuestion.answerText))
     ) {
-      return anatomyQuestion?.hotspot ? "pin_abnormality" : "pin_abnormality_verbal";
+      return anatomyQuestion?.hotspot
+        ? "pin_abnormality"
+        : "pin_abnormality_verbal";
     }
     return override;
   }
 
-  const preferred = CORE_REVIEW_CASE_EXERCISE_SEQUENCE[(caseNumber - 1) % CORE_REVIEW_CASE_EXERCISE_SEQUENCE.length];
-  if (!hasImage && ["pin_abnormality", "pin_anatomy", "pin_abnormality_verbal"].includes(preferred)) {
+  const preferred =
+    CORE_REVIEW_CASE_EXERCISE_SEQUENCE[
+      (caseNumber - 1) % CORE_REVIEW_CASE_EXERCISE_SEQUENCE.length
+    ];
+  if (
+    !hasImage &&
+    ["pin_abnormality", "pin_anatomy", "pin_abnormality_verbal"].includes(
+      preferred,
+    )
+  ) {
     return "diagnosis_open";
   }
   if (preferred === "pin_abnormality" && !anatomyQuestion?.hotspot) {
     return "diagnosis_open";
   }
-  if (
-    preferred === "pin_anatomy"
-    && !anatomyQuestion?.answerText
-  ) {
+  if (preferred === "pin_anatomy" && !anatomyQuestion?.answerText) {
     return "diagnosis_open";
   }
   if (preferred === "pin_anatomy") {
     if (isLikelyAbnormalityPinTarget(anatomyQuestion.answerText, caseData)) {
-      return anatomyQuestion?.hotspot ? "pin_abnormality" : "pin_abnormality_verbal";
+      return anatomyQuestion?.hotspot
+        ? "pin_abnormality"
+        : "pin_abnormality_verbal";
     }
     if (isBroadAnatomyPinTarget(anatomyQuestion.answerText)) {
       return "pin_abnormality_verbal";
@@ -1765,27 +2421,44 @@ function caseDiagnosisAnswer(caseData) {
   return normalizeText(caseData?.caseTitle || caseData?.diagnosisQuery || "");
 }
 
-function buildCoreReviewStructureFindingPrompt(caseData, anatomyQuestion, exerciseType) {
+function buildCoreReviewStructureFindingPrompt(
+  caseData,
+  anatomyQuestion,
+  exerciseType,
+) {
   const image = anatomyQuestion?.image || firstCaseImage(caseData);
   if (!image) {
     return null;
   }
 
   const regionText = buildVerbalAnatomyAnswer(caseData);
-  const specificAnatomy = normalizeText(anatomyQuestion?.answerText || regionText);
+  const specificAnatomy = normalizeText(
+    anatomyQuestion?.answerText || regionText,
+  );
   const isPinAnatomy = exerciseType === "pin_anatomy";
-  const isPinAbnormality = exerciseType === "pin_abnormality" || exerciseType === "pin_abnormality_verbal";
-  if (isPinAnatomy && (isLikelyAbnormalityPinTarget(specificAnatomy, caseData) || isBroadAnatomyPinTarget(specificAnatomy))) {
+  const isPinAbnormality =
+    exerciseType === "pin_abnormality" ||
+    exerciseType === "pin_abnormality_verbal";
+  if (
+    isPinAnatomy &&
+    (isLikelyAbnormalityPinTarget(specificAnatomy, caseData) ||
+      isBroadAnatomyPinTarget(specificAnatomy))
+  ) {
     return null;
   }
   if (exerciseType === "pin_abnormality" && !anatomyQuestion?.hotspot) {
     return null;
   }
 
-  const abnormalityAnswer = caseDiagnosisAnswer(caseData) || specificAnatomy || "Abnormality";
-  const answerDetail = isPinAbnormality && anatomyQuestion?.hotspot && specificAnatomy && specificAnatomy !== abnormalityAnswer
-    ? `Marked region: ${specificAnatomy}`
-    : "";
+  const abnormalityAnswer =
+    caseDiagnosisAnswer(caseData) || specificAnatomy || "Abnormality";
+  const answerDetail =
+    isPinAbnormality &&
+    anatomyQuestion?.hotspot &&
+    specificAnatomy &&
+    specificAnatomy !== abnormalityAnswer
+      ? `Marked region: ${specificAnatomy}`
+      : "";
   const stem = isPinAnatomy
     ? `Pin: ${specificAnatomy || "the specified anatomy"}.`
     : "Pin the abnormality.";
@@ -1799,7 +2472,9 @@ function buildCoreReviewStructureFindingPrompt(caseData, anatomyQuestion, exerci
     showPromptMarker: false,
     moveableFocusMarker: isPinAbnormality && !anatomyQuestion?.hotspot,
     promptLabel: isPinAbnormality ? "Pin Abnormality" : "Pin Anatomy",
-    answerTitle: isPinAbnormality ? "Abnormality / Finding" : "Structure / Finding",
+    answerTitle: isPinAbnormality
+      ? "Abnormality / Finding"
+      : "Structure / Finding",
   };
 }
 
@@ -1853,7 +2528,10 @@ function questionInstructions(question) {
 }
 
 function estimateWrappedLineCount(text, width, fontSize) {
-  const charsPerLine = Math.max(16, Math.floor(width / Math.max(1, fontSize * 0.54)));
+  const charsPerLine = Math.max(
+    16,
+    Math.floor(width / Math.max(1, fontSize * 0.54)),
+  );
   return String(text ?? "")
     .split(/\n+/)
     .reduce((lineCount, paragraph) => {
@@ -1881,22 +2559,34 @@ function estimateWrappedLineCount(text, width, fontSize) {
 }
 
 function estimateTextBoxHeight(text, width, fontSize, lineHeight = 1.32) {
-  return Math.ceil(estimateWrappedLineCount(text, width, fontSize) * fontSize * lineHeight);
+  return Math.ceil(
+    estimateWrappedLineCount(text, width, fontSize) * fontSize * lineHeight,
+  );
 }
 
-function chooseTextBoxLayout(text, width, fontSizes, { maxHeight, minHeight = 0, lineHeight = 1.32 } = {}) {
+function chooseTextBoxLayout(
+  text,
+  width,
+  fontSizes,
+  { maxHeight, minHeight = 0, lineHeight = 1.32 } = {},
+) {
   for (const fontSize of fontSizes) {
-    const estimatedHeight = estimateTextBoxHeight(text, width, fontSize, lineHeight) + 8;
+    const estimatedHeight =
+      estimateTextBoxHeight(text, width, fontSize, lineHeight) + 8;
     if (!maxHeight || estimatedHeight <= maxHeight) {
       return { fontSize, height: Math.max(minHeight, estimatedHeight) };
     }
   }
 
   const fontSize = fontSizes[fontSizes.length - 1];
-  const estimatedHeight = estimateTextBoxHeight(text, width, fontSize, lineHeight) + 8;
+  const estimatedHeight =
+    estimateTextBoxHeight(text, width, fontSize, lineHeight) + 8;
   return {
     fontSize,
-    height: Math.max(minHeight, Math.min(maxHeight || Infinity, estimatedHeight)),
+    height: Math.max(
+      minHeight,
+      Math.min(maxHeight || Infinity, estimatedHeight),
+    ),
   };
 }
 
@@ -1909,9 +2599,14 @@ function chooseOptionListLayout(options, width, maxHeight, fontSizes) {
   for (const fontSize of fontSizes) {
     const gap = fontSize <= 18 ? 5 : 7;
     const heights = normalizedOptions.map((text) =>
-      Math.max(Math.ceil(fontSize * 1.35), estimateTextBoxHeight(text, width, fontSize, 1.22) + 4),
+      Math.max(
+        Math.ceil(fontSize * 1.35),
+        estimateTextBoxHeight(text, width, fontSize, 1.22) + 4,
+      ),
     );
-    const totalHeight = heights.reduce((sum, height) => sum + height, 0) + gap * Math.max(0, heights.length - 1);
+    const totalHeight =
+      heights.reduce((sum, height) => sum + height, 0) +
+      gap * Math.max(0, heights.length - 1);
     if (totalHeight <= maxHeight) {
       return { fontSize, gap, heights, totalHeight };
     }
@@ -1920,14 +2615,24 @@ function chooseOptionListLayout(options, width, maxHeight, fontSizes) {
   const fontSize = fontSizes[fontSizes.length - 1];
   const gap = 4;
   const heights = normalizedOptions.map((text) =>
-    Math.max(Math.ceil(fontSize * 1.3), estimateTextBoxHeight(text, width, fontSize, 1.15) + 2),
+    Math.max(
+      Math.ceil(fontSize * 1.3),
+      estimateTextBoxHeight(text, width, fontSize, 1.15) + 2,
+    ),
   );
-  const totalHeight = heights.reduce((sum, height) => sum + height, 0) + gap * Math.max(0, heights.length - 1);
+  const totalHeight =
+    heights.reduce((sum, height) => sum + height, 0) +
+    gap * Math.max(0, heights.length - 1);
   return { fontSize, gap, heights, totalHeight };
 }
 
 function addStandaloneOptionList(slide, options, position, theme, fontSizes) {
-  const layout = chooseOptionListLayout(options, position.width, position.height, fontSizes);
+  const layout = chooseOptionListLayout(
+    options,
+    position.width,
+    position.height,
+    fontSizes,
+  );
   let top = position.top;
   options.forEach((option, index) => {
     const remainingHeight = Math.max(16, position.top + position.height - top);
@@ -1958,18 +2663,30 @@ function questionOptions(question) {
 function answerTextForQuestion(question) {
   const options = questionOptions(question);
   if (question.type === "single_best_answer") {
-    const option = options.find((candidate) => candidate.id === question.answerKey);
-    return option ? `${option.id}. ${option.text}` : question.answerKey || "Answer not supplied";
+    const option = options.find(
+      (candidate) => candidate.id === question.answerKey,
+    );
+    return option
+      ? `${option.id}. ${option.text}`
+      : question.answerKey || "Answer not supplied";
   }
 
   if (question.type === "numeric_fill_blank") {
     const value = question.numericAnswer?.value;
     const units = normalizeText(question.numericAnswer?.units || "");
-    return collapseWhitespace([value, units].filter((piece) => piece !== null && piece !== undefined && piece !== "").join(" "));
+    return collapseWhitespace(
+      [value, units]
+        .filter(
+          (piece) => piece !== null && piece !== undefined && piece !== "",
+        )
+        .join(" "),
+    );
   }
 
   if (question.type === "multi_correct") {
-    const answerKeys = Array.isArray(question.answerKeys) ? question.answerKeys : [];
+    const answerKeys = Array.isArray(question.answerKeys)
+      ? question.answerKeys
+      : [];
     const keyed = options.filter((option) => answerKeys.includes(option.id));
     if (keyed.length) {
       return keyed.map((option) => `${option.id}. ${option.text}`).join("\n");
@@ -1977,17 +2694,30 @@ function answerTextForQuestion(question) {
     return answerKeys.join(", ");
   }
 
-  if (question.type === "image_hotspot" || question.type === "gold_marker_abnormality") {
-    return question.answerKey || question.explanation || "Verbal localization; refer to the marked image.";
+  if (
+    question.type === "image_hotspot" ||
+    question.type === "gold_marker_abnormality"
+  ) {
+    return (
+      question.answerKey ||
+      question.explanation ||
+      "Verbal localization; refer to the marked image."
+    );
   }
 
-  return question.answerKey || question.explanation || "See explanation in speaker notes.";
+  return (
+    question.answerKey ||
+    question.explanation ||
+    "See explanation in speaker notes."
+  );
 }
 
 function questionFooter(question) {
   const references = Array.isArray(question.references)
     ? question.references
-        .map((reference) => collapseWhitespace(reference?.label || reference?.url || ""))
+        .map((reference) =>
+          collapseWhitespace(reference?.label || reference?.url || ""),
+        )
         .filter(Boolean)
         .slice(0, 2)
     : [];
@@ -2005,7 +2735,9 @@ function addStandaloneSpeakerNotes(slide, question, questionNumber) {
       question.explanation ? `Explanation: ${question.explanation}` : null,
       ...(Array.isArray(question.references)
         ? question.references.map((reference) =>
-            collapseWhitespace([reference?.label, reference?.url].filter(Boolean).join(": ")),
+            collapseWhitespace(
+              [reference?.label, reference?.url].filter(Boolean).join(": "),
+            ),
           )
         : []),
     ]
@@ -2027,7 +2759,13 @@ async function addCoreReviewDiagnosisQuestionSlide(
   slide.background = { color: cleanColor(theme.colors.imageBg) };
   addTopBar(slide, deckTitle, theme, { dark: true });
   const descriptor = caseDescriptor(caseData);
-  const question = buildDiagnosisQuestion(caseData, allCases, caseNumber, caseBankCases, { multipleChoice });
+  const question = buildDiagnosisQuestion(
+    caseData,
+    allCases,
+    caseNumber,
+    caseBankCases,
+    { multipleChoice },
+  );
   const options = questionOptions(question);
 
   addText(
@@ -2103,7 +2841,9 @@ async function addCoreReviewDiagnosisQuestionSlide(
     );
 
     addFooter(slide, caseData.footerText, theme, { dark: true });
-    addSpeakerNotes(slide, caseData, caseNumber, [`Diagnosis answer: ${question.correctText}`]);
+    addSpeakerNotes(slide, caseData, caseNumber, [
+      `Diagnosis answer: ${question.correctText}`,
+    ]);
     return;
   }
 
@@ -2162,7 +2902,9 @@ async function addCoreReviewDiagnosisQuestionSlide(
   );
 
   addFooter(slide, caseData.footerText, theme, { dark: true });
-  addSpeakerNotes(slide, caseData, caseNumber, [`Diagnosis answer: ${question.correctText}`]);
+  addSpeakerNotes(slide, caseData, caseNumber, [
+    `Diagnosis answer: ${question.correctText}`,
+  ]);
 }
 
 async function addCoreReviewAnatomyQuestionSlide(
@@ -2240,7 +2982,9 @@ async function addCoreReviewAnatomyQuestionSlide(
   );
 
   addFooter(slide, caseData.footerText, theme, { dark: true });
-  addSpeakerNotes(slide, caseData, caseNumber, [`Structure/finding answer: ${anatomyQuestion.answerText}`]);
+  addSpeakerNotes(slide, caseData, caseNumber, [
+    `Structure/finding answer: ${anatomyQuestion.answerText}`,
+  ]);
 }
 
 async function addCoreReviewAnatomyAnswerSlide(
@@ -2253,7 +2997,9 @@ async function addCoreReviewAnatomyAnswerSlide(
   { title = "Structure / Finding" } = {},
 ) {
   slide.background = { color: cleanColor(theme.colors.diagnosisBg) };
-  addTopBar(slide, deckTitle, theme, { dark: theme === THEMES["conference-dark"] });
+  addTopBar(slide, deckTitle, theme, {
+    dark: theme === THEMES["conference-dark"],
+  });
 
   addText(
     slide,
@@ -2268,19 +3014,13 @@ async function addCoreReviewAnatomyAnswerSlide(
       autoFit: null,
     },
   );
-  addText(
-    slide,
-    title,
-    { left: 82, top: 140, width: 560, height: 96 },
-    theme,
-    {
-      fontSize: title.length > 18 ? 38 : 42,
-      color: theme.colors.ink,
-      face: theme.fonts.title,
-      bold: true,
-      autoFit: "shrinkText",
-    },
-  );
+  addText(slide, title, { left: 82, top: 140, width: 560, height: 96 }, theme, {
+    fontSize: title.length > 18 ? 38 : 42,
+    color: theme.colors.ink,
+    face: theme.fonts.title,
+    bold: true,
+    autoFit: "shrinkText",
+  });
   addText(
     slide,
     anatomyQuestion.answerText,
@@ -2295,8 +3035,10 @@ async function addCoreReviewAnatomyAnswerSlide(
   );
   const answerDetail = normalizeText(anatomyQuestion.answerDetail || "");
   const caseTitle = normalizeText(caseData.caseTitle);
-  const duplicateCaseTitle = caseTitle
-    && caseTitle.toLocaleLowerCase() === normalizeText(anatomyQuestion.answerText).toLocaleLowerCase();
+  const duplicateCaseTitle =
+    caseTitle &&
+    caseTitle.toLocaleLowerCase() ===
+      normalizeText(anatomyQuestion.answerText).toLocaleLowerCase();
   if (answerDetail) {
     addText(
       slide,
@@ -2327,7 +3069,12 @@ async function addCoreReviewAnatomyAnswerSlide(
     addText(
       slide,
       "Moveable marker: drag the gold ring onto the abnormality.",
-      { left: 82, top: caseTitle && !duplicateCaseTitle ? 492 : 392, width: 540, height: 42 },
+      {
+        left: 82,
+        top: caseTitle && !duplicateCaseTitle ? 492 : 392,
+        width: 540,
+        height: 42,
+      },
       theme,
       {
         fontSize: 17,
@@ -2348,20 +3095,31 @@ async function addCoreReviewAnatomyAnswerSlide(
       },
     },
   );
-  const answerImageFrame = imageFrames.find(({ image }) =>
-    imageLocalPath(image) === imageLocalPath(anatomyQuestion.image),
+  const answerImageFrame = imageFrames.find(
+    ({ image }) =>
+      imageLocalPath(image) === imageLocalPath(anatomyQuestion.image),
   )?.frame;
   if (anatomyQuestion.moveableFocusMarker && answerImageFrame) {
     addMoveableFocusMarker(slide, answerImageFrame);
   }
 
   addFooter(slide, caseData.footerText, theme);
-  addSpeakerNotes(slide, caseData, caseNumber, [`Structure/finding answer: ${anatomyQuestion.answerText}`]);
+  addSpeakerNotes(slide, caseData, caseNumber, [
+    `Structure/finding answer: ${anatomyQuestion.answerText}`,
+  ]);
 }
 
-async function addCoreReviewStandaloneQuestionSlide(slide, question, questionNumber, deckTitle, theme) {
+async function addCoreReviewStandaloneQuestionSlide(
+  slide,
+  question,
+  questionNumber,
+  deckTitle,
+  theme,
+) {
   slide.background = { color: cleanColor(theme.colors.teachingBg) };
-  addTopBar(slide, deckTitle, theme, { dark: theme === THEMES["conference-dark"] });
+  addTopBar(slide, deckTitle, theme, {
+    dark: theme === THEMES["conference-dark"],
+  });
   const options = questionOptions(question);
 
   addText(
@@ -2403,10 +3161,15 @@ async function addCoreReviewStandaloneQuestionSlide(slide, question, questionNum
       theme.colors.border,
       1.1,
     );
-    const stemLayout = chooseTextBoxLayout(question.stem, 448, options.length ? [24, 22, 20, 18] : [26, 24, 22], {
-      maxHeight: options.length ? 150 : 240,
-      minHeight: 72,
-    });
+    const stemLayout = chooseTextBoxLayout(
+      question.stem,
+      448,
+      options.length ? [24, 22, 20, 18] : [26, 24, 22],
+      {
+        maxHeight: options.length ? 150 : 240,
+        minHeight: 72,
+      },
+    );
     const optionTop = Math.max(176 + stemLayout.height + 18, 326);
     const instructionTop = 520;
     addText(
@@ -2425,7 +3188,12 @@ async function addCoreReviewStandaloneQuestionSlide(slide, question, questionNum
       addStandaloneOptionList(
         slide,
         options,
-        { left: 676, top: optionTop, width: 430, height: Math.max(72, instructionTop - optionTop - 18) },
+        {
+          left: 676,
+          top: optionTop,
+          width: 430,
+          height: Math.max(72, instructionTop - optionTop - 18),
+        },
         theme,
         [17, 16, 15, 14],
       );
@@ -2450,10 +3218,15 @@ async function addCoreReviewStandaloneQuestionSlide(slide, question, questionNum
       theme.colors.border,
       1.1,
     );
-    const stemLayout = chooseTextBoxLayout(question.stem, 1012, options.length ? [26, 24, 22, 20] : [30, 28, 26, 24], {
-      maxHeight: options.length ? 184 : 250,
-      minHeight: options.length ? 94 : 120,
-    });
+    const stemLayout = chooseTextBoxLayout(
+      question.stem,
+      1012,
+      options.length ? [26, 24, 22, 20] : [30, 28, 26, 24],
+      {
+        maxHeight: options.length ? 184 : 250,
+        minHeight: options.length ? 94 : 120,
+      },
+    );
     const optionTop = Math.max(178 + stemLayout.height + 22, 350);
     const instructionTop = 560;
     addText(
@@ -2473,7 +3246,12 @@ async function addCoreReviewStandaloneQuestionSlide(slide, question, questionNum
       addStandaloneOptionList(
         slide,
         options,
-        { left: 126, top: optionTop, width: 964, height: Math.max(96, instructionTop - optionTop - 18) },
+        {
+          left: 126,
+          top: optionTop,
+          width: 964,
+          height: Math.max(96, instructionTop - optionTop - 18),
+        },
         theme,
         [21, 20, 19, 18, 17],
       );
@@ -2481,7 +3259,12 @@ async function addCoreReviewStandaloneQuestionSlide(slide, question, questionNum
       addText(
         slide,
         "Open response. State the calculated answer verbally.",
-        { left: 126, top: Math.max(178 + stemLayout.height + 28, 326), width: 900, height: 44 },
+        {
+          left: 126,
+          top: Math.max(178 + stemLayout.height + 28, 326),
+          width: 900,
+          height: 44,
+        },
         theme,
         {
           fontSize: 22,
@@ -2508,9 +3291,17 @@ async function addCoreReviewStandaloneQuestionSlide(slide, question, questionNum
   addStandaloneSpeakerNotes(slide, question, questionNumber);
 }
 
-async function addCoreReviewStandaloneAnswerSlide(slide, question, questionNumber, deckTitle, theme) {
+async function addCoreReviewStandaloneAnswerSlide(
+  slide,
+  question,
+  questionNumber,
+  deckTitle,
+  theme,
+) {
   slide.background = { color: cleanColor(theme.colors.diagnosisBg) };
-  addTopBar(slide, deckTitle, theme, { dark: theme === THEMES["conference-dark"] });
+  addTopBar(slide, deckTitle, theme, {
+    dark: theme === THEMES["conference-dark"],
+  });
 
   addText(
     slide,
@@ -2629,15 +3420,16 @@ function standaloneQuestionsByCase(cases, questions) {
   }
 
   for (let index = 0; index < questions.length; index += 1) {
-    const afterCase = cases.length === 1
-      ? 1
-      : Math.max(
-          1,
-          Math.min(
-            cases.length,
-            Math.round(((index + 1) * cases.length) / (questions.length + 1)),
-          ),
-        );
+    const afterCase =
+      cases.length === 1
+        ? 1
+        : Math.max(
+            1,
+            Math.min(
+              cases.length,
+              Math.round(((index + 1) * cases.length) / (questions.length + 1)),
+            ),
+          );
     const bucket = groups.get(afterCase) || [];
     bucket.push(questions[index]);
     groups.set(afterCase, bucket);
@@ -2653,20 +3445,29 @@ function normalizeOpenXmlCoordinateAttributes(xml) {
 }
 
 function normalizePresentationXmlOrder(xml) {
-  const notesMatch = /<p:notesMasterIdLst\b[\s\S]*?<\/p:notesMasterIdLst>/.exec(xml);
+  const notesMatch = /<p:notesMasterIdLst\b[\s\S]*?<\/p:notesMasterIdLst>/.exec(
+    xml,
+  );
   const slideListMatch = /<p:sldIdLst\b[\s\S]*?<\/p:sldIdLst>/.exec(xml);
-  if (!notesMatch || !slideListMatch || notesMatch.index > slideListMatch.index) {
+  if (
+    !notesMatch ||
+    !slideListMatch ||
+    notesMatch.index > slideListMatch.index
+  ) {
     return xml;
   }
 
   // Desktop PowerPoint repairs decks when this list is moved before the slides.
   const withoutNotes = `${xml.slice(0, notesMatch.index)}${xml.slice(notesMatch.index + notesMatch[0].length)}`;
-  const updatedSlideListMatch = /<p:sldIdLst\b[\s\S]*?<\/p:sldIdLst>/.exec(withoutNotes);
+  const updatedSlideListMatch = /<p:sldIdLst\b[\s\S]*?<\/p:sldIdLst>/.exec(
+    withoutNotes,
+  );
   if (!updatedSlideListMatch) {
     return xml;
   }
 
-  const insertAt = updatedSlideListMatch.index + updatedSlideListMatch[0].length;
+  const insertAt =
+    updatedSlideListMatch.index + updatedSlideListMatch[0].length;
   return `${withoutNotes.slice(0, insertAt)}${notesMatch[0]}${withoutNotes.slice(insertAt)}`;
 }
 
@@ -2675,17 +3476,22 @@ function removePowerPointCreationIdExtensions(xml) {
 }
 
 function removeDanglingContentTypeOverrides(xml, entryNames) {
-  return xml.replace(/<Override\b[^>]*\bPartName="\/([^"]+)"[^>]*\/>/g, (match, partName) => {
-    return entryNames.has(partName) ? match : "";
-  });
+  return xml.replace(
+    /<Override\b[^>]*\bPartName="\/([^"]+)"[^>]*\/>/g,
+    (match, partName) => {
+      return entryNames.has(partName) ? match : "";
+    },
+  );
 }
 
 async function normalizePowerPointPackage(filePath) {
   const buffer = await fs.readFile(filePath);
   const zip = await JSZip.loadAsync(buffer);
-  const entryNames = new Set(Object.entries(zip.files)
-    .filter(([, entry]) => !entry.dir)
-    .map(([entryName]) => entryName));
+  const entryNames = new Set(
+    Object.entries(zip.files)
+      .filter(([, entry]) => !entry.dir)
+      .map(([entryName]) => entryName),
+  );
   let changed = false;
 
   for (const [entryName, entry] of Object.entries(zip.files)) {
@@ -2727,11 +3533,17 @@ async function normalizePowerPointPackage(filePath) {
     return;
   }
 
-  const normalizedBuffer = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
+  const normalizedBuffer = await zip.generateAsync({
+    type: "nodebuffer",
+    compression: "DEFLATE",
+  });
   await fs.writeFile(filePath, normalizedBuffer);
 }
 
-async function resolveCoreReviewCaseBankCases(coreReviewCaseBank, coreReviewCaseBankPath) {
+async function resolveCoreReviewCaseBankCases(
+  coreReviewCaseBank,
+  coreReviewCaseBankPath,
+) {
   if (Array.isArray(coreReviewCaseBank)) {
     return coreReviewCaseBank;
   }
@@ -2756,10 +3568,22 @@ async function addCoreReviewCaseExerciseSlides({
   caseBankCases,
 }) {
   const anatomyQuestion = buildCaseAnatomyQuestion(caseData);
-  const exerciseType = coreReviewExerciseType(caseData, caseNumber, anatomyQuestion);
+  const exerciseType = coreReviewExerciseType(
+    caseData,
+    caseNumber,
+    anatomyQuestion,
+  );
 
-  if (exerciseType === "pin_abnormality" || exerciseType === "pin_abnormality_verbal" || exerciseType === "pin_anatomy") {
-    const pinPrompt = buildCoreReviewStructureFindingPrompt(caseData, anatomyQuestion, exerciseType);
+  if (
+    exerciseType === "pin_abnormality" ||
+    exerciseType === "pin_abnormality_verbal" ||
+    exerciseType === "pin_anatomy"
+  ) {
+    const pinPrompt = buildCoreReviewStructureFindingPrompt(
+      caseData,
+      anatomyQuestion,
+      exerciseType,
+    );
     if (pinPrompt) {
       await addCoreReviewAnatomyQuestionSlide(
         addSlide(),
@@ -2812,7 +3636,11 @@ export async function buildDeck({
   await fs.mkdir(scratchDir, { recursive: true });
 
   const presentation = new pptxgen();
-  presentation.defineLayout({ name: "RADIOLOGY_WIDE", width: SLIDE_W, height: SLIDE_H });
+  presentation.defineLayout({
+    name: "RADIOLOGY_WIDE",
+    width: SLIDE_W,
+    height: SLIDE_H,
+  });
   presentation.layout = "RADIOLOGY_WIDE";
   presentation.author = "Radiopaedia Case PowerPoint Builder";
   presentation.company = "Radiopaedia Case PowerPoint Builder";
@@ -2821,15 +3649,25 @@ export async function buildDeck({
 
   const activeTheme = resolveTheme(theme);
   const activeDeckMode = resolveDeckMode(deckMode);
-  const shouldIncludeTeachingPoints = includeTeachingPoints || activeDeckMode === DECK_MODES.coreReview;
-  const teachingSlideTitle = activeDeckMode === DECK_MODES.coreReview ? "Core Review Notes" : "Teaching Points";
+  const shouldIncludeTeachingPoints =
+    includeTeachingPoints || activeDeckMode === DECK_MODES.coreReview;
+  const teachingSlideTitle =
+    activeDeckMode === DECK_MODES.coreReview
+      ? "Core Review Notes"
+      : "Teaching Points";
   const coreReviewCaseBankCases =
     activeDeckMode === DECK_MODES.coreReview
-      ? await resolveCoreReviewCaseBankCases(coreReviewCaseBank, coreReviewCaseBankPath)
+      ? await resolveCoreReviewCaseBankCases(
+          coreReviewCaseBank,
+          coreReviewCaseBankPath,
+        )
       : [];
   const standaloneQuestionGroups =
     activeDeckMode === DECK_MODES.coreReview
-      ? standaloneQuestionsByCase(cases, Array.isArray(coreReviewQuestions) ? coreReviewQuestions : [])
+      ? standaloneQuestionsByCase(
+          cases,
+          Array.isArray(coreReviewQuestions) ? coreReviewQuestions : [],
+        )
       : new Map();
   let slideCount = 0;
   let standaloneQuestionNumber = 0;
@@ -2852,13 +3690,25 @@ export async function buildDeck({
         cases,
         caseBankCases: coreReviewCaseBankCases,
       });
-      if (shouldIncludeTeachingPoints && Array.isArray(caseData.teachingPoints) && caseData.teachingPoints.length) {
-        addTeachingPointsSlide(addSlide(), caseData, caseNumber, deckTitle, activeTheme, {
-          title: teachingSlideTitle,
-        });
+      if (
+        shouldIncludeTeachingPoints &&
+        Array.isArray(caseData.teachingPoints) &&
+        caseData.teachingPoints.length
+      ) {
+        addTeachingPointsSlide(
+          addSlide(),
+          caseData,
+          caseNumber,
+          deckTitle,
+          activeTheme,
+          {
+            title: teachingSlideTitle,
+          },
+        );
       }
 
-      const standaloneQuestions = standaloneQuestionGroups.get(caseNumber) || [];
+      const standaloneQuestions =
+        standaloneQuestionGroups.get(caseNumber) || [];
       for (const question of standaloneQuestions) {
         standaloneQuestionNumber += 1;
         await addCoreReviewStandaloneQuestionSlide(
@@ -2880,12 +3730,29 @@ export async function buildDeck({
     }
 
     addCaseSlide(addSlide(), caseData, caseNumber, deckTitle, activeTheme);
-    await addImagesSlide(addSlide(), caseData, caseNumber, deckTitle, activeTheme);
+    await addImagesSlide(
+      addSlide(),
+      caseData,
+      caseNumber,
+      deckTitle,
+      activeTheme,
+    );
     addDiagnosisSlide(addSlide(), caseData, caseNumber, deckTitle, activeTheme);
-    if (shouldIncludeTeachingPoints && Array.isArray(caseData.teachingPoints) && caseData.teachingPoints.length) {
-      addTeachingPointsSlide(addSlide(), caseData, caseNumber, deckTitle, activeTheme, {
-        title: teachingSlideTitle,
-      });
+    if (
+      shouldIncludeTeachingPoints &&
+      Array.isArray(caseData.teachingPoints) &&
+      caseData.teachingPoints.length
+    ) {
+      addTeachingPointsSlide(
+        addSlide(),
+        caseData,
+        caseNumber,
+        deckTitle,
+        activeTheme,
+        {
+          title: teachingSlideTitle,
+        },
+      );
     }
   }
 

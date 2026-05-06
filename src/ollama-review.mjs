@@ -6,9 +6,24 @@ import { emitProgress, emitWarning } from "./backend-events.mjs";
 
 const execFileAsync = promisify(execFile);
 let OLLAMA_MODELS_PROMISE = null;
-const OLLAMA_IMAGE_TIMEOUT_MS = boundedInteger(process.env.RADIOLOGY_PPT_OLLAMA_IMAGE_TIMEOUT_MS, 12_000, 3_000, 60_000);
-const OLLAMA_CASE_TIMEOUT_MS = boundedInteger(process.env.RADIOLOGY_PPT_OLLAMA_CASE_TIMEOUT_MS, 20_000, 5_000, 120_000);
-const OLLAMA_MAX_IMAGES_PER_CASE = boundedInteger(process.env.RADIOLOGY_PPT_OLLAMA_MAX_IMAGES_PER_CASE, 1, 0, 8);
+const OLLAMA_IMAGE_TIMEOUT_MS = boundedInteger(
+  process.env.RADIOLOGY_PPT_OLLAMA_IMAGE_TIMEOUT_MS,
+  12_000,
+  3_000,
+  60_000,
+);
+const OLLAMA_CASE_TIMEOUT_MS = boundedInteger(
+  process.env.RADIOLOGY_PPT_OLLAMA_CASE_TIMEOUT_MS,
+  20_000,
+  5_000,
+  120_000,
+);
+const OLLAMA_MAX_IMAGES_PER_CASE = boundedInteger(
+  process.env.RADIOLOGY_PPT_OLLAMA_MAX_IMAGES_PER_CASE,
+  1,
+  0,
+  8,
+);
 
 function boundedInteger(rawValue, defaultValue, minimum, maximum) {
   const parsed = Number.parseInt(rawValue ?? "", 10);
@@ -62,7 +77,10 @@ async function discoverOllamaVisionModel() {
   return null;
 }
 
-async function scoreImageWithOllama(imagePath, { visionModel, caseTitle, diagnosisQuery }) {
+async function scoreImageWithOllama(
+  imagePath,
+  { visionModel, caseTitle, diagnosisQuery },
+) {
   if (!visionModel) {
     return null;
   }
@@ -70,7 +88,10 @@ async function scoreImageWithOllama(imagePath, { visionModel, caseTitle, diagnos
   try {
     const imageBase64 = (await fs.readFile(imagePath)).toString("base64");
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), OLLAMA_IMAGE_TIMEOUT_MS);
+    const timeout = setTimeout(
+      () => controller.abort(),
+      OLLAMA_IMAGE_TIMEOUT_MS,
+    );
     const response = await fetch("http://127.0.0.1:11434/api/generate", {
       method: "POST",
       signal: controller.signal,
@@ -111,12 +132,18 @@ async function scoreImageWithOllama(imagePath, { visionModel, caseTitle, diagnos
   }
 }
 
-export async function maybeScoreSelectedImagesWithOllama(images, request, caseTitle) {
+export async function maybeScoreSelectedImagesWithOllama(
+  images,
+  request,
+  caseTitle,
+) {
   if (!request.useOllamaAssist) {
     return images;
   }
 
-  const visionModel = collapseWhitespace(request.ollamaModel || "") || (await discoverOllamaVisionModel());
+  const visionModel =
+    collapseWhitespace(request.ollamaModel || "") ||
+    (await discoverOllamaVisionModel());
   if (!visionModel) {
     emitWarning("No local Ollama vision model was found for image scoring");
     return images;
@@ -134,10 +161,16 @@ export async function maybeScoreSelectedImagesWithOllama(images, request, caseTi
 
   for (const image of imagesToReview) {
     if (Date.now() - startedAt > OLLAMA_CASE_TIMEOUT_MS) {
-      emitWarning("Ollama image scoring reached the case time budget", { caseTitle });
+      emitWarning("Ollama image scoring reached the case time budget", {
+        caseTitle,
+      });
       break;
     }
-    emitProgress("Scoring image with Ollama", { caseTitle, frameId: image.frameId, model: visionModel });
+    emitProgress("Scoring image with Ollama", {
+      caseTitle,
+      frameId: image.frameId,
+      model: visionModel,
+    });
     const review = await scoreImageWithOllama(image.localPath, {
       visionModel,
       caseTitle,
@@ -153,18 +186,23 @@ export async function maybeScoreSelectedImagesWithOllama(images, request, caseTi
   return images.sort(
     (left, right) =>
       (Number.isFinite(right.ollamaScore) ? right.ollamaScore : -1) -
-      (Number.isFinite(left.ollamaScore) ? left.ollamaScore : -1) ||
+        (Number.isFinite(left.ollamaScore) ? left.ollamaScore : -1) ||
       right.relevantScore - left.relevantScore,
   );
 }
 
-export async function scorePreparedItemsWithOllama(items, { ollamaModel = "" } = {}) {
+export async function scorePreparedItemsWithOllama(
+  items,
+  { ollamaModel = "" } = {},
+) {
   const scoredItems = [];
   for (const item of items) {
     const request = {
       ...(item.request || {}),
       useOllamaAssist: true,
-      ollamaModel: collapseWhitespace(ollamaModel || item.request?.ollamaModel || ""),
+      ollamaModel: collapseWhitespace(
+        ollamaModel || item.request?.ollamaModel || "",
+      ),
     };
     const caseData = item.caseData || item.case || {};
     const images = Array.isArray(caseData.images) ? caseData.images : [];
