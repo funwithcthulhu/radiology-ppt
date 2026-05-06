@@ -28,8 +28,8 @@ OutputBaseFilename=Radiopaedia-Case-PowerPoint-Builder-Setup-v{#AppVersion}
 SetupIconFile={#SourceDir}\app-icon.ico
 UninstallDisplayIcon={app}\app-icon.ico
 LicenseFile={#SourceDir}\LICENSE
-Compression=lzma2
-SolidCompression=yes
+Compression=lzma2/fast
+SolidCompression=no
 WizardStyle=modern
 
 [Tasks]
