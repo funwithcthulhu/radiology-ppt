@@ -115,6 +115,133 @@ test("prepared item normalization rejects malformed render payloads", () => {
   assert.equal(prepared[0].request.diagnosis, "example case");
 });
 
+test("PowerPoint render rejects missing case identity before generation", async () => {
+  const { renderPowerPoint, tempDir } = await loadRenderPowerPoint(
+    "missing-case-identity",
+  );
+
+  await assert.rejects(
+    () =>
+      renderPowerPoint(
+        {
+          items: [
+            {
+              request: { rawInput: "appendicitis" },
+              caseData: {
+                rawInput: "appendicitis",
+                diagnosisQuery: "appendicitis",
+                images: [],
+              },
+            },
+          ],
+        },
+        {
+          out: path.join(tempDir, "outputs", "missing-identity.pptx"),
+          title: "Missing Identity Test",
+        },
+      ),
+    (error) => {
+      assert.match(error.message, /Cannot render PowerPoint/);
+      assert.match(error.message, /Case 1 is missing a case title/);
+      assert.match(error.message, /Case 1 is missing a case identifier/);
+      return true;
+    },
+  );
+});
+
+test("PowerPoint render rejects missing and unsupported image assets", async () => {
+  const { renderPowerPoint, tempDir } = await loadRenderPowerPoint(
+    "invalid-image-assets",
+  );
+  const missingImagePath = path.join(tempDir, "images", "missing.png");
+
+  await assert.rejects(
+    () =>
+      renderPowerPoint(
+        {
+          items: [
+            {
+              request: { rawInput: "appendicitis" },
+              caseData: renderCaseData({
+                images: [
+                  { label: "No local path" },
+                  {
+                    localPath: "https://example.com/image.png",
+                    label: "Remote image URL",
+                  },
+                  { localPath: missingImagePath, label: "Missing file" },
+                ],
+              }),
+            },
+          ],
+        },
+        {
+          out: path.join(tempDir, "outputs", "invalid-assets.pptx"),
+          title: "Invalid Assets Test",
+        },
+      ),
+    (error) => {
+      assert.match(error.message, /Cannot render PowerPoint/);
+      assert.match(
+        error.message,
+        /Image 1 for case "Appendicitis" is missing a localPath/,
+      );
+      assert.match(
+        error.message,
+        /Image 2 for case "Appendicitis" uses an unsupported image path/,
+      );
+      assert.match(
+        error.message,
+        /Image 3 for case "Appendicitis" was not found/,
+      );
+      assert.match(error.message, /missing\.png/);
+      return true;
+    },
+  );
+});
+
+test("PowerPoint render rejects empty render input and empty cases clearly", async () => {
+  const { renderPowerPoint, tempDir } =
+    await loadRenderPowerPoint("empty-render-input");
+
+  await assert.rejects(
+    () =>
+      renderPowerPoint(
+        { items: [] },
+        {
+          out: path.join(tempDir, "outputs", "empty-list.pptx"),
+          title: "Empty List Test",
+        },
+      ),
+    /No prepared cases were provided for render/,
+  );
+
+  await assert.rejects(
+    () =>
+      renderPowerPoint(
+        {
+          items: [
+            {
+              request: { rawInput: "empty case" },
+              caseData: {},
+            },
+          ],
+        },
+        {
+          out: path.join(tempDir, "outputs", "empty-case.pptx"),
+          title: "Empty Case Test",
+        },
+      ),
+    (error) => {
+      assert.match(error.message, /Cannot render PowerPoint/);
+      assert.match(error.message, /Case 1 is missing a case title/);
+      assert.match(error.message, /Case 1 is missing a case identifier/);
+      assert.match(error.message, /Case 1 is missing an images array/);
+      return true;
+    },
+  );
+});
+
 test("PowerPoint render does not write random history a second time", async () => {
   const tempDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "radiology-render-history-"),
@@ -251,6 +378,45 @@ async function writeImportedSource(tempDir, fileName, text) {
   const filePath = path.join(tempDir, fileName);
   await fs.writeFile(filePath, text, "utf8");
   return filePath;
+}
+
+async function loadRenderPowerPoint(name) {
+  const tempDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), `radiology-${name}-`),
+  );
+  process.env.RADIOLOGY_PPT_APP_ROOT = tempDir;
+  process.env.RADIOLOGY_PPT_DATABASE_PATH = path.join(tempDir, "state.sqlite");
+
+  const moduleUrl = new URL(
+    `../src/backend-api.mjs?${name}=${Date.now()}-${Math.random()}`,
+    import.meta.url,
+  );
+  const { renderPowerPoint } = await import(moduleUrl.href);
+  return { renderPowerPoint, tempDir };
+}
+
+function renderCaseData(overrides = {}) {
+  return {
+    rawInput: "appendicitis",
+    diagnosisQuery: "appendicitis",
+    studyHint: "",
+    caseTitle: "Appendicitis",
+    casePath: "/cases/appendicitis-validation",
+    caseUrl: "https://radiopaedia.org/cases/appendicitis-validation",
+    author: "",
+    licenseName: "",
+    licenseUrl: "",
+    rid: "",
+    modalitySummary: "CT",
+    studyCount: 1,
+    caseIntro: "",
+    teachingPoints: [],
+    revealSummary: "Example summary.",
+    footerText: "",
+    patientData: {},
+    images: [],
+    ...overrides,
+  };
 }
 
 function readAllSlideText(buffer) {

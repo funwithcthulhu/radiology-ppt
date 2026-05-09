@@ -198,6 +198,130 @@ export function normalizePreparedItems(payload) {
     .filter((item) => item.request?.rawInput && item.caseData?.caseTitle);
 }
 
+async function validateRenderPreparedItems(rawItems) {
+  const failures = [];
+  for (let index = 0; index < rawItems.length; index += 1) {
+    const item = rawItems[index];
+    const caseNumber = index + 1;
+    const caseData = preparedItemCaseData(item);
+    const request = preparedItemRequest(item);
+
+    if (!caseData) {
+      failures.push(`Case ${caseNumber} is missing case data.`);
+      continue;
+    }
+
+    const caseTitle = collapseWhitespace(caseData.caseTitle || "");
+    const caseIdentifier = collapseWhitespace(
+      caseData.casePath || caseData.caseUrl || request?.selectedCasePath || "",
+    );
+
+    if (!request?.rawInput) {
+      failures.push(
+        `${caseRenderLabel(caseNumber, caseTitle)} is missing a source request.`,
+      );
+    }
+    if (!caseTitle) {
+      failures.push(`Case ${caseNumber} is missing a case title.`);
+    }
+    if (!caseIdentifier) {
+      failures.push(
+        `${caseRenderLabel(caseNumber, caseTitle)} is missing a case identifier.`,
+      );
+    }
+    if (!Array.isArray(caseData.images)) {
+      failures.push(
+        `${caseRenderLabel(caseNumber, caseTitle)} is missing an images array.`,
+      );
+      continue;
+    }
+
+    for (
+      let imageIndex = 0;
+      imageIndex < caseData.images.length;
+      imageIndex += 1
+    ) {
+      const image = caseData.images[imageIndex];
+      const imageNumber = imageIndex + 1;
+      const imageLabel = `Image ${imageNumber} for ${imageCaseRenderLabel(
+        caseNumber,
+        caseTitle,
+      )}`;
+
+      if (!image || typeof image !== "object" || Array.isArray(image)) {
+        failures.push(`${imageLabel} is not a valid image object.`);
+        continue;
+      }
+
+      const localPath = collapseWhitespace(image.localPath || "");
+      if (!localPath) {
+        failures.push(`${imageLabel} is missing a localPath.`);
+        continue;
+      }
+      if (isUnsupportedImagePath(localPath)) {
+        failures.push(
+          `${imageLabel} uses an unsupported image path: ${localPath}. Expected a local file path.`,
+        );
+        continue;
+      }
+
+      try {
+        const stat = await fs.stat(localPath);
+        if (!stat.isFile()) {
+          failures.push(`${imageLabel} is not a file: ${localPath}`);
+        }
+      } catch {
+        failures.push(`${imageLabel} was not found: ${localPath}`);
+      }
+    }
+  }
+
+  if (failures.length) {
+    throw new Error(
+      `Cannot render PowerPoint because prepared case data is incomplete:\n- ${failures.join(
+        "\n- ",
+      )}`,
+    );
+  }
+}
+
+function preparedItemCaseData(item) {
+  if (!item || typeof item !== "object" || Array.isArray(item)) {
+    return null;
+  }
+  const caseData = item.caseData || item.case || item;
+  return caseData && typeof caseData === "object" && !Array.isArray(caseData)
+    ? caseData
+    : null;
+}
+
+function preparedItemRequest(item) {
+  if (!item || typeof item !== "object" || Array.isArray(item)) {
+    return null;
+  }
+  try {
+    return parseCaseRequest(
+      item.request || item.entry || item.sourceRequest || item,
+    );
+  } catch {
+    return null;
+  }
+}
+
+function caseRenderLabel(caseNumber, caseTitle) {
+  return caseTitle ? `Case ${caseNumber} "${caseTitle}"` : `Case ${caseNumber}`;
+}
+
+function imageCaseRenderLabel(caseNumber, caseTitle) {
+  return caseTitle ? `case "${caseTitle}"` : `case ${caseNumber}`;
+}
+
+function isUnsupportedImagePath(localPath) {
+  return (
+    /^[a-z][a-z\d+.-]*:/i.test(localPath) && !/^[a-z]:[\\/]/i.test(localPath)
+  );
+}
+
 export async function prepareCaseItems(
   rawEntries,
   args,
@@ -448,7 +572,16 @@ export async function scoreImages(payload, args) {
 
 export async function renderPowerPoint(payload, args) {
   emitProgress("Starting PowerPoint render");
-  const items = normalizePreparedItems(payload);
+  const rawItems = Array.isArray(payload) ? payload : payload?.items;
+  if (!Array.isArray(rawItems)) {
+    throw new Error("Prepared input must contain an array of items.");
+  }
+  if (!rawItems.length) {
+    throw new Error("No prepared cases were provided for render.");
+  }
+  await validateRenderPreparedItems(rawItems);
+
+  const items = normalizePreparedItems({ items: rawItems });
   if (!items.length) {
     throw new Error("No prepared cases were provided for render.");
   }
