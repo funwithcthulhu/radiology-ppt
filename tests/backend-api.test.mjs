@@ -242,6 +242,37 @@ test("PowerPoint render rejects empty render input and empty cases clearly", asy
   );
 });
 
+test("PowerPoint render rejects directory output paths before export", async () => {
+  const { renderPowerPoint, tempDir } =
+    await loadRenderPowerPoint("directory-output-path");
+  const outputPath = path.join(tempDir, "outputs", "blocked.pptx");
+  await fs.mkdir(outputPath, { recursive: true });
+
+  await assert.rejects(
+    () =>
+      renderPowerPoint(
+        {
+          items: [
+            {
+              request: { rawInput: "appendicitis" },
+              caseData: renderCaseData(),
+            },
+          ],
+        },
+        {
+          out: outputPath,
+          title: "Directory Output Path Test",
+        },
+      ),
+    (error) => {
+      assert.match(error.message, /Cannot render PowerPoint/);
+      assert.match(error.message, /output path is a directory/);
+      assert.match(error.message, /blocked\.pptx/);
+      return true;
+    },
+  );
+});
+
 test("PowerPoint render does not write random history a second time", async () => {
   const tempDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "radiology-render-history-"),

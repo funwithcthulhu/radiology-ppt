@@ -322,6 +322,27 @@ function isUnsupportedImagePath(localPath) {
   );
 }
 
+async function validateRenderOutputPath(outputPath) {
+  try {
+    const stat = await fs.stat(outputPath);
+    if (stat.isDirectory()) {
+      throw new Error(
+        `Cannot render PowerPoint because the output path is a directory: ${outputPath}`,
+      );
+    }
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      return;
+    }
+    if (/^Cannot render PowerPoint because/.test(error?.message || "")) {
+      throw error;
+    }
+    throw new Error(
+      `Cannot render PowerPoint because the output path cannot be checked: ${outputPath}. ${error?.message || error}`,
+    );
+  }
+}
+
 export async function prepareCaseItems(
   rawEntries,
   args,
@@ -611,6 +632,7 @@ export async function renderPowerPoint(payload, args) {
       ? await selectCoreReviewStandaloneQuestions(cases, deckTitle, args)
       : [];
 
+  await validateRenderOutputPath(outputPath);
   await fs.mkdir(path.dirname(outputPath), { recursive: true });
   await fs.writeFile(
     manifestPath,
