@@ -241,6 +241,382 @@ function buildReference(source, chunk) {
   return label ? [{ label }] : [];
 }
 
+function resolveCorpusAsset(asset, corpusPath) {
+  if (!asset || typeof asset !== "object") {
+    return asset;
+  }
+  if (asset.localPath || !asset.path || !corpusPath) {
+    return asset;
+  }
+  return {
+    ...asset,
+    localPath: path.resolve(path.dirname(corpusPath), asset.path),
+  };
+}
+
+const PDF_IMAGE_ASSET_TYPES = new Set(["embedded_image", "page_render"]);
+const MIN_PDF_IMAGE_CONFIDENCE = 0.6;
+
+function clampConfidence(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return null;
+  }
+  if (numeric > 1 && numeric <= 100) {
+    return Math.max(0, Math.min(1, numeric / 100));
+  }
+  return Math.max(0, Math.min(1, numeric));
+}
+
+function confidenceFromValue(value) {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+  if (value && typeof value === "object") {
+    return confidenceFromValue(
+      value.value ??
+        value.score ??
+        value.confidence ??
+        value.probability ??
+        value.level,
+    );
+  }
+
+  if (typeof value === "string") {
+    const clean = value.trim().toLowerCase();
+    if (clean.endsWith("%")) {
+      return clampConfidence(clean.slice(0, -1));
+    }
+    if (clean === "high" || clean === "strong") {
+      return 0.9;
+    }
+    if (clean === "medium" || clean === "moderate" || clean === "reasonable") {
+      return 0.7;
+    }
+    if (clean === "low" || clean === "weak") {
+      return 0.35;
+    }
+  }
+
+  return clampConfidence(value);
+}
+
+function firstConfidence(...values) {
+  for (const value of values) {
+    const confidence = confidenceFromValue(value);
+    if (confidence !== null) {
+      return confidence;
+    }
+  }
+  return null;
+}
+
+function normalizeIdList(values) {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+  return values
+    .map((value) => {
+      if (typeof value === "string") {
+        return value;
+      }
+      return value?.id || value?.assetId || value?.sourceAssetId || "";
+    })
+    .map((value) => collapseWhitespace(value))
+    .filter(Boolean);
+}
+
+function normalizeAssetObjectList(values) {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+  return values.filter((value) => value && typeof value === "object");
+}
+
+function normalizeAssetMatchList(values) {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+  return values
+    .filter((value) => value && typeof value === "object")
+    .map((match) => ({
+      ...match,
+      assetId: collapseWhitespace(
+        match.assetId || match.id || match.sourceAssetId || "",
+      ),
+    }))
+    .filter((match) => match.assetId);
+}
+
+function assetMatchFor(asset, assetMatches) {
+  const assetId = collapseWhitespace(asset?.id || asset?.sourceAssetId || "");
+  if (!assetId) {
+    return null;
+  }
+  return assetMatches.find((match) => match.assetId === assetId) || null;
+}
+
+function chunkAssetIds(chunk) {
+  return uniqueBy(
+    [
+      ...normalizeIdList(chunk?.assetIds),
+      ...normalizeIdList(chunk?.imageAssetIds),
+      ...normalizeIdList(chunk?.assets),
+      ...normalizeIdList(chunk?.images),
+    ],
+    (value) => value,
+  );
+}
+
+function chunkAssetObjects(chunk) {
+  return uniqueBy(
+    [
+      ...normalizeAssetObjectList(chunk?.assets),
+      ...normalizeAssetObjectList(chunk?.images),
+    ],
+    (asset) =>
+      asset.id || asset.sourceAssetId || asset.localPath || asset.path,
+  );
+}
+
+function chunkPageNumber(chunk) {
+  const value =
+    chunk?.sourceLocator?.page ??
+    chunk?.locator?.page ??
+    chunk?.pageNumber ??
+    chunk?.pageStart;
+  const pageNumber = Number(value);
+  return Number.isInteger(pageNumber) && pageNumber > 0 ? pageNumber : 0;
+}
+
+function assetPageNumber(asset) {
+  const value = asset?.pageNumber ?? asset?.page ?? asset?.locator?.page;
+  const pageNumber = Number(value);
+  return Number.isInteger(pageNumber) && pageNumber > 0 ? pageNumber : 0;
+}
+
+function sameKnownSource(asset, source, chunk) {
+  const assetSourceId = collapseWhitespace(asset?.sourceId || "");
+  const chunkSourceId = collapseWhitespace(chunk?.sourceId || "");
+  const sourceId = collapseWhitespace(source?.id || "");
+  const expectedSourceId = chunkSourceId || sourceId;
+  return (
+    !assetSourceId || !expectedSourceId || assetSourceId === expectedSourceId
+  );
+}
+
+function inferredImageConfidence(asset, source, chunk, assetIds) {
+  const assetMatch = assetMatchFor(
+    asset,
+    normalizeAssetMatchList(chunk?.assetMatches),
+  );
+  const explicit = firstConfidence(
+    assetMatch?.confidence,
+    assetMatch?.score && assetMatch.score > 1
+      ? Math.min(1, Number(assetMatch.score) / 100)
+      : null,
+    chunk?.imageMatchConfidence,
+    asset?.confidence,
+    asset?.assetConfidence,
+    asset?.matchConfidence,
+    asset?.linkConfidence,
+    asset?.sourceConfidence,
+    asset?.provenance?.confidence,
+    asset?.locator?.confidence,
+  );
+  if (explicit !== null) {
+    return {
+      confidence: explicit,
+      confidenceSource:
+        assetMatch?.confidenceSource ||
+        chunk?.imageMatchConfidenceSource ||
+        "explicit",
+      matchReason:
+        assetMatch?.reason || chunk?.imageMatchReason || assetMatch?.caption || "",
+      caption: assetMatch?.caption || "",
+      assetMatch,
+    };
+  }
+
+  if (assetIds.includes(asset?.id)) {
+    return {
+      confidence: 0.9,
+      confidenceSource: "chunk_asset_id",
+      matchReason: assetMatch?.reason || chunk?.imageMatchReason || "",
+      caption: assetMatch?.caption || "",
+      assetMatch,
+    };
+  }
+
+  const pageNumber = assetPageNumber(asset);
+  const chunkPage = chunkPageNumber(chunk);
+  if (
+    pageNumber &&
+    chunkPage &&
+    pageNumber === chunkPage &&
+    sameKnownSource(asset, source, chunk)
+  ) {
+    return {
+      confidence: 0.7,
+      confidenceSource: "same_page",
+      matchReason: "same_page",
+      caption: "",
+      assetMatch,
+    };
+  }
+
+  if (sameKnownSource(asset, source, chunk)) {
+    return {
+      confidence: 0.45,
+      confidenceSource: "same_source",
+      matchReason: "same_source",
+      caption: "",
+      assetMatch,
+    };
+  }
+
+  return {
+    confidence: 0,
+    confidenceSource: "source_mismatch",
+    matchReason: "source_mismatch",
+    caption: "",
+    assetMatch,
+  };
+}
+
+function imageAssetCandidate(asset, source, chunk, assetIds) {
+  if (!asset || !PDF_IMAGE_ASSET_TYPES.has(asset.type)) {
+    return null;
+  }
+  const localPath = collapseWhitespace(asset.localPath || asset.path || "");
+  if (!localPath || !sameKnownSource(asset, source, chunk)) {
+    return null;
+  }
+  const confidence = inferredImageConfidence(asset, source, chunk, assetIds);
+  if (confidence.confidence < MIN_PDF_IMAGE_CONFIDENCE) {
+    return null;
+  }
+  const pageDistance =
+    assetPageNumber(asset) && chunkPageNumber(chunk)
+      ? Math.abs(assetPageNumber(asset) - chunkPageNumber(chunk))
+      : 0;
+  const typeRank = asset.type === "embedded_image" ? 2 : 1;
+  return {
+    asset,
+    ...confidence,
+    pageDistance,
+    typeRank,
+  };
+}
+
+function preferredAssetForChunk(chunk, source, assetsById) {
+  const assetIds = chunkAssetIds(chunk);
+  const referencedAssets = assetIds
+    .map((assetId) => assetsById.get(assetId))
+    .filter(Boolean);
+  const inlineAssets = chunkAssetObjects(chunk);
+  const candidates = uniqueBy(
+    [...referencedAssets, ...inlineAssets],
+    (asset) =>
+      asset.id || asset.sourceAssetId || asset.localPath || asset.path,
+  )
+    .map((asset) => imageAssetCandidate(asset, source, chunk, assetIds))
+    .filter(Boolean)
+    .sort(
+      (left, right) =>
+        right.confidence - left.confidence ||
+        left.pageDistance - right.pageDistance ||
+        right.typeRank - left.typeRank,
+    );
+  return candidates[0] || null;
+}
+
+function sourceImageProvenance(asset, source, chunk, confidence) {
+  return {
+    ...(asset.provenance && typeof asset.provenance === "object"
+      ? asset.provenance
+      : {}),
+    source: asset.provenance?.source || "imported_pdf",
+    sourceId: asset.sourceId || chunk?.sourceId || source?.id || "",
+    sourceTitle: source?.title || "",
+    sourceType: source?.sourceType || "pdf",
+    sourceAssetId: asset.id || "",
+    sourceChunkId: chunk?.id || "",
+    sourceAssetType: asset.type || "",
+    confidence: confidence.confidence,
+    confidenceSource: confidence.confidenceSource,
+    matchReason: confidence.matchReason || "",
+  };
+}
+
+function sourceImageLocator(asset, chunk, candidate = {}) {
+  const pageNumber = assetPageNumber(asset) || chunkPageNumber(chunk);
+  return {
+    ...(asset.locator && typeof asset.locator === "object"
+      ? asset.locator
+      : {}),
+    pageNumber,
+    page: pageNumber,
+    chunkPageStart: chunk?.pageStart || 0,
+    chunkPageEnd: chunk?.pageEnd || chunk?.pageStart || 0,
+    sourceLocator: chunk?.sourceLocator || null,
+    bbox: asset?.bbox || asset?.locator?.bbox || null,
+    caption: candidate.caption || chunk?.sourceLocator?.caption || "",
+    matchReason:
+      candidate.matchReason || chunk?.sourceLocator?.imageMatchReason || "",
+  };
+}
+
+function imageForSourceAsset(candidate, source, chunk) {
+  if (!candidate?.asset) {
+    return null;
+  }
+  const { asset } = candidate;
+  const localPath = collapseWhitespace(asset.localPath || asset.path || "");
+  if (!localPath) {
+    return null;
+  }
+  const pageNumber = assetPageNumber(asset) || chunkPageNumber(chunk);
+  const provenance = sourceImageProvenance(asset, source, chunk, candidate);
+  const locator = sourceImageLocator(asset, chunk, candidate);
+  return {
+    id: asset.id,
+    path: localPath,
+    localPath,
+    label: collapseWhitespace(
+      [
+        source?.title || "Imported source",
+        pageNumber ? `page ${pageNumber}` : "",
+        asset.type === "embedded_image" ? "embedded image" : "page image",
+      ]
+        .filter(Boolean)
+        .join(" - "),
+    ),
+    alt: collapseWhitespace(
+      [
+        "Imported PDF source image",
+        source?.title || "",
+        pageNumber ? `page ${pageNumber}` : "",
+      ]
+        .filter(Boolean)
+        .join(" - "),
+    ),
+    sourceId: asset.sourceId || chunk?.sourceId || source?.id || "",
+    sourceAssetId: asset.id || "",
+    sourceChunkId: chunk?.id || "",
+    sourceAssetType: asset.type || "",
+    pageNumber,
+    width: asset.width || 0,
+    height: asset.height || 0,
+    confidence: candidate.confidence,
+    confidenceSource: candidate.confidenceSource,
+    matchReason: candidate.matchReason || "",
+    caption: candidate.caption || "",
+    provenance,
+    locator,
+  };
+}
+
 function buildQuestionStem(style, domain, topic, sourceTitle) {
   const normalizedTopic = normalizeStemTopic(topic, sourceTitle);
   if (style === "recommendation") {
@@ -395,7 +771,7 @@ function buildOptionSet(correctText, domain, style, seed) {
   return { options, answerKey };
 }
 
-function draftQuestionFromSentence(source, chunk, sentence, index) {
+function draftQuestionFromSentence(source, chunk, sentence, index, assetsById) {
   const domain = normalizeCoreReviewDomain(
     chunk?.domain || source?.domain || "",
   );
@@ -444,6 +820,11 @@ function draftQuestionFromSentence(source, chunk, sentence, index) {
     options,
     answerKey,
     explanation: `Source-grounded review item based on ${source?.title || "an imported source"}.`,
+    image: imageForSourceAsset(
+      preferredAssetForChunk(chunk, source, assetsById),
+      source,
+      chunk,
+    ),
     references: buildReference(source, chunk),
     sourceChunkIds: [chunk.id],
   };
@@ -470,7 +851,9 @@ export async function loadCoreReviewCorpus(corpusPath) {
     sourceCount: Array.isArray(parsed.sources) ? parsed.sources.length : 0,
     chunkCount: parsed.chunks.length,
     sources: Array.isArray(parsed.sources) ? parsed.sources : [],
-    assets: Array.isArray(parsed.assets) ? parsed.assets : [],
+    assets: Array.isArray(parsed.assets)
+      ? parsed.assets.map((asset) => resolveCorpusAsset(asset, resolvedPath))
+      : [],
     chunks: parsed.chunks,
   };
 }
@@ -512,6 +895,11 @@ export function buildCoreReviewQuestionBankFromCorpus(corpus, options = {}) {
   const sourcesById = new Map(
     (corpus.sources || []).map((source) => [source.id, source]),
   );
+  const assetsById = new Map(
+    (corpus.assets || [])
+      .map((asset) => [asset.id, resolveCorpusAsset(asset, corpus.path)])
+      .filter(([assetId]) => assetId),
+  );
   const questions = [];
   const seenStems = new Set();
 
@@ -534,6 +922,7 @@ export function buildCoreReviewQuestionBankFromCorpus(corpus, options = {}) {
         { ...chunk, domain },
         sentence,
         index,
+        assetsById,
       );
       if (!rawQuestion || seenStems.has(rawQuestion.stem.toLowerCase())) {
         continue;

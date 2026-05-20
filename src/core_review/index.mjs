@@ -14,6 +14,12 @@ export {
 } from "./ingest.mjs";
 
 export {
+  buildPdfLayoutChunks,
+  isLikelyPdfSectionHeading,
+  isPdfCaptionLine,
+} from "./pdf-layout-ingest.mjs";
+
+export {
   buildCoreReviewQuizSession,
   loadCoreReviewQuestionBank,
   normalizeCoreReviewQuestion,

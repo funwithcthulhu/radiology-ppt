@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseCaseRequest, titleFromCasePath } from "../src/request-parser.mjs";
+import {
+  parseCaseRequest,
+  parseCaseRequestList,
+  titleFromCasePath,
+} from "../src/request-parser.mjs";
 
 test("parses a specific diagnosis with a modality/anatomy hint", () => {
   const request = parseCaseRequest("multiple sclerosis, mri brain");
@@ -55,6 +59,92 @@ test("derives readable titles from full Radiopaedia URLs", () => {
 
   assert.equal(request.diagnosis, "colonic diverticulosis");
   assert.equal(request.rawInput, "colonic diverticulosis");
+});
+
+test("detects standalone Radiopaedia case URLs as manual case URL rows", () => {
+  const request = parseCaseRequest(
+    "https://radiopaedia.org/cases/colonic-diverticulosis-1?lang=us",
+  );
+
+  assert.equal(request.requestMode, "manual");
+  assert.equal(
+    request.selectedCasePath,
+    "https://radiopaedia.org/cases/colonic-diverticulosis-1?lang=us",
+  );
+  assert.equal(request.diagnosis, "colonic diverticulosis");
+  assert.equal(request.randomSpec, null);
+});
+
+test("does not treat manual report or free text rows as URLs", () => {
+  const report = parseCaseRequest(
+    "History of trauma. CT shows a small subdural hematoma.",
+  );
+  assert.equal(report.selectedCasePath, undefined);
+  assert.equal(report.requestMode, undefined);
+  assert.equal(report.diagnosis, "History of trauma. CT shows a small subdural hematoma.");
+
+  const nonCaseUrl = parseCaseRequest(
+    "https://radiopaedia.org/articles/subdural-haemorrhage",
+  );
+  assert.equal(nonCaseUrl.selectedCasePath, undefined);
+  assert.equal(nonCaseUrl.requestMode, undefined);
+});
+
+test("parses plain text, CSV, TSV, and JSON request lists", () => {
+  assert.deepEqual(parseCaseRequestList("appendicitis, ct abdomen\nrandom neuro 2"), [
+    "appendicitis, ct abdomen",
+    "random neuro 2",
+  ]);
+
+  assert.deepEqual(
+    parseCaseRequestList(
+      'diagnosis,study hint\n"multiple sclerosis","mri brain"\nappendicitis,ct abdomen',
+    ),
+    [
+      { diagnosis: "multiple sclerosis", studyHint: "mri brain" },
+      { diagnosis: "appendicitis", studyHint: "ct abdomen" },
+    ],
+  );
+
+  assert.deepEqual(
+    parseCaseRequestList(
+      "request\tselected case url\tselected case title\nManual URL\thttps://radiopaedia.org/cases/example-case-1\tExample case",
+    ),
+    [
+      {
+        rawInput: "Manual URL",
+        selectedCasePath: "https://radiopaedia.org/cases/example-case-1",
+        selectedCaseTitle: "Example case",
+      },
+    ],
+  );
+
+  assert.deepEqual(
+    parseCaseRequestList(
+      JSON.stringify({
+        entries: [
+          "appendicitis, ct abdomen",
+          { requestMode: "random", randomCount: 2 },
+        ],
+      }),
+    ),
+    ["appendicitis, ct abdomen", { requestMode: "random", randomCount: 2 }],
+  );
+});
+
+test("rejects PDF and binary request-list imports with a helpful error", () => {
+  assert.throws(
+    () => parseCaseRequestList("%PDF-1.7\n1 0 obj\nendobj\nxref\n%%EOF"),
+    /Unsupported request-list import: PDF content.*plain text, CSV, TSV, or JSON/,
+  );
+  assert.throws(
+    () => parseCaseRequestList(["appendicitis", "endobj", "xref", "%%EOF"]),
+    /Unsupported request-list import: PDF content|Unsupported request-list import: PDF object content/,
+  );
+  assert.throws(
+    () => parseCaseRequest("%%EOF"),
+    /Unsupported request-list import/,
+  );
 });
 
 test("handles terse and misspelled random category requests", () => {

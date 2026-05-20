@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { PDFParse } from "pdf-parse";
 import { collapseWhitespace, slugify } from "../utils.mjs";
-import { chunkCoreReviewText } from "./ingest.mjs";
+import { buildPdfLayoutChunks } from "./pdf-layout-ingest.mjs";
 
 function utcNow() {
   return new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
@@ -50,18 +50,6 @@ function sourceIdFor(base, seen) {
   }
   seen.add(candidate);
   return candidate;
-}
-
-function captionCandidates(text) {
-  return String(text || "")
-    .split(/\r?\n/)
-    .map((line) => collapseWhitespace(line))
-    .filter(Boolean)
-    .filter((line) =>
-      /^(fig(?:ure)?\.?\s*\d+|image\s*\d+|case\s*\d+)/i.test(line),
-    )
-    .slice(0, 12)
-    .map((line) => line.slice(0, 500));
 }
 
 function metadataValue(info, ...keys) {
@@ -122,6 +110,7 @@ async function savePageRenders(parser, sourceId, assetsDir, outputRoot, dpi) {
       id: assetId,
       sourceId,
       type: "page_render",
+      layoutRole: "same_page_fallback",
       pageNumber,
       path: relativePath(renderPath, outputRoot),
       localPath: path.resolve(renderPath),
@@ -178,7 +167,10 @@ async function saveEmbeddedImages(
         id: assetId,
         sourceId,
         type: "embedded_image",
+        layoutRole: "preferred_source_image",
         pageNumber,
+        imageIndex,
+        sourceImageName: image.name || "",
         path: relativePath(imagePath, outputRoot),
         localPath: path.resolve(imagePath),
         extension: "png",
@@ -282,33 +274,21 @@ async function ingestPdf(pdfPath, options, seenSourceIds) {
     const pages = textResult.pages?.length
       ? textResult.pages
       : [{ num: 1, text: textResult.text || "" }];
-    const chunks = [];
-    for (const page of pages) {
-      const pageNumber = page.num || chunks.length + 1;
-      const pageText = page.text || "";
-      const assetIds = rendered.pageAssetIds.get(pageNumber) || [];
-      const captions = captionCandidates(pageText);
-      chunkCoreReviewText(pageText, {
-        maxChars: options.maxChars || 1600,
-      }).forEach((chunk, index) => {
-        chunks.push({
-          id: `${sourceId}:page-${String(pageNumber).padStart(4, "0")}:chunk-${String(index + 1).padStart(3, "0")}`,
-          sourceId,
-          pageStart: pageNumber,
-          pageEnd: pageNumber,
-          domain: source.domain,
-          tags: source.tags,
-          text: chunk,
-          textHash: sha256Bytes(chunk),
-          assetIds,
-          captionCandidates: captions,
-          sourceLocator: {
-            sourceTitle: title,
-            page: pageNumber,
-          },
-        });
-      });
-    }
+    const layoutMaxChars =
+      options.layoutMaxChars ||
+      Math.min(Number.parseInt(options.maxChars, 10) || 900, 900);
+    const chunks = buildPdfLayoutChunks(pages, {
+      sourceId,
+      title,
+      domain: source.domain,
+      tags: source.tags,
+      assets,
+      maxChars: options.maxChars || 1600,
+      layoutMaxChars,
+    }).map((chunk) => ({
+      ...chunk,
+      textHash: sha256Bytes(chunk.text),
+    }));
 
     source.assetCount = assets.length;
     source.chunkCount = chunks.length;

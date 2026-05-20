@@ -62,6 +62,28 @@ test("backend API drops empty rows but keeps repeated random rows", () => {
   );
 });
 
+test("backend API parses request-list imports and rejects PDF fragments", () => {
+  const csvRequests = normalizeCaseRequestEntries(
+    "diagnosis,study hint\nappendicitis,ct abdomen\nmultiple sclerosis,mri brain",
+  );
+  assert.equal(csvRequests.length, 2);
+  assert.equal(csvRequests[0].diagnosis, "appendicitis");
+  assert.equal(csvRequests[0].studyHint, "ct abdomen");
+  assert.equal(csvRequests[1].diagnosis, "multiple sclerosis");
+
+  const urlRequests = normalizeCaseRequestEntries([
+    "https://radiopaedia.org/cases/colonic-diverticulosis-1?lang=us",
+  ]);
+  assert.equal(urlRequests.length, 1);
+  assert.equal(urlRequests[0].requestMode, "manual");
+  assert.equal(urlRequests[0].diagnosis, "colonic diverticulosis");
+
+  assert.throws(
+    () => normalizeCaseRequestEntries(["endobj", "xref", "%%EOF"]),
+    /Unsupported request-list import/,
+  );
+});
+
 test("Core Review total item count reserves NIS and physics inside requested total", () => {
   assert.deepEqual(coreReviewStandaloneQuestionCountsForTotal(50), {
     nis: 2,

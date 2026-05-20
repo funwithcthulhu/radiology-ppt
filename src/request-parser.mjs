@@ -266,6 +266,32 @@ export const KNOWN_CASE_SYSTEMS = dedupe(
   RANDOM_CATEGORY_HINTS.flatMap((hint) => hint.systems),
 );
 const STRUCTURED_RANDOM_MODES = new Set(["random", "random_case"]);
+const REQUEST_LIST_FIELD_ALIASES = {
+  request: "rawInput",
+  rawinput: "rawInput",
+  raw_input: "rawInput",
+  query: "rawInput",
+  diagnosis: "diagnosis",
+  studyhint: "studyHint",
+  study_hint: "studyHint",
+  modality: "modality",
+  anatomy: "anatomy",
+  requestmode: "requestMode",
+  request_mode: "requestMode",
+  selectedcasepath: "selectedCasePath",
+  selected_case_path: "selectedCasePath",
+  selectedcaseurl: "selectedCasePath",
+  selected_case_url: "selectedCasePath",
+  url: "selectedCasePath",
+  selectedcasetitle: "selectedCaseTitle",
+  selected_case_title: "selectedCaseTitle",
+  title: "selectedCaseTitle",
+  randomcount: "randomCount",
+  random_count: "randomCount",
+};
+const REQUEST_LIST_FIELDS = new Set(Object.values(REQUEST_LIST_FIELD_ALIASES));
+const PDF_GARBAGE_LINE_PATTERN =
+  /^(?:%PDF-[\d.]+|%%EOF|xref|trailer|startxref|endobj|\d+\s+\d+\s+obj)$/i;
 const AGE_GROUP_QUERY_TERMS = {
   adult: "adult",
   pediatric: "pediatric",
@@ -747,6 +773,250 @@ function isImplicitStudyQuery(queryText) {
   return tokens.every((token) => IMPLICIT_STUDY_QUERY_TERMS.includes(token));
 }
 
+function cleanImportText(value) {
+  return String(value ?? "").replace(/^\uFEFF/, "");
+}
+
+function unsupportedImportReason(text) {
+  const raw = cleanImportText(text);
+  if (!raw) {
+    return "";
+  }
+  if (raw.includes("\0") || raw.includes("\uFFFD")) {
+    return "binary content";
+  }
+
+  const compactStart = raw.slice(0, 4096);
+  if (/^\s*%PDF-[\d.]+/i.test(compactStart) || /%%EOF/i.test(raw)) {
+    return "PDF content";
+  }
+
+  const lines = raw
+    .split(/\r?\n/)
+    .map((line) => collapseWhitespace(line))
+    .filter(Boolean);
+  const markerCount = lines.filter((line) =>
+    PDF_GARBAGE_LINE_PATTERN.test(line),
+  ).length;
+  if (markerCount >= 2) {
+    return "PDF object content";
+  }
+
+  return "";
+}
+
+function assertSupportedRequestListText(text) {
+  const reason = unsupportedImportReason(text);
+  if (reason) {
+    throw new Error(
+      `Unsupported request-list import: ${reason} was detected. Load a plain text, CSV, TSV, or JSON request list instead of a binary/PDF file.`,
+    );
+  }
+}
+
+function normalizedImportFieldName(value) {
+  return normalizePhrase(value).replace(/\s+/g, "_");
+}
+
+function canonicalImportFieldName(value) {
+  const compact = normalizedImportFieldName(value).replace(/_/g, "");
+  return (
+    REQUEST_LIST_FIELD_ALIASES[normalizedImportFieldName(value)] ||
+    REQUEST_LIST_FIELD_ALIASES[compact] ||
+    ""
+  );
+}
+
+function looksLikeDelimitedRequestList(text) {
+  const firstLine = cleanImportText(text)
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find(Boolean);
+  if (!firstLine) {
+    return false;
+  }
+  if (firstLine.includes("\t")) {
+    return true;
+  }
+  if (!firstLine.includes(",")) {
+    return false;
+  }
+  return firstLine
+    .split(",")
+    .some((cell) => Boolean(canonicalImportFieldName(cell)));
+}
+
+function parseDelimitedRows(text, delimiter) {
+  const rows = [];
+  let row = [];
+  let cell = "";
+  let quoted = false;
+  const raw = cleanImportText(text);
+
+  for (let index = 0; index < raw.length; index += 1) {
+    const char = raw[index];
+    const next = raw[index + 1];
+    if (quoted) {
+      if (char === '"' && next === '"') {
+        cell += '"';
+        index += 1;
+      } else if (char === '"') {
+        quoted = false;
+      } else {
+        cell += char;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      quoted = true;
+    } else if (char === delimiter) {
+      row.push(collapseWhitespace(cell));
+      cell = "";
+    } else if (char === "\n") {
+      row.push(collapseWhitespace(cell));
+      rows.push(row);
+      row = [];
+      cell = "";
+    } else if (char !== "\r") {
+      cell += char;
+    }
+  }
+
+  row.push(collapseWhitespace(cell));
+  if (row.some(Boolean)) {
+    rows.push(row);
+  }
+
+  return rows.filter((cells) => cells.some(Boolean));
+}
+
+function rowObjectFromCells(headers, cells) {
+  const entry = {};
+  headers.forEach((field, index) => {
+    if (!field || !cells[index]) {
+      return;
+    }
+    entry[field] = cells[index];
+  });
+  if (entry.randomCount) {
+    const count = Number.parseInt(String(entry.randomCount), 10);
+    if (Number.isInteger(count)) {
+      entry.randomCount = count;
+    }
+  }
+  return entry;
+}
+
+function parseDelimitedRequestList(text, delimiter) {
+  const rows = parseDelimitedRows(text, delimiter);
+  if (!rows.length) {
+    return [];
+  }
+
+  const headerFields = rows[0].map(canonicalImportFieldName);
+  const hasHeader = headerFields.some((field) => REQUEST_LIST_FIELDS.has(field));
+  if (hasHeader) {
+    return rows
+      .slice(1)
+      .map((cells) => rowObjectFromCells(headerFields, cells))
+      .filter((entry) => Object.values(entry).some(Boolean));
+  }
+
+  return rows.map((cells) => {
+    const [first, ...rest] = cells.filter(Boolean);
+    if (!rest.length) {
+      return first || "";
+    }
+    return {
+      diagnosis: first || "",
+      studyHint: rest.join(", "),
+    };
+  });
+}
+
+function entriesFromJsonRequestList(parsed) {
+  if (Array.isArray(parsed)) {
+    return parsed;
+  }
+  if (parsed && typeof parsed === "object") {
+    for (const key of ["entries", "requests", "items"]) {
+      if (Array.isArray(parsed[key])) {
+        return parsed[key];
+      }
+    }
+  }
+  throw new Error(
+    "Unsupported request-list JSON: expected an array or an object with entries, requests, or items.",
+  );
+}
+
+export function parseCaseRequestList(input) {
+  if (Array.isArray(input)) {
+    assertSupportedRequestListText(
+      input
+        .filter((entry) => typeof entry === "string")
+        .join("\n"),
+    );
+    return input;
+  }
+  if (input && typeof input === "object") {
+    return entriesFromJsonRequestList(input);
+  }
+  if (typeof input !== "string") {
+    return [];
+  }
+
+  const raw = cleanImportText(input);
+  assertSupportedRequestListText(raw);
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    return [];
+  }
+
+  if (/^[\[{]/.test(trimmed)) {
+    try {
+      return entriesFromJsonRequestList(JSON.parse(trimmed));
+    } catch (error) {
+      if (/^Unsupported request-list JSON:/.test(error.message)) {
+        throw error;
+      }
+      throw new Error(
+        `Unsupported request-list JSON: ${error.message}. Load a valid JSON request array or use plain text, CSV, or TSV.`,
+      );
+    }
+  }
+
+  if (looksLikeDelimitedRequestList(raw)) {
+    return parseDelimitedRequestList(raw, raw.includes("\t") ? "\t" : ",");
+  }
+
+  return raw
+    .split(/\r?\n/)
+    .map((line) => collapseWhitespace(line))
+    .filter(Boolean);
+}
+
+export function radiopaediaCaseUrl(value) {
+  const raw = collapseWhitespace(value);
+  if (!raw || /\s/.test(raw)) {
+    return "";
+  }
+
+  try {
+    const parsed = new URL(raw);
+    const hostname = parsed.hostname.toLowerCase().replace(/^www\./, "");
+    if (hostname !== "radiopaedia.org") {
+      return "";
+    }
+    return /^\/cases\/[^/?#]+\/?$/i.test(parsed.pathname) ? raw : "";
+  } catch {
+    return /^\/cases\/[^/?#]+\/?$/i.test(raw.replace(/\?.*$/, ""))
+      ? raw
+      : "";
+  }
+}
+
 function parseRandomDirective(rawText) {
   const normalized = normalizePhrase(rawText);
   if (!normalized) {
@@ -828,7 +1098,17 @@ export function titleFromCasePath(casePath) {
 export function parseCaseRequest(input) {
   const payload =
     typeof input === "string" ? { rawInput: input } : { ...(input ?? {}) };
+  if (typeof input === "string") {
+    assertSupportedRequestListText(input);
+  }
   const requestMode = normalizePhrase(payload.requestMode || "");
+  const manualCaseUrl = radiopaediaCaseUrl(
+    payload.selectedCasePath || payload.rawInput || payload.query || "",
+  );
+  if (!payload.selectedCasePath && manualCaseUrl) {
+    payload.requestMode = payload.requestMode || "manual";
+    payload.selectedCasePath = manualCaseUrl;
+  }
   const structuredStudyHint = buildStructuredStudyHint(payload);
   const structuredRandomSpec = buildStructuredRandomSpec(
     payload,

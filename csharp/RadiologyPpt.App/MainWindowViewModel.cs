@@ -31,6 +31,15 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         return Requests.Where(IsUsableRow).ToArray();
     }
 
+    public static string[] ValidateRows(IReadOnlyList<CaseRequestRow> rows)
+    {
+        return rows
+            .Select((row, index) => new { RowNumber = index + 1, row.ValidationMessage })
+            .Where(item => !string.IsNullOrWhiteSpace(item.ValidationMessage))
+            .Select(item => $"Row {item.RowNumber}: {item.ValidationMessage}")
+            .ToArray();
+    }
+
     public List<JsonObject> BuildRequestPayloads(IReadOnlyList<CaseRequestRow> rows, GenerationSettings settings)
     {
         return rows.Select((row, index) => row.ToPayload(index + 1, settings)).ToList();

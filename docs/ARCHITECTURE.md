@@ -131,13 +131,17 @@ Radiopaedia behavior is intentionally split:
 
 - `src/core_review/schema.mjs`: ABR-style domains and question-type schema.
 - `src/core_review/case-plan.mjs`: CORE-style diagnosis seed list and Radiopaedia request planning.
-- `src/core_review/ingest.mjs`: text/JSON source ingestion.
+- `src/core_review/ingest.mjs`: text, JSON, Word, and PowerPoint source ingestion.
 - `src/core_review/pdf-ingest.mjs`: local PDF copy, page rendering, embedded-image extraction, text chunking, and provenance.
 - `src/core_review/quiz.mjs`: question-bank validation, session assembly, scoring, and localization scoring.
 - `src/core_review/source-bank.mjs`: imported-corpus loading, merging, and referenced practice question drafting.
 - `src/core_review/index.mjs`: exports.
 
-The GUI supports Core Review PowerPoint generation plus import for PDFs, notes, and JSON study material. Backend Core Review modules plan Radiopaedia case requests, ingest source corpora, draft referenced practice questions, validate question banks, and assemble quiz sessions.
+The GUI supports Core Review PowerPoint generation plus import for PDFs, Word documents, PowerPoint decks, notes, and JSON study material. Backend Core Review modules plan Radiopaedia case requests, ingest source corpora, draft referenced practice questions, validate question banks, and assemble quiz sessions.
+
+PDF import stores page renders and extracted embedded images as corpus assets, then associates same-page assets with text chunks through `assetIds`. `source-bank.mjs` uses that provenance when drafting source-grounded questions, preferring an embedded image over a full-page render when both are attached to the same chunk. The deck renderer consumes the resulting `question.image` metadata for standalone Core Review image questions.
+
+Request-list parsing is intentionally separate from Core Review source import. The `Cases` path accepts Radiopaedia request rows from text, CSV, TSV, JSON, or exact Radiopaedia case URLs, while Core Review import accepts study sources such as PDF, `.docx`, and `.pptx`. PDF and binary-looking content is rejected at request-list parsing time so PDF object fragments are not normalized into bogus case rows.
 
 Core Review PowerPoint generation is separate from the `Cases` tab. The UI sends `coreReviewPrepareDeck`, the backend builds a diagnosis plan from `case-plan.mjs`, prepares those Radiopaedia cases, and returns the same prepared-item shape used by the normal review window.
 

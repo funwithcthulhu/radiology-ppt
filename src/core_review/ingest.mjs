@@ -1,16 +1,20 @@
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
+import JSZip from "jszip";
 import { collapseWhitespace, slugify } from "../utils.mjs";
 import { normalizeCoreReviewDomain } from "./schema.mjs";
 
 const SUPPORTED_EXTENSIONS = new Set([
+  ".docx",
   ".json",
   ".jsonl",
   ".md",
   ".markdown",
+  ".pptx",
   ".txt",
 ]);
+const LEGACY_OFFICE_EXTENSIONS = new Set([".doc", ".ppt"]);
 
 function sha256(value) {
   return crypto.createHash("sha256").update(value).digest("hex");
@@ -73,13 +77,135 @@ function parseJsonl(raw) {
     .map((line) => JSON.parse(line));
 }
 
-function parseSource(raw, filePath) {
+function decodeXmlEntities(value) {
+  return String(value || "")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, "&");
+}
+
+function naturalSortOfficePaths(left, right) {
+  return left.localeCompare(right, undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
+}
+
+function textRunsFromXml(xml) {
+  const runs = [];
+  const pattern = /<a:t[^>]*>([\s\S]*?)<\/a:t>|<w:t[^>]*>([\s\S]*?)<\/w:t>/g;
+  for (const match of String(xml || "").matchAll(pattern)) {
+    const text = decodeXmlEntities(match[1] ?? match[2] ?? "");
+    const clean = collapseWhitespace(text);
+    if (clean) {
+      runs.push(clean);
+    }
+  }
+  return runs;
+}
+
+function paragraphsFromWordXml(xml) {
+  const paragraphs = [];
+  for (const paragraph of String(xml || "").matchAll(/<w:p\b[\s\S]*?<\/w:p>/g)) {
+    const text = textRunsFromXml(paragraph[0]).join(" ");
+    const clean = collapseWhitespace(text);
+    if (clean) {
+      paragraphs.push(clean);
+    }
+  }
+  return paragraphs.length ? paragraphs : textRunsFromXml(xml);
+}
+
+async function readZipXml(zip, fileName) {
+  const file = zip.file(fileName);
+  return file ? await file.async("string") : "";
+}
+
+async function textFromDocx(buffer) {
+  const zip = await JSZip.loadAsync(buffer);
+  const xmlPaths = [
+    "word/document.xml",
+    ...Object.keys(zip.files)
+      .filter((name) =>
+        /^word\/(?:header|footer|footnotes|endnotes|comments)\d*\.xml$/i.test(
+          name,
+        ),
+      )
+      .sort(naturalSortOfficePaths),
+  ];
+
+  const sections = [];
+  for (const xmlPath of xmlPaths) {
+    const xml = await readZipXml(zip, xmlPath);
+    const paragraphs = paragraphsFromWordXml(xml);
+    if (paragraphs.length) {
+      sections.push(paragraphs.join("\n"));
+    }
+  }
+  return sections.join("\n\n");
+}
+
+async function textFromPptx(buffer) {
+  const zip = await JSZip.loadAsync(buffer);
+  const slidePaths = Object.keys(zip.files)
+    .filter((name) => /^ppt\/slides\/slide\d+\.xml$/i.test(name))
+    .sort(naturalSortOfficePaths);
+  const notePaths = Object.keys(zip.files)
+    .filter((name) => /^ppt\/notesSlides\/notesSlide\d+\.xml$/i.test(name))
+    .sort(naturalSortOfficePaths);
+
+  const slides = [];
+  for (const slidePath of slidePaths) {
+    const xml = await readZipXml(zip, slidePath);
+    const runs = textRunsFromXml(xml);
+    if (runs.length) {
+      slides.push(runs.join("\n"));
+    }
+  }
+
+  const notes = [];
+  for (const notePath of notePaths) {
+    const xml = await readZipXml(zip, notePath);
+    const runs = textRunsFromXml(xml);
+    if (runs.length) {
+      notes.push(runs.join("\n"));
+    }
+  }
+
+  return [slides.join("\n\n"), notes.join("\n\n")].filter(Boolean).join("\n\n");
+}
+
+async function parseSourceContent(buffer, filePath) {
   const extension = path.extname(filePath).toLowerCase();
+  if (LEGACY_OFFICE_EXTENSIONS.has(extension)) {
+    throw new Error(
+      `Unsupported legacy Office source type: ${extension}. Save the file as .docx or .pptx and import that version.`,
+    );
+  }
+
   if (!SUPPORTED_EXTENSIONS.has(extension)) {
     throw new Error(
       `Unsupported Core Review source type: ${extension || "(none)"}`,
     );
   }
+
+  if (extension === ".docx") {
+    return {
+      parsed: null,
+      text: await textFromDocx(buffer),
+    };
+  }
+
+  if (extension === ".pptx") {
+    return {
+      parsed: null,
+      text: await textFromPptx(buffer),
+    };
+  }
+
+  const raw = buffer.toString("utf8");
 
   if (extension === ".jsonl") {
     const parsed = parseJsonl(raw);
@@ -172,8 +298,13 @@ export function chunkCoreReviewText(
 
 export async function ingestCoreReviewSource(filePath, options = {}) {
   const resolvedPath = path.resolve(filePath);
-  const raw = await fs.readFile(resolvedPath, "utf8");
-  const { parsed, text } = parseSource(raw, resolvedPath);
+  const buffer = await fs.readFile(resolvedPath);
+  const { parsed, text } = await parseSourceContent(buffer, resolvedPath);
+  if (!collapseWhitespace(text)) {
+    throw new Error(
+      `No usable text was extracted from Core Review source: ${resolvedPath}`,
+    );
+  }
   const title = inferTitle(resolvedPath, parsed);
   const domain = normalizeCoreReviewDomain(
     options.domain || parsed?.domain || parsed?.category || "",

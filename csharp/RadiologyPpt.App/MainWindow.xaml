@@ -153,13 +153,24 @@
 
                         <DockPanel Grid.Row="2" Margin="0,0,0,4">
                             <WrapPanel DockPanel.Dock="Right" HorizontalAlignment="Right">
-                                <Button Content="Add Row" Click="AddRow_Click" MinWidth="72" Padding="9,4" FontSize="12" />
-                                <Button Content="Remove Selected" Click="RemoveSelectedRow_Click" MinWidth="110" Padding="9,4" FontSize="12" />
-                                <Button Content="Load File" Click="LoadFile_Click" MinWidth="72" Padding="9,4" FontSize="12" Margin="0" />
+                                <Button Content="Add Radiopaedia request"
+                                        Click="AddRow_Click"
+                                        ToolTip="Adds a Radiopaedia case request row for a diagnosis, random case search, or exact Radiopaedia case URL."
+                                        MinWidth="150"
+                                        Padding="9,4"
+                                        FontSize="12" />
+                                <Button Content="Remove selected request" Click="RemoveSelectedRow_Click" MinWidth="145" Padding="9,4" FontSize="12" />
+                                <Button Content="Import .txt request list"
+                                        Click="LoadFile_Click"
+                                        ToolTip="Imports one .txt file with one Radiopaedia request per line. Put PDFs, Word .docx files, PowerPoint .pptx files, report text, and source libraries in Core Review Import Sources."
+                                        MinWidth="145"
+                                        Padding="9,4"
+                                        FontSize="12"
+                                        Margin="0" />
                             </WrapPanel>
                             <DockPanel LastChildFill="True">
-                                <TextBlock Text="Case requests" FontSize="15" FontWeight="SemiBold" DockPanel.Dock="Left" Margin="0,0,12,0" />
-                                <TextBlock Text="Add diagnoses, random pulls, or exact Radiopaedia URLs; use dropdowns instead of filter shorthand."
+                                <TextBlock Text="Radiopaedia case requests" FontSize="15" FontWeight="SemiBold" DockPanel.Dock="Left" Margin="0,0,12,0" />
+                                <TextBlock Text="This grid is only for Radiopaedia case requests: Specific Diagnosis, Random Case, or Manual Case URL. Import .txt request lists here; put PDFs, Word .docx files, PowerPoint .pptx decks, report text, and question/source libraries in Core Review Import Sources."
                                            Foreground="{StaticResource MutedBrush}" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" />
                             </DockPanel>
                         </DockPanel>
@@ -171,17 +182,93 @@
                                       HeadersVisibility="Column"
                                       SelectionMode="Single"
                                       GridLinesVisibility="Horizontal"
-                                      RowHeaderWidth="0">
+                                      RowHeaderWidth="0"
+                                      HorizontalScrollBarVisibility="Auto"
+                                      RowDetailsVisibilityMode="VisibleWhenSelected">
+                                <DataGrid.RowDetailsTemplate>
+                                    <DataTemplate>
+                                        <Border Background="#F4F8FB" BorderBrush="#D7E3EC" BorderThickness="0,1,0,0" Padding="8,6">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding EntryHelpText}"
+                                                           Foreground="{StaticResource InkBrush}"
+                                                           FontSize="12"
+                                                           TextWrapping="Wrap" />
+                                                <TextBlock Text="{Binding EntryExampleText}"
+                                                           Foreground="{StaticResource MutedBrush}"
+                                                           FontSize="11"
+                                                           TextWrapping="Wrap"
+                                                           Margin="0,2,0,0" />
+                                                <TextBlock Text="{Binding ValidationMessage}"
+                                                           Foreground="#B91C1C"
+                                                           FontSize="11"
+                                                           FontWeight="SemiBold"
+                                                           TextWrapping="Wrap"
+                                                           Margin="0,2,0,0" />
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </DataGrid.RowDetailsTemplate>
                                 <DataGrid.Columns>
-                                    <DataGridComboBoxColumn x:Name="ModeColumn" Header="Type" SelectedItemBinding="{Binding Mode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="150" />
-                                    <DataGridTextColumn Header="Diagnosis / Random Text / URL" Binding="{Binding Query, UpdateSourceTrigger=PropertyChanged}" Width="*" />
-                                    <DataGridTextColumn Header="Count" Binding="{Binding Count, UpdateSourceTrigger=PropertyChanged}" Width="70" />
-                                    <DataGridComboBoxColumn x:Name="ModalityColumn" Header="Modality" SelectedItemBinding="{Binding Modality, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="130" />
-                                    <DataGridComboBoxColumn x:Name="AnatomyColumn" Header="Anatomy" SelectedItemBinding="{Binding Anatomy, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="160" />
-                                    <DataGridComboBoxColumn x:Name="SubspecialtyColumn" Header="Area" SelectedItemBinding="{Binding Subspecialty, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="160" />
-                                    <DataGridComboBoxColumn x:Name="AgeColumn" Header="Age" SelectedItemBinding="{Binding AgeGroup, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="120" />
-                                    <DataGridComboBoxColumn x:Name="TopicColumn" Header="Focus" SelectedItemBinding="{Binding TopicFocus, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="130" />
-                                    <DataGridComboBoxColumn x:Name="DifficultyColumn" Header="Difficulty" SelectedItemBinding="{Binding Difficulty, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="120" />
+                                    <DataGridComboBoxColumn x:Name="ModeColumn" SelectedItemBinding="{Binding Mode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="155">
+                                        <DataGridComboBoxColumn.Header>
+                                            <TextBlock Text="Radiopaedia Request Type" TextWrapping="Wrap" />
+                                        </DataGridComboBoxColumn.Header>
+                                    </DataGridComboBoxColumn>
+                                    <DataGridTemplateColumn Width="320" MinWidth="260">
+                                        <DataGridTemplateColumn.Header>
+                                            <TextBlock Text="Radiopaedia Case Entry" TextWrapping="Wrap" />
+                                        </DataGridTemplateColumn.Header>
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBox Text="{Binding Query, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, ValidatesOnDataErrors=True, NotifyOnValidationError=True}"
+                                                         ToolTip="{Binding EntryHelpText}"
+                                                         BorderThickness="0"
+                                                         Background="Transparent"
+                                                         Padding="2"
+                                                         VerticalContentAlignment="Center" />
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTextColumn Binding="{Binding Count, UpdateSourceTrigger=PropertyChanged}" Width="70">
+                                        <DataGridTextColumn.Header>
+                                            <TextBlock Text="How many" TextWrapping="Wrap" />
+                                        </DataGridTextColumn.Header>
+                                    </DataGridTextColumn>
+                                    <DataGridTextColumn Binding="{Binding EntryHelpText}" IsReadOnly="True" Width="250">
+                                        <DataGridTextColumn.Header>
+                                            <TextBlock Text="Entry Guidance" TextWrapping="Wrap" />
+                                        </DataGridTextColumn.Header>
+                                    </DataGridTextColumn>
+                                    <DataGridComboBoxColumn x:Name="ModalityColumn" SelectedItemBinding="{Binding Modality, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="130">
+                                        <DataGridComboBoxColumn.Header>
+                                            <TextBlock Text="Modality" TextWrapping="Wrap" />
+                                        </DataGridComboBoxColumn.Header>
+                                    </DataGridComboBoxColumn>
+                                    <DataGridComboBoxColumn x:Name="AnatomyColumn" SelectedItemBinding="{Binding Anatomy, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="160">
+                                        <DataGridComboBoxColumn.Header>
+                                            <TextBlock Text="Anatomy" TextWrapping="Wrap" />
+                                        </DataGridComboBoxColumn.Header>
+                                    </DataGridComboBoxColumn>
+                                    <DataGridComboBoxColumn x:Name="SubspecialtyColumn" SelectedItemBinding="{Binding Subspecialty, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="170">
+                                        <DataGridComboBoxColumn.Header>
+                                            <TextBlock Text="Subspecialty" TextWrapping="Wrap" />
+                                        </DataGridComboBoxColumn.Header>
+                                    </DataGridComboBoxColumn>
+                                    <DataGridComboBoxColumn x:Name="AgeColumn" SelectedItemBinding="{Binding AgeGroup, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="120">
+                                        <DataGridComboBoxColumn.Header>
+                                            <TextBlock Text="Age Group" TextWrapping="Wrap" />
+                                        </DataGridComboBoxColumn.Header>
+                                    </DataGridComboBoxColumn>
+                                    <DataGridComboBoxColumn x:Name="TopicColumn" SelectedItemBinding="{Binding TopicFocus, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="130">
+                                        <DataGridComboBoxColumn.Header>
+                                            <TextBlock Text="Topic Focus" TextWrapping="Wrap" />
+                                        </DataGridComboBoxColumn.Header>
+                                    </DataGridComboBoxColumn>
+                                    <DataGridComboBoxColumn x:Name="DifficultyColumn" SelectedItemBinding="{Binding Difficulty, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="120">
+                                        <DataGridComboBoxColumn.Header>
+                                            <TextBlock Text="Difficulty" TextWrapping="Wrap" />
+                                        </DataGridComboBoxColumn.Header>
+                                    </DataGridComboBoxColumn>
                                 </DataGrid.Columns>
                             </DataGrid>
                         </Border>
@@ -248,8 +335,8 @@
                                             <TextBlock Text="Modality mix" FontWeight="SemiBold" />
                                             <ComboBox x:Name="CoreReviewModalityMixCombo" Margin="0,3,0,0" />
                                         </StackPanel>
-                                        <StackPanel Width="320" Margin="0,0,12,8">
-                                            <TextBlock Text="Question source" FontWeight="SemiBold" />
+                                        <StackPanel Width="340" Margin="0,0,12,8">
+                                            <TextBlock Text="Question/source library" FontWeight="SemiBold" />
                                             <ComboBox x:Name="CoreReviewQuestionSourceCombo" Margin="0,3,0,0"
                                                       SelectionChanged="CoreReviewQuestionSourceCombo_SelectionChanged" />
                                         </StackPanel>
@@ -266,7 +353,7 @@
                                             </DockPanel>
                                         </StackPanel>
                                         <StackPanel x:Name="CoreReviewQuestionBankGroup" Width="360" Margin="0,0,12,8">
-                                            <TextBlock x:Name="CoreReviewQuestionBankLabel" Text="Question bank" FontWeight="SemiBold" />
+                                            <TextBlock x:Name="CoreReviewQuestionBankLabel" Text="Custom Core Review question bank JSON" FontWeight="SemiBold" />
                                             <DockPanel x:Name="CoreReviewQuestionBankPanel" LastChildFill="True" Margin="0,3,0,0">
                                                 <Button DockPanel.Dock="Right" Content="Browse" Click="BrowseCoreReviewQuestionBank_Click"
                                                         Padding="10,5" Margin="8,0,0,0" />
@@ -296,18 +383,18 @@
                                             <StackPanel Grid.Column="0" Margin="0,0,18,0">
                                                 <DockPanel LastChildFill="True" Margin="0,0,0,4">
                                                     <WrapPanel DockPanel.Dock="Right" Margin="12,0,0,0">
-                                                        <Button Content="Import Sources" Style="{StaticResource PrimaryButton}"
+                                                        <Button Content="Import PDF/DOCX/PPTX/text/JSON Sources" Style="{StaticResource PrimaryButton}"
                                                                 Click="ImportPdfs_Click" Padding="10,5" />
                                                         <Button Content="Open Folder" Click="OpenBoardFolder_Click" Padding="10,5" Margin="0" />
                                                     </WrapPanel>
                                                     <StackPanel>
-                                                        <TextBlock Text="Sources &amp; Review" FontWeight="SemiBold" />
-                                                        <TextBlock Text="Imported PDFs, notes, JSON, and assets stay local under library\board-review."
+                                                        <TextBlock Text="Core Review Import Sources" FontWeight="SemiBold" />
+                                                        <TextBlock Text="Import PDFs, Word .docx documents, PowerPoint .pptx decks, text/report notes, and JSON/JSONL question or source files here. They stay local under library\board-review."
                                                                    Foreground="{StaticResource MutedBrush}" FontSize="12"
                                                                    TextWrapping="Wrap" Margin="0,2,0,0" />
                                                     </StackPanel>
                                                 </DockPanel>
-                                                <TextBlock Text="Radiopaedia cases are planned separately; review cases and question types before export."
+                                                <TextBlock Text="Radiopaedia case requests belong in the Cases grid; PDFs, Word .docx documents, PowerPoint .pptx decks, report text, and JSON source libraries belong here."
                                                            Foreground="{StaticResource MutedBrush}" FontSize="12"
                                                            TextWrapping="Wrap" />
                                                 <TextBlock x:Name="BoardStatusText" TextWrapping="Wrap" Margin="0,4,0,0" />

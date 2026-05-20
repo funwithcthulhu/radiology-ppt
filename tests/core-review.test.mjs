@@ -3,10 +3,12 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import JSZip from "jszip";
 import {
   buildCoreReviewCasePlan,
   buildCoreReviewQuestionBankFromCorpus,
   buildCoreReviewQuizSession,
+  buildPdfLayoutChunks,
   chunkCoreReviewText,
   coreReviewSchemaSummary,
   ingestCoreReviewSources,
@@ -46,6 +48,74 @@ function tinyPdfBuffer(text) {
   return Buffer.from(body, "ascii");
 }
 
+function tinyPngBuffer() {
+  return Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "base64",
+  );
+}
+
+async function tinyDocxBuffer(paragraphs) {
+  const zip = new JSZip();
+  zip.file(
+    "[Content_Types].xml",
+    `<?xml version="1.0" encoding="UTF-8"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>`,
+  );
+  zip.file(
+    "word/document.xml",
+    `<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    ${paragraphs
+      .map(
+        (text) =>
+          `<w:p><w:r><w:t>${String(text)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")}</w:t></w:r></w:p>`,
+      )
+      .join("\n")}
+  </w:body>
+</w:document>`,
+  );
+  return zip.generateAsync({ type: "nodebuffer" });
+}
+
+async function tinyPptxBuffer(slides) {
+  const zip = new JSZip();
+  zip.file(
+    "[Content_Types].xml",
+    `<?xml version="1.0" encoding="UTF-8"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="xml" ContentType="application/xml"/>
+</Types>`,
+  );
+  slides.forEach((texts, index) => {
+    zip.file(
+      `ppt/slides/slide${index + 1}.xml`,
+      `<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+  <p:cSld><p:spTree>
+    ${texts
+      .map(
+        (text) =>
+          `<p:sp><p:txBody><a:p><a:r><a:t>${String(text)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")}</a:t></a:r></a:p></p:txBody></p:sp>`,
+      )
+      .join("\n")}
+  </p:spTree></p:cSld>
+</p:sld>`,
+    );
+  });
+  return zip.generateAsync({ type: "nodebuffer" });
+}
+
 test("normalizes Core Review schema aliases", () => {
   const summary = coreReviewSchemaSummary();
   assert.ok(summary.domains.length >= 10);
@@ -80,6 +150,58 @@ test("chunks and ingests user-provided Core Review notes", async () => {
   assert.ok(await fs.stat(outputPath));
 });
 
+test("ingests Word and PowerPoint Core Review sources", async () => {
+  const tempDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "core-review-office-ingest-"),
+  );
+  const docxPath = path.join(tempDir, "neurorad-recall.docx");
+  const pptxPath = path.join(tempDir, "physics-pearls.pptx");
+  const outputPath = path.join(tempDir, "office-corpus.json");
+  await fs.writeFile(
+    docxPath,
+    await tinyDocxBuffer([
+      "Epidural hematoma is classically lens shaped and does not cross sutures.",
+      "Subdural hematoma can cross sutures and spreads along the convexity.",
+    ]),
+  );
+  await fs.writeFile(
+    pptxPath,
+    await tinyPptxBuffer([
+      ["MRI safety", "Always verify aneurysm clip compatibility before MRI."],
+      ["Radiography physics", "Increasing distance reduces detector exposure."],
+    ]),
+  );
+
+  const corpus = await ingestCoreReviewSources([docxPath, pptxPath], {
+    outputPath,
+    domain: "neuro",
+  });
+
+  assert.equal(corpus.sourceCount, 2);
+  assert.deepEqual(
+    corpus.sources.map((source) => source.sourceType).sort(),
+    ["docx", "pptx"],
+  );
+  assert.ok(
+    corpus.chunks.some((chunk) => /Epidural hematoma/.test(chunk.text)),
+  );
+  assert.ok(corpus.chunks.some((chunk) => /MRI safety/.test(chunk.text)));
+  assert.ok(await fs.stat(outputPath));
+});
+
+test("rejects legacy Office Core Review sources with a conversion hint", async () => {
+  const tempDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "core-review-legacy-office-"),
+  );
+  const legacyDocPath = path.join(tempDir, "old-recall-notes.doc");
+  await fs.writeFile(legacyDocPath, Buffer.from("legacy doc content", "utf8"));
+
+  await assert.rejects(
+    () => ingestCoreReviewSources([legacyDocPath], { domain: "nis" }),
+    /Unsupported legacy Office source type: \.doc.*Save the file as \.docx or \.pptx/,
+  );
+});
+
 test("ingests Core Review PDFs through the Node backend", async () => {
   const tempDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "core-review-pdf-ingest-"),
@@ -103,6 +225,190 @@ test("ingests Core Review PDFs through the Node backend", async () => {
     corpus.chunks.some((chunk) => /Rotator cuff tear/.test(chunk.text)),
   );
   assert.ok(await fs.stat(outputPath));
+});
+
+test("builds layout-aware PDF chunks with confidence-gated image matches", () => {
+  const pageAssetId = "physics-source:page-0001";
+  const imageAssetId = "physics-source:page-0001:image-01";
+  const chunks = buildPdfLayoutChunks(
+    [
+      {
+        num: 1,
+        text: [
+          "Radiography Physics",
+          "",
+          "Increasing distance reduces detector exposure when other acquisition settings are unchanged.",
+          "Figure 1. Detector exposure geometry.",
+          "This image shows how source-to-image distance affects receptor exposure.",
+        ].join("\n"),
+      },
+    ],
+    {
+      sourceId: "physics-source",
+      title: "Physics imported PDF",
+      domain: "physics",
+      assets: [
+        {
+          id: pageAssetId,
+          sourceId: "physics-source",
+          type: "page_render",
+          pageNumber: 1,
+        },
+        {
+          id: imageAssetId,
+          sourceId: "physics-source",
+          type: "embedded_image",
+          pageNumber: 1,
+          imageIndex: 1,
+        },
+      ],
+    },
+  );
+
+  assert.ok(chunks.length >= 3);
+  assert.ok(chunks.every((chunk) => chunk.layout?.strategy === "pdf_layout_v1"));
+  assert.ok(
+    chunks.some((chunk) => chunk.sectionHeading === "Radiography Physics"),
+  );
+
+  const figureChunk = chunks.find((chunk) => /Figure 1/.test(chunk.text));
+  assert.ok(figureChunk, "expected a caption chunk");
+  assert.equal(figureChunk.assetIds[0], imageAssetId);
+  assert.ok(
+    figureChunk.assetMatches.some(
+      (match) =>
+        match.assetId === imageAssetId &&
+        match.reason === "caption_number" &&
+        match.confidence >= 0.9,
+    ),
+  );
+  assert.equal(figureChunk.sourceLocator.caption, "Figure 1. Detector exposure geometry.");
+});
+
+test("builds source-grounded questions with same-page PDF images", async () => {
+  const tempDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "core-review-pdf-image-question-"),
+  );
+  const pdfPath = path.join(tempDir, "physics-image-source.pdf");
+  const outputPath = path.join(tempDir, "pdf-corpus.json");
+  await fs.writeFile(
+    pdfPath,
+    tinyPdfBuffer(
+      "Increasing distance reduces detector exposure when other acquisition settings are unchanged.",
+    ),
+  );
+
+  const corpus = await ingestCoreReviewPdfs([pdfPath], {
+    outputPath,
+    domain: "physics",
+    noCopySource: true,
+    noExtractImages: true,
+  });
+  const pageRender = corpus.assets.find(
+    (asset) => asset.type === "page_render" && asset.pageNumber === 1,
+  );
+  assert.ok(pageRender?.localPath, "expected the PDF page render asset");
+  assert.ok(await fs.stat(pageRender.localPath));
+  assert.ok(
+    corpus.chunks.some((chunk) => chunk.assetIds?.includes(pageRender.id)),
+    "expected PDF text chunks to reference the page render asset",
+  );
+
+  const questionBank = buildCoreReviewQuestionBankFromCorpus(corpus, {
+    title: "Imported PDF Image Questions",
+  });
+  const question = questionBank.questions.find(
+    (item) =>
+      item.sourceChunkIds?.some((chunkId) => chunkId.includes(":page-0001:")) &&
+      item.image?.sourceAssetId === pageRender.id,
+  );
+
+  assert.ok(
+    question,
+    "expected a source-grounded question linked to the PDF page image",
+  );
+  assert.equal(question.image.pageNumber, 1);
+  assert.equal(question.image.sourceAssetType, "page_render");
+  assert.ok(await fs.stat(question.image.localPath));
+});
+
+test("prefers chunk-associated embedded PDF images for source-grounded questions", async () => {
+  const tempDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "core-review-pdf-associated-image-"),
+  );
+  const pagePath = path.join(tempDir, "page-0002.png");
+  const imagePath = path.join(tempDir, "page-0002-image-01.png");
+  await fs.writeFile(pagePath, tinyPngBuffer());
+  await fs.writeFile(imagePath, tinyPngBuffer());
+
+  const pageAssetId = "physics-source:page-0002";
+  const imageAssetId = "physics-source:page-0002:image-01";
+  const corpus = {
+    title: "Physics imported PDF",
+    sources: [
+      {
+        id: "physics-source",
+        title: "Physics imported PDF",
+        sourceType: "pdf",
+        domain: "physics",
+      },
+    ],
+    assets: [
+      {
+        id: pageAssetId,
+        sourceId: "physics-source",
+        type: "page_render",
+        pageNumber: 2,
+        localPath: pagePath,
+        width: 612,
+        height: 792,
+      },
+      {
+        id: imageAssetId,
+        sourceId: "physics-source",
+        type: "embedded_image",
+        pageNumber: 2,
+        localPath: imagePath,
+        width: 320,
+        height: 240,
+        bbox: { x: 96, y: 144, width: 320, height: 240 },
+      },
+    ],
+    chunks: [
+      {
+        id: "physics-source:page-0002:chunk-001",
+        sourceId: "physics-source",
+        domain: "physics",
+        pageStart: 2,
+        pageEnd: 2,
+        text: "Increasing distance reduces detector exposure when other acquisition settings are unchanged.",
+        assetIds: [pageAssetId, imageAssetId],
+        sourceLocator: {
+          sourceTitle: "Physics imported PDF",
+          page: 2,
+        },
+      },
+    ],
+  };
+
+  const questionBank = buildCoreReviewQuestionBankFromCorpus(corpus, {
+    title: "Chunk Image Association Questions",
+  });
+  const question = questionBank.questions[0];
+
+  assert.ok(question, "expected a question from the associated PDF chunk");
+  assert.equal(question.image.sourceAssetId, imageAssetId);
+  assert.equal(question.image.sourceAssetType, "embedded_image");
+  assert.equal(question.image.pageNumber, 2);
+  assert.equal(question.image.localPath, imagePath);
+  assert.match(question.image.label, /embedded image/);
+  assert.deepEqual(question.sourceChunkIds, [
+    "physics-source:page-0002:chunk-001",
+  ]);
+  assert.match(
+    question.references[0]?.label || "",
+    /Physics imported PDF.*p\. 2/,
+  );
 });
 
 test("builds deterministic quiz sessions and scores answers", async () => {

@@ -12,6 +12,24 @@ namespace RadiologyPpt.App;
 
 public partial class MainWindow : Window
 {
+    private static readonly HashSet<string> SupportedCoreReviewSourceExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".pdf",
+        ".docx",
+        ".pptx",
+        ".txt",
+        ".md",
+        ".markdown",
+        ".json",
+        ".jsonl"
+    };
+
+    private static readonly HashSet<string> LegacyOfficeExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".doc",
+        ".ppt"
+    };
+
     private readonly BackendClient _backend = new();
     private readonly AppStorage _storage;
     private readonly AppJobRunner _jobs = new();
@@ -182,8 +200,12 @@ public partial class MainWindow : Window
 
     private void AddRow_Click(object sender, RoutedEventArgs e)
     {
-        Requests.Add(new CaseRequestRow());
+        var row = new CaseRequestRow();
+        Requests.Add(row);
         RequestsGrid.SelectedIndex = Requests.Count - 1;
+        RequestsGrid.ScrollIntoView(row);
+        RequestsGrid.CurrentCell = new System.Windows.Controls.DataGridCellInfo(row, RequestsGrid.Columns[1]);
+        RequestsGrid.BeginEdit();
     }
 
     private void RemoveSelectedRow_Click(object sender, RoutedEventArgs e)
@@ -203,7 +225,8 @@ public partial class MainWindow : Window
     {
         var dialog = new OpenFileDialog
         {
-            Filter = "Text or JSON files (*.txt;*.json)|*.txt;*.json|All files (*.*)|*.*",
+            Title = "Import .txt Radiopaedia request list",
+            Filter = "Plain text Radiopaedia request lists (*.txt)|*.txt",
             Multiselect = false
         };
         if (dialog.ShowDialog(this) != true)
@@ -211,10 +234,26 @@ public partial class MainWindow : Window
             return;
         }
 
-        var lines = File.ReadAllLines(dialog.FileName, Encoding.UTF8)
-            .Select(line => Regex.Replace(line, "#.*$", "").Trim())
-            .Where(line => !string.IsNullOrWhiteSpace(line))
-            .ToArray();
+        if (!ValidateCaseRequestListFile(dialog.FileName, out var validationMessage))
+        {
+            MessageBox.Show(this, validationMessage, Title, MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        string[] lines;
+        try
+        {
+            lines = File.ReadAllLines(dialog.FileName, Encoding.UTF8)
+                .Select(line => Regex.Replace(line, "#.*$", "").Trim())
+                .Where(line => !string.IsNullOrWhiteSpace(line))
+                .ToArray();
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or DecoderFallbackException)
+        {
+            MessageBox.Show(this, $"The request list could not be read: {exception.Message}", Title, MessageBoxButton.OK, MessageBoxImage.Error);
+            return;
+        }
+
         if (lines.Length == 0)
         {
             MessageBox.Show(this, "That file did not contain any case requests.", Title, MessageBoxButton.OK, MessageBoxImage.Information);
@@ -229,11 +268,85 @@ public partial class MainWindow : Window
         AppendLog($"Loaded {lines.Length} request(s) from {dialog.FileName}");
     }
 
+    private static bool ValidateCaseRequestListFile(string fileName, out string message)
+    {
+        message = "";
+        var extension = Path.GetExtension(fileName);
+        if (!extension.Equals(".txt", StringComparison.OrdinalIgnoreCase))
+        {
+            if (LegacyOfficeExtensions.Contains(extension))
+            {
+                message = "The Cases importer only accepts a .txt file with one Radiopaedia request per line. Save Word or PowerPoint source material as .docx or .pptx, then use Core Review > Import Sources.";
+                return false;
+            }
+
+            if (SupportedCoreReviewSourceExtensions.Contains(extension))
+            {
+                message = "That file is source material, not a Radiopaedia request list. Use Core Review > Import Sources for PDFs, Word .docx files, PowerPoint .pptx files, report notes, and JSON sources.";
+                return false;
+            }
+
+            message = "The Cases importer only accepts a .txt file with one Radiopaedia request per line. Use Core Review > Import Sources for PDFs, Word .docx files, PowerPoint .pptx files, report notes, and JSON sources.";
+            return false;
+        }
+
+        if (LooksLikePdfOrBinaryContent(fileName, out var contentMessage))
+        {
+            message = contentMessage;
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool LooksLikePdfOrBinaryContent(string fileName, out string message)
+    {
+        message = "";
+        const int previewBytes = 4096;
+        using var stream = File.OpenRead(fileName);
+        var length = (int)Math.Min(stream.Length, previewBytes);
+        if (length == 0)
+        {
+            return false;
+        }
+
+        var buffer = new byte[length];
+        var read = stream.Read(buffer, 0, buffer.Length);
+        if (read == 0)
+        {
+            return false;
+        }
+
+        if (read >= 4 &&
+            buffer[0] == (byte)'%' &&
+            buffer[1] == (byte)'P' &&
+            buffer[2] == (byte)'D' &&
+            buffer[3] == (byte)'F')
+        {
+            message = "That looks like PDF content, not a Radiopaedia request list. Use Core Review > Import Sources for PDFs.";
+            return true;
+        }
+
+        if (buffer.Take(read).Any(value => value == 0))
+        {
+            message = "That looks like a binary file, not a Radiopaedia request list. Use Core Review > Import Sources for PDFs, Word .docx files, or PowerPoint .pptx files.";
+            return true;
+        }
+
+        var preview = Encoding.UTF8.GetString(buffer, 0, read);
+        if (Regex.IsMatch(preview, @"%PDF|%%EOF|\bendobj\b|\bxref\b", RegexOptions.IgnoreCase))
+        {
+            message = "That looks like raw PDF object text, not a Radiopaedia request list. Use Core Review > Import Sources for PDFs.";
+            return true;
+        }
+
+        return false;
+    }
+
     private static CaseRequestRow RowFromLine(string line)
     {
         var row = new CaseRequestRow { Query = line };
-        if (line.Contains("radiopaedia.org/cases/", StringComparison.OrdinalIgnoreCase)
-            || line.StartsWith("/cases/", StringComparison.OrdinalIgnoreCase))
+        if (CaseRequestRow.IsRadiopaediaCaseInput(line))
         {
             row.Mode = AppOptions.RequestModes[2];
         }
@@ -321,6 +434,19 @@ public partial class MainWindow : Window
         if (rows.Length == 0)
         {
             MessageBox.Show(this, "Add at least one diagnosis, random case, or manual Radiopaedia case URL first.", Title, MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var validationErrors = MainWindowViewModel.ValidateRows(rows);
+        if (validationErrors.Length > 0)
+        {
+            MessageBox.Show(
+                this,
+                "Fix the case request grid before generating:" + Environment.NewLine + Environment.NewLine + string.Join(Environment.NewLine, validationErrors),
+                Title,
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            SelectTab(MainTab.Cases);
             return;
         }
 
@@ -436,11 +562,26 @@ public partial class MainWindow : Window
     {
         var dialog = new OpenFileDialog
         {
-            Filter = "Supported source files (*.pdf;*.txt;*.md;*.markdown;*.json;*.jsonl)|*.pdf;*.txt;*.md;*.markdown;*.json;*.jsonl|PDF files (*.pdf)|*.pdf|Text and JSON files (*.txt;*.md;*.markdown;*.json;*.jsonl)|*.txt;*.md;*.markdown;*.json;*.jsonl|All files (*.*)|*.*",
+            Filter = "Core Review sources (*.pdf;*.docx;*.pptx;*.txt;*.md;*.markdown;*.json;*.jsonl)|*.pdf;*.docx;*.pptx;*.txt;*.md;*.markdown;*.json;*.jsonl|PDF files (*.pdf)|*.pdf|Word documents (*.docx)|*.docx|PowerPoint decks (*.pptx)|*.pptx|Text and JSON files (*.txt;*.md;*.markdown;*.json;*.jsonl)|*.txt;*.md;*.markdown;*.json;*.jsonl",
+            Title = "Import Core Review PDF, DOCX, PPTX, text, or JSON sources",
             Multiselect = true
         };
         if (dialog.ShowDialog(this) != true)
         {
+            return;
+        }
+
+        var unsupportedPaths = dialog.FileNames
+            .Where(path => !SupportedCoreReviewSourceExtensions.Contains(Path.GetExtension(path)))
+            .ToArray();
+        if (unsupportedPaths.Length > 0)
+        {
+            var firstPath = unsupportedPaths[0];
+            var extension = Path.GetExtension(firstPath);
+            var message = LegacyOfficeExtensions.Contains(extension)
+                ? "Legacy .doc and .ppt files are not supported directly. Save them as .docx or .pptx, then import them through Core Review > Import Sources."
+                : "Core Review Import Sources supports .pdf, .docx, .pptx, .txt, .md, .json, and .jsonl files.";
+            MessageBox.Show(this, message, Title, MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -470,7 +611,7 @@ public partial class MainWindow : Window
                     return true;
                 });
             _storage.SaveCoreSourceImports(dialog.FileNames, domain);
-            BoardStatusText.Text = $"Imported {pdfPaths.Length} PDF(s) and {textPaths.Length} note/JSON file(s).";
+            BoardStatusText.Text = $"Imported {pdfPaths.Length} PDF(s) and {textPaths.Length} DOCX/PPTX/text/JSON source file(s).";
             StatusText = "Core Review import complete";
         }
         catch (OperationCanceledException)
@@ -678,7 +819,8 @@ public partial class MainWindow : Window
     {
         var dialog = new OpenFileDialog
         {
-            Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*",
+            Title = "Select custom Core Review question bank JSON",
+            Filter = "Core Review question bank JSON (*.json)|*.json|All files (*.*)|*.*",
             Multiselect = false
         };
         if (dialog.ShowDialog(this) == true)

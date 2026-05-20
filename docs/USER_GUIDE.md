@@ -89,9 +89,16 @@ Core Review asks for one image per case by default, which helps long reviews fil
 
 To add local question sources:
 
-- import local PDFs, notes, or JSON files
+- import local PDFs, Word `.docx` documents, PowerPoint `.pptx` decks, notes, or JSON files
 - open the local study folder
 - choose the imported library as the `Question source` in Core Review
+
+Supported source imports:
+
+- PDFs are chunked by page. The importer saves page images and extracted PDF images when available, so generated standalone questions can show the source image from the same page as the supporting text.
+- Word imports require `.docx`; PowerPoint imports require `.pptx`.
+- Legacy `.doc` and `.ppt` files are not imported directly. Open them in Office or LibreOffice, save as `.docx` or `.pptx`, then import the converted file.
+- Plain notes and JSON question banks are still supported for text-only study material.
 
 Imported source files and extracted assets stay under:
 
@@ -100,6 +107,8 @@ library\board-review\
 ```
 
 This folder is ignored by Git. Do not import copyrighted or private material unless you have the right to use it locally. Imported sources affect standalone NIS/physics questions, not Radiopaedia case selection.
+
+The `Cases` table is not a report, PDF, Word, or PowerPoint importer. It only accepts Radiopaedia case requests: diagnosis searches, random case pulls, exact Radiopaedia case URLs, or request-list files such as plain text, CSV, TSV, or JSON. Use Core Review `Import Sources` for reports, PDFs, Word `.docx` documents, PowerPoint `.pptx` decks, and study notes. If a PDF or binary file is sent to the request-list importer, the app rejects it instead of filling the table with raw PDF fragments such as `xref`, `endobj`, or `%%EOF`.
 
 ## Case Conference Settings
 

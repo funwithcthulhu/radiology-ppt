@@ -5,6 +5,33 @@ import os from "node:os";
 import path from "node:path";
 import zlib from "node:zlib";
 
+function tinyPdfBuffer(text) {
+  const escaped = String(text).replace(/[()\\]/g, "\\$&");
+  const stream = `BT /F1 24 Tf 72 720 Td (${escaped}) Tj ET`;
+  const objects = [
+    "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
+    "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n",
+    "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n",
+    "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n",
+    `5 0 obj\n<< /Length ${Buffer.byteLength(stream, "ascii")} >>\nstream\n${stream}\nendstream\nendobj\n`,
+  ];
+
+  let body = "%PDF-1.4\n";
+  const offsets = [];
+  for (const object of objects) {
+    offsets.push(Buffer.byteLength(body, "ascii"));
+    body += object;
+  }
+  const xrefStart = Buffer.byteLength(body, "ascii");
+  body += `xref\n0 ${objects.length + 1}\n`;
+  body += "0000000000 65535 f \n";
+  for (const offset of offsets) {
+    body += `${String(offset).padStart(10, "0")} 00000 n \n`;
+  }
+  body += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF\n`;
+  return Buffer.from(body, "ascii");
+}
+
 test("renders teaching point bullets as complete PowerPoint text", async () => {
   const { buildDeck } = await import("../src/deck.mjs");
 
@@ -643,6 +670,84 @@ test("core review standalone MCQs keep long stems separate from answer choices",
   assert.ok(
     stemBounds.y + stemBounds.cy < firstOptionBounds.y,
     "long standalone stem should end before answer choices begin",
+  );
+});
+
+test("core review renders source-grounded PDF questions with imported PDF images", async () => {
+  const { buildDeck } = await import("../src/deck.mjs");
+  const { ingestCoreReviewPdfs } = await import(
+    "../src/core_review/pdf-ingest.mjs"
+  );
+  const { buildCoreReviewQuestionBankFromCorpus } = await import(
+    "../src/core_review/source-bank.mjs"
+  );
+  const tempDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "radiology-deck-pdf-question-image-"),
+  );
+  const pdfPath = path.join(tempDir, "physics-source.pdf");
+  const corpusPath = path.join(tempDir, "pdf-corpus.json");
+  const outputPath = path.join(tempDir, "pdf-question-image.pptx");
+
+  await fs.writeFile(
+    pdfPath,
+    tinyPdfBuffer(
+      "Increasing distance reduces detector exposure when other acquisition settings are unchanged.",
+    ),
+  );
+  const corpus = await ingestCoreReviewPdfs([pdfPath], {
+    outputPath: corpusPath,
+    domain: "physics",
+    noCopySource: true,
+    noExtractImages: true,
+  });
+  const questionBank = buildCoreReviewQuestionBankFromCorpus(corpus, {
+    title: "Imported PDF Question Images",
+  });
+  const question = questionBank.questions.find((item) => item.image?.localPath);
+  assert.ok(question, "expected a source-grounded PDF question with an image");
+
+  await buildDeck({
+    cases: [
+      {
+        rawInput: "core review anchor",
+        diagnosisQuery: "core review anchor",
+        caseTitle: "Core review anchor",
+        caseUrl: "https://radiopaedia.org/cases/example",
+        author: "Test Author",
+        licenseName: "CC BY-NC-SA 3.0",
+        rid: "rID-pdf-question",
+        revealSummary: "Anchor case for imported PDF source questions.",
+        footerText: "Radiopaedia rID-pdf-question",
+        images: [],
+        coreReviewPlan: { domain: "physics" },
+      },
+    ],
+    deckTitle: "Imported PDF Question Image Regression",
+    outputPath,
+    scratchDir: path.join(tempDir, "scratch"),
+    deckMode: "core-review",
+    coreReviewQuestions: [question],
+  });
+
+  const pptx = await fs.readFile(outputPath);
+  const allSlideText = readAllSlideText(pptx);
+  assert.match(allSlideText, /What effect is described/);
+  assert.match(allSlideText, /Increasing distance reduces detector exposure/);
+
+  const mediaEntries = listZipEntries(pptx).filter((entry) =>
+    /^ppt\/media\/[^/]+\.(?:png|jpeg|jpg)$/.test(entry),
+  );
+  assert.ok(
+    mediaEntries.length >= 1,
+    "expected the source-grounded PDF question slide to embed the imported PDF page image",
+  );
+  const mediaBytes = readZipEntry(pptx, mediaEntries[0]);
+  assert.equal(
+    mediaBytes.subarray(0, 8).equals(
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    ),
+    true,
+    "expected the embedded PDF question image to be a PNG asset",
   );
 });
 

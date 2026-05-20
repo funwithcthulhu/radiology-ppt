@@ -1,11 +1,12 @@
 using System.ComponentModel;
+using System.IO;
 using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 
 namespace RadiologyPpt.App;
 
-public sealed class CaseRequestRow : INotifyPropertyChanged
+public sealed class CaseRequestRow : INotifyPropertyChanged, IDataErrorInfo
 {
     private string _mode = AppOptions.RequestModes[0];
     private string _query = "";
@@ -20,16 +21,83 @@ public sealed class CaseRequestRow : INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
+    public string Error => ValidationMessage;
+
+    public string this[string columnName] => columnName == nameof(Query) ? ValidationMessage : "";
+
     public string Mode
     {
         get => _mode;
-        set => SetField(ref _mode, value);
+        set
+        {
+            if (SetField(ref _mode, value))
+            {
+                NotifyEntryStateChanged();
+            }
+        }
     }
 
     public string Query
     {
         get => _query;
-        set => SetField(ref _query, value);
+        set
+        {
+            if (SetField(ref _query, value))
+            {
+                NotifyEntryStateChanged();
+            }
+        }
+    }
+
+    public string EntryHelpText => Mode switch
+    {
+        var mode when mode == AppOptions.RequestModes[2] => "Paste one exact Radiopaedia case URL or /cases/... path. Do not paste report text, PDFs, Word files, or PowerPoint files here.",
+        var mode when mode == AppOptions.RequestModes[1] => "Optional Radiopaedia search terms for random cases. Leave blank for broad random pulls; use How many for the number of cases.",
+        _ => "Enter a diagnosis or concise search phrase for Radiopaedia. Use Manual Case URL for exact links; use Core Review Import Sources for PDFs, Word, PowerPoint, report text, or JSON."
+    };
+
+    public string EntryExampleText => Mode switch
+    {
+        var mode when mode == AppOptions.RequestModes[2] => "Example: https://radiopaedia.org/cases/appendicitis-23",
+        var mode when mode == AppOptions.RequestModes[1] => "Example: appendicitis, trauma, MSK, or leave blank for broad random",
+        _ => "Example: glioblastoma, pediatric elbow fracture, or pulmonary embolism"
+    };
+
+    public string ValidationMessage
+    {
+        get
+        {
+            var text = (Query ?? "").Trim();
+            if (Mode == AppOptions.RequestModes[2])
+            {
+                if (string.IsNullOrWhiteSpace(text))
+                {
+                    return "Manual Case URL rows need a Radiopaedia case URL or /cases/... path.";
+                }
+
+                if (!IsRadiopaediaCaseInput(text))
+                {
+                    return "Manual Case URL rows only accept radiopaedia.org/cases/... URLs or /cases/... paths. Put PDFs, Word, PowerPoint, report text, and JSON sources in Core Review Import Sources.";
+                }
+            }
+
+            if (Mode == AppOptions.RequestModes[0] && string.IsNullOrWhiteSpace(text))
+            {
+                return "Specific Diagnosis rows need a diagnosis or concise Radiopaedia search phrase.";
+            }
+
+            if (Mode == AppOptions.RequestModes[0] && LooksLikeRadiopaediaCaseReference(text))
+            {
+                return "Switch Type to Manual Case URL when entering an exact Radiopaedia case link.";
+            }
+
+            if ((Mode == AppOptions.RequestModes[0] || Mode == AppOptions.RequestModes[1]) && LooksLikeCoreReviewSource(text))
+            {
+                return "This looks like source material. Put PDFs, Word files, PowerPoint decks, report text, and JSON libraries in Core Review Import Sources.";
+            }
+
+            return "";
+        }
     }
 
     public int Count
@@ -148,21 +216,71 @@ public sealed class CaseRequestRow : INotifyPropertyChanged
         }
     }
 
-    private static (string CasePath, string RawInput) NormalizeManualCasePath(string value)
+    public static bool IsRadiopaediaCaseInput(string value)
+    {
+        return TryNormalizeManualCasePath(value, out _, out _);
+    }
+
+    public static bool TryNormalizeManualCasePath(string value, out string casePath, out string rawInput)
     {
         var text = (value ?? "").Trim();
+        rawInput = text;
+        casePath = "";
         if (text.StartsWith("/cases/", StringComparison.OrdinalIgnoreCase))
         {
-            return (text, text);
+            casePath = text.Split('?')[0];
+            return casePath.Length > "/cases/".Length;
         }
 
-        var match = Regex.Match(text, @"(?:https?://radiopaedia\.org)?(/cases/[^?\s]+)", RegexOptions.IgnoreCase);
+        var match = Regex.Match(text, @"^https?://(?:www\.)?radiopaedia\.org(/cases/[^?\s#]+)(?:[?#]\S*)?$", RegexOptions.IgnoreCase);
         if (match.Success)
         {
-            return (match.Groups[1].Value, text);
+            casePath = match.Groups[1].Value;
+            return casePath.Length > "/cases/".Length;
         }
 
-        return (text, text);
+        return false;
+    }
+
+    private static (string CasePath, string RawInput) NormalizeManualCasePath(string value)
+    {
+        return TryNormalizeManualCasePath(value, out var casePath, out var rawInput)
+            ? (casePath, rawInput)
+            : ((value ?? "").Trim(), (value ?? "").Trim());
+    }
+
+    private static bool LooksLikeRadiopaediaCaseReference(string value)
+    {
+        var text = (value ?? "").Trim();
+        return text.Contains("radiopaedia.org/cases/", StringComparison.OrdinalIgnoreCase)
+            || text.StartsWith("/cases/", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool LooksLikeCoreReviewSource(string value)
+    {
+        var text = (value ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        var extension = Path.GetExtension(text.Trim('"'));
+        if (extension.Equals(".pdf", StringComparison.OrdinalIgnoreCase) ||
+            extension.Equals(".doc", StringComparison.OrdinalIgnoreCase) ||
+            extension.Equals(".docx", StringComparison.OrdinalIgnoreCase) ||
+            extension.Equals(".ppt", StringComparison.OrdinalIgnoreCase) ||
+            extension.Equals(".pptx", StringComparison.OrdinalIgnoreCase) ||
+            extension.Equals(".txt", StringComparison.OrdinalIgnoreCase) ||
+            extension.Equals(".md", StringComparison.OrdinalIgnoreCase) ||
+            extension.Equals(".json", StringComparison.OrdinalIgnoreCase) ||
+            extension.Equals(".jsonl", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return text.Contains("report text", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("findings:", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("impression:", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string TitleFromCasePath(string casePath)
@@ -173,14 +291,24 @@ public sealed class CaseRequestRow : INotifyPropertyChanged
         return Regex.Replace(slug.Replace("-", " "), @"\s+", " ").Trim();
     }
 
-    private void SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+    private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
     {
         if (EqualityComparer<T>.Default.Equals(field, value))
         {
-            return;
+            return false;
         }
 
         field = value;
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        return true;
+    }
+
+    private void NotifyEntryStateChanged()
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(EntryHelpText)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(EntryExampleText)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ValidationMessage)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Error)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs("Item[]"));
     }
 }

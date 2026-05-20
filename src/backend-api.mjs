@@ -25,7 +25,7 @@ import {
   fetchRadiopaediaCase,
   saveRandomHistory,
 } from "./radiopaedia.mjs";
-import { parseCaseRequest } from "./request-parser.mjs";
+import { parseCaseRequest, parseCaseRequestList } from "./request-parser.mjs";
 import {
   collapseWhitespace,
   dedupe,
@@ -149,7 +149,7 @@ async function buildDeck(options) {
 }
 
 export function normalizeCaseRequestEntries(entries) {
-  const normalized = entries
+  const normalized = parseCaseRequestList(entries)
     .map((entry) => {
       if (typeof entry === "string") {
         return parseCaseRequest(entry);
