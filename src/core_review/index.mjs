@@ -14,6 +14,11 @@ export {
 } from "./ingest.mjs";
 
 export {
+  extractPdfGeometry,
+  savePdfFigureCrops,
+} from "./pdf-geometry.mjs";
+
+export {
   buildPdfLayoutChunks,
   isLikelyPdfSectionHeading,
   isPdfCaptionLine,

@@ -1,7 +1,7 @@
 import { collapseWhitespace } from "../utils.mjs";
 
 const CAPTION_PATTERN =
-  /^(?:fig(?:ure)?\.?\s*([a-z]?\d+[a-z]?)|image\s*([a-z]?\d+[a-z]?)|case\s*([a-z]?\d+[a-z]?)|table\s*([a-z]?\d+[a-z]?))\b[:.)\-\s]*/i;
+  /^(?:fig(?:ure)?\.?\s*([a-z]?\d+[a-z]?)|image\s*([a-z]?\d+[a-z]?)|table\s*([a-z]?\d+[a-z]?))\b[:.)\-\s]*/i;
 const KNOWN_SECTION_HEADING_PATTERN =
   /^(?:abstract|approach|background|case|clinical|discussion|diagnosis|findings|imaging|key points?|learning objectives?|management|overview|pearls?|pitfalls?|presentation|summary|technique|treatment)\b/i;
 
@@ -243,9 +243,19 @@ function layoutUnitsForPage(pageText) {
 }
 
 function assetSortKey(asset) {
+  const typeRank =
+    asset?.type === "figure_crop"
+      ? 0
+      : asset?.type === "embedded_image"
+        ? 1
+        : asset?.type === "page_render"
+          ? 2
+          : 9;
   return [
+    typeRank,
     String(asset?.type || ""),
     Number.isFinite(asset?.imageIndex) ? asset.imageIndex : 9999,
+    Number.isFinite(asset?.figureIndex) ? asset.figureIndex : 9999,
     String(asset?.id || ""),
   ].join(":");
 }
@@ -265,6 +275,12 @@ function inferredImageIndex(asset, index) {
 function confidenceFromScore(score, reason) {
   if (reason === "caption_number") {
     return 0.95;
+  }
+  if (reason === "figure_crop_caption_number") {
+    return 0.97;
+  }
+  if (reason === "figure_crop_caption_proximity") {
+    return score >= 90 ? 0.93 : 0.82;
   }
   if (reason === "caption_proximity") {
     if (score >= 80) {
@@ -291,6 +307,57 @@ function confidenceFromScore(score, reason) {
     return 0.35;
   }
   return 0.5;
+}
+
+function scoreFigureCropAsset(asset, chunk) {
+  const rankedCaptions = chunk.captionCandidates || [];
+  const chunkCenter = (chunk.lineStart + chunk.lineEnd) / 2;
+  const captionLineIndex = Number.isInteger(asset?.captionLineIndex)
+    ? asset.captionLineIndex
+    : null;
+  const matchingCaption = rankedCaptions.find((caption) => {
+    if (
+      asset.captionNumber &&
+      caption.number &&
+      asset.captionNumber === caption.number
+    ) {
+      return true;
+    }
+    return (
+      collapseWhitespace(asset.caption).toLowerCase() &&
+      collapseWhitespace(asset.caption).toLowerCase() ===
+        collapseWhitespace(caption.text).toLowerCase()
+    );
+  });
+  const distance = matchingCaption
+    ? matchingCaption.distance
+    : captionLineIndex !== null
+      ? Math.abs(captionLineIndex - chunkCenter)
+      : 99;
+  const inside =
+    matchingCaption?.inside ||
+    (captionLineIndex !== null &&
+      captionLineIndex >= chunk.lineStart &&
+      captionLineIndex <= chunk.lineEnd);
+  const reason =
+    matchingCaption?.number && asset.captionNumber === matchingCaption.number
+      ? "figure_crop_caption_number"
+      : "figure_crop_caption_proximity";
+  const score =
+    140 +
+    (inside ? 30 : 0) +
+    Math.max(0, 30 - distance * 6) +
+    (chunk.reason === "caption" ? 20 : 0);
+
+  return {
+    assetId: asset.id,
+    type: asset.type,
+    score: Math.round(score),
+    confidence: confidenceFromScore(score, reason),
+    confidenceSource: "pdf_geometry_v1",
+    reason,
+    caption: asset.caption || matchingCaption?.text || "",
+  };
 }
 
 function scoreEmbeddedAsset(asset, assetIndex, assetCount, chunk, captions, lineCount) {
@@ -334,9 +401,28 @@ function scoreEmbeddedAsset(asset, assetIndex, assetCount, chunk, captions, line
 }
 
 function assetMatchesForChunk(chunk, pageAssets, lineCount) {
+  const figureCrops = pageAssets.filter((asset) => asset.type === "figure_crop");
   const embeddedAssets = pageAssets.filter((asset) => asset.type === "embedded_image");
   const pageRender = pageAssets.find((asset) => asset.type === "page_render");
   const matches = [];
+
+  if (figureCrops.length) {
+    const scored = figureCrops
+      .map((asset) => scoreFigureCropAsset(asset, chunk))
+      .filter((match) => match.confidence >= 0.6)
+      .sort((left, right) => {
+        if (right.score !== left.score) {
+          return right.score - left.score;
+        }
+        return String(left.assetId).localeCompare(String(right.assetId));
+      });
+    if (scored[0]?.assetId) {
+      matches.push({
+        ...scored[0],
+        priority: 1,
+      });
+    }
+  }
 
   if (embeddedAssets.length) {
     const scored = embeddedAssets
@@ -359,7 +445,7 @@ function assetMatchesForChunk(chunk, pageAssets, lineCount) {
     if (scored[0]?.assetId && scored[0].confidence >= 0.6) {
       matches.push({
         ...scored[0],
-        priority: 1,
+        priority: matches.length + 1,
       });
     }
   }
@@ -368,11 +454,11 @@ function assetMatchesForChunk(chunk, pageAssets, lineCount) {
     matches.push({
       assetId: pageRender.id,
       type: pageRender.type,
-      score: embeddedAssets.length ? 5 : 25,
-      reason: embeddedAssets.length ? "page_render_backup" : "same_page_fallback",
+      score: matches.length ? 5 : 25,
+      reason: matches.length ? "page_render_backup" : "same_page_fallback",
       confidence: confidenceFromScore(
-        embeddedAssets.length ? 5 : 25,
-        embeddedAssets.length ? "page_render_backup" : "same_page_fallback",
+        matches.length ? 5 : 25,
+        matches.length ? "page_render_backup" : "same_page_fallback",
       ),
       confidenceSource: "pdf_layout_v1",
       caption: "",

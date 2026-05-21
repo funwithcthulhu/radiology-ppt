@@ -139,7 +139,7 @@ Radiopaedia behavior is intentionally split:
 
 The GUI supports Core Review PowerPoint generation plus import for PDFs, Word documents, PowerPoint decks, notes, and JSON study material. Backend Core Review modules plan Radiopaedia case requests, ingest source corpora, draft referenced practice questions, validate question banks, and assemble quiz sessions.
 
-PDF import stores page renders and extracted embedded images as corpus assets, then associates same-page assets with text chunks through `assetIds`. `source-bank.mjs` uses that provenance when drafting source-grounded questions, preferring an embedded image over a full-page render when both are attached to the same chunk. The deck renderer consumes the resulting `question.image` metadata for standalone Core Review image questions.
+PDF import stores page renders, extracted embedded images, and geometry-derived caption-region crops as corpus assets, then associates those assets with text chunks through `assetIds` and scored `assetMatches`. `source-bank.mjs` uses that provenance when drafting source-grounded questions, preferring a high-confidence figure crop or embedded image over a full-page render when both are attached to the same chunk. The deck renderer consumes the resulting `question.image` metadata for standalone Core Review image questions.
 
 Request-list parsing is intentionally separate from Core Review source import. The `Cases` path accepts Radiopaedia request rows from text, CSV, TSV, JSON, or exact Radiopaedia case URLs, while Core Review import accepts study sources such as PDF, `.docx`, and `.pptx`. PDF and binary-looking content is rejected at request-list parsing time so PDF object fragments are not normalized into bogus case rows.
 

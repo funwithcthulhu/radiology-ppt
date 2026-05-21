@@ -48,6 +48,44 @@ function tinyPdfBuffer(text) {
   return Buffer.from(body, "ascii");
 }
 
+function tinyFigurePdfBuffer() {
+  const escapePdfText = (text) => String(text).replace(/[()\\]/g, "\\$&");
+  const stream = [
+    "q",
+    "0.82 0.86 0.90 rg",
+    "72 560 260 90 re f",
+    "0 0 0 RG",
+    "72 560 260 90 re S",
+    "Q",
+    "BT /F1 16 Tf 72 520 Td (Figure 1. Detector exposure geometry.) Tj ET",
+    `BT /F1 14 Tf 72 480 Td (${escapePdfText(
+      "Increasing distance reduces detector exposure when other acquisition settings are unchanged.",
+    )}) Tj ET`,
+  ].join("\n");
+  const objects = [
+    "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
+    "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n",
+    "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n",
+    "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n",
+    `5 0 obj\n<< /Length ${Buffer.byteLength(stream, "ascii")} >>\nstream\n${stream}\nendstream\nendobj\n`,
+  ];
+
+  let body = "%PDF-1.4\n";
+  const offsets = [];
+  for (const object of objects) {
+    offsets.push(Buffer.byteLength(body, "ascii"));
+    body += object;
+  }
+  const xrefStart = Buffer.byteLength(body, "ascii");
+  body += `xref\n0 ${objects.length + 1}\n`;
+  body += "0000000000 65535 f \n";
+  for (const offset of offsets) {
+    body += `${String(offset).padStart(10, "0")} 00000 n \n`;
+  }
+  body += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF\n`;
+  return Buffer.from(body, "ascii");
+}
+
 function tinyPngBuffer() {
   return Buffer.from(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
@@ -330,6 +368,215 @@ test("builds source-grounded questions with same-page PDF images", async () => {
   assert.equal(question.image.pageNumber, 1);
   assert.equal(question.image.sourceAssetType, "page_render");
   assert.ok(await fs.stat(question.image.localPath));
+});
+
+test("crops caption-adjacent PDF figure regions for source-grounded questions", async () => {
+  const tempDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "core-review-pdf-figure-crop-"),
+  );
+  const pdfPath = path.join(tempDir, "physics-figure-source.pdf");
+  const outputPath = path.join(tempDir, "pdf-corpus.json");
+  await fs.writeFile(pdfPath, tinyFigurePdfBuffer());
+
+  const corpus = await ingestCoreReviewPdfs([pdfPath], {
+    outputPath,
+    domain: "physics",
+    noCopySource: true,
+    noExtractImages: true,
+  });
+  const pageRender = corpus.assets.find((asset) => asset.type === "page_render");
+  const figureCrop = corpus.assets.find((asset) => asset.type === "figure_crop");
+
+  assert.ok(pageRender, "expected a rendered page fallback asset");
+  assert.ok(figureCrop?.localPath, "expected a caption-adjacent figure crop");
+  assert.ok(await fs.stat(figureCrop.localPath));
+  assert.equal(figureCrop.cropSourceAssetId, pageRender.id);
+  assert.match(figureCrop.caption, /Figure 1/);
+  assert.ok(figureCrop.width < pageRender.width);
+  assert.ok(figureCrop.height < pageRender.height);
+
+  const questionBank = buildCoreReviewQuestionBankFromCorpus(corpus, {
+    title: "Figure Crop Questions",
+  });
+  const question = questionBank.questions.find(
+    (item) => item.image?.sourceAssetType === "figure_crop",
+  );
+
+  assert.ok(question, "expected a question linked to the figure crop");
+  assert.equal(question.image.sourceAssetId, figureCrop.id);
+  assert.equal(question.image.confidenceSource, "pdf_geometry_v1");
+  assert.match(question.image.matchReason, /figure_crop/);
+  assert.match(question.image.locator.caption, /Figure 1/);
+});
+
+test("drafts image findings from the real finding text instead of caption stubs", async () => {
+  const tempDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "core-review-image-finding-"),
+  );
+  const imagePath = path.join(tempDir, "figure-01.png");
+  await fs.writeFile(imagePath, tinyPngBuffer());
+
+  const figureAssetId = "neuro-source:page-0003:figure-01";
+  const corpus = {
+    title: "Semantic epidural hematoma",
+    sources: [
+      {
+        id: "neuro-source",
+        title: "Semantic epidural hematoma",
+        sourceType: "pdf",
+        domain: "neuro",
+      },
+    ],
+    assets: [
+      {
+        id: figureAssetId,
+        sourceId: "neuro-source",
+        type: "figure_crop",
+        pageNumber: 3,
+        localPath: imagePath,
+        width: 640,
+        height: 360,
+        caption:
+          "FIGURE 1: Axial non-contrast CT of the head showing the right frontal epidural hematoma.",
+      },
+    ],
+    chunks: [
+      {
+        id: "neuro-source:page-0003:chunk-001",
+        sourceId: "neuro-source",
+        domain: "neuro",
+        pageStart: 3,
+        pageEnd: 3,
+        text: "FIGURE 1: Axial non-contrast CT of the head showing the right frontal",
+        assetIds: [figureAssetId],
+        assetMatches: [
+          {
+            assetId: figureAssetId,
+            type: "figure_crop",
+            confidence: 0.97,
+            confidenceSource: "pdf_geometry_v1",
+            reason: "figure_crop_caption_number",
+            caption:
+              "FIGURE 1: Axial non-contrast CT of the head showing the right frontal",
+          },
+        ],
+        sourceLocator: {
+          sourceTitle: "Semantic epidural hematoma",
+          page: 3,
+          caption:
+            "FIGURE 1: Axial non-contrast CT of the head showing the right frontal",
+        },
+      },
+      {
+        id: "neuro-source:page-0003:chunk-002",
+        sourceId: "neuro-source",
+        domain: "neuro",
+        pageStart: 3,
+        pageEnd: 3,
+        text: "Epidural hematoma (arrow). Non-contrast axial CT of the head showing a right frontal well-defined biconvex hyperdense collection of hemorrhagic attenuation of 45 HU, suggestive of epidural hematoma.",
+        assetIds: [figureAssetId],
+        assetMatches: [
+          {
+            assetId: figureAssetId,
+            type: "figure_crop",
+            confidence: 0.97,
+            confidenceSource: "pdf_geometry_v1",
+            reason: "figure_crop_caption_number",
+            caption:
+              "FIGURE 1: Axial non-contrast CT of the head showing the right frontal",
+          },
+        ],
+        sourceLocator: {
+          sourceTitle: "Semantic epidural hematoma",
+          page: 3,
+          caption:
+            "FIGURE 1: Axial non-contrast CT of the head showing the right frontal",
+        },
+      },
+    ],
+  };
+
+  const questionBank = buildCoreReviewQuestionBankFromCorpus(corpus, {
+    title: "Image Finding Questions",
+  });
+  const question = questionBank.questions.find(
+    (item) => item.cognitiveLevel === "image_finding",
+  );
+  const answerText =
+    question?.options.find((option) => option.id === question.answerKey)?.text ||
+    "";
+
+  assert.ok(question, "expected an image finding question");
+  assert.deepEqual(question.sourceChunkIds, [
+    "neuro-source:page-0003:chunk-002",
+  ]);
+  assert.match(answerText, /biconvex hyperdense collection/i);
+  assert.doesNotMatch(answerText, /Non-contrast axial CT/i);
+  assert.doesNotMatch(answerText, /Axial non-contrast.*Axial non-contrast/i);
+});
+
+test("skips imported PDF title and footer fragments when drafting questions", () => {
+  const corpus = {
+    title: "Semantic epidural hematoma",
+    sources: [
+      {
+        id: "neuro-source",
+        title: "Semantic epidural hematoma",
+        sourceType: "pdf",
+        domain: "neuro",
+      },
+    ],
+    assets: [],
+    chunks: [
+      {
+        id: "neuro-source:page-0001:chunk-001",
+        sourceId: "neuro-source",
+        domain: "neuro",
+        pageStart: 1,
+        text: "With Sickle Cell Disease: A Series of Two Cases of",
+      },
+      {
+        id: "neuro-source:page-0003:chunk-999",
+        sourceId: "neuro-source",
+        domain: "neuro",
+        pageStart: 3,
+        text: "2025 Pradhan et al. Cureus 17(11): e97596. DOI 10.7759/cureus.97596 3 of 10",
+      },
+      {
+        id: "neuro-source:page-0010:chunk-007",
+        sourceId: "neuro-source",
+        domain: "neuro",
+        pageStart: 10,
+        text: "22 . Kalala Okito JP, Van Damme O, Calliauw L: Are spontaneous epidural haematoma in sickle cell disease a rare complication? A report of two new cases . Acta Neurochir (Wien). 2004, 146:407-10. 10.1007/s00701-003-0214-z",
+      },
+      {
+        id: "neuro-source:page-0006:chunk-017",
+        sourceId: "neuro-source",
+        domain: "neuro",
+        pageStart: 6,
+        text: "The condition is heterogeneously distributed across the country and shows a higher prevalence among tribal populations.",
+      },
+      {
+        id: "neuro-source:page-0002:chunk-004",
+        sourceId: "neuro-source",
+        domain: "neuro",
+        pageStart: 2,
+        text: "Early recognition and prompt intervention are crucial because epidural hematoma can rapidly cause neurological deterioration.",
+      },
+    ],
+  };
+
+  const questionBank = buildCoreReviewQuestionBankFromCorpus(corpus, {
+    title: "Noise Filter Questions",
+  });
+  const renderedText = JSON.stringify(questionBank.questions);
+
+  assert.ok(questionBank.questions.length >= 1);
+  assert.doesNotMatch(renderedText, /With Sickle Cell Disease/i);
+  assert.doesNotMatch(renderedText, /Cureus|10\.7759/i);
+  assert.doesNotMatch(renderedText, /Kalala Okito/i);
+  assert.doesNotMatch(renderedText, /Which statement best describes condition/i);
+  assert.match(renderedText, /rapidly cause neurological deterioration/i);
 });
 
 test("prefers chunk-associated embedded PDF images for source-grounded questions", async () => {

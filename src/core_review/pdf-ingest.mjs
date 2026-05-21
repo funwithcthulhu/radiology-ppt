@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { PDFParse } from "pdf-parse";
 import { collapseWhitespace, slugify } from "../utils.mjs";
+import { extractPdfGeometry, savePdfFigureCrops } from "./pdf-geometry.mjs";
 import { buildPdfLayoutChunks } from "./pdf-layout-ingest.mjs";
 
 function utcNow() {
@@ -206,6 +207,15 @@ async function ingestPdf(pdfPath, options, seenSourceIds) {
       .getInfo({ parsePageInfo: true })
       .catch(() => null);
     const textResult = await parser.getText();
+    let geometryResult = null;
+    let geometryError = "";
+    if (!options.noGeometry) {
+      try {
+        geometryResult = await extractPdfGeometry(pdfBuffer);
+      } catch (error) {
+        geometryError = error?.message || String(error || "");
+      }
+    }
     const info = infoResult?.info || {};
     const title =
       collapseWhitespace(options.title) ||
@@ -248,6 +258,11 @@ async function ingestPdf(pdfPath, options, seenSourceIds) {
       metadata: Object.fromEntries(
         Object.entries(info).filter(([, value]) => value),
       ),
+      geometry: {
+        strategy: "pdf_geometry_v1",
+        status: geometryResult?.pages?.length ? "ok" : "unavailable",
+        error: geometryError,
+      },
       sourcePdf,
     };
 
@@ -269,9 +284,21 @@ async function ingestPdf(pdfPath, options, seenSourceIds) {
           outputRoot,
           rendered.pageAssetIds,
         );
-    const assets = [...rendered.assets, ...imageAssets];
+    const figureAssets =
+      options.noFigureCrops || options.noRenderPages || !geometryResult?.pages
+        ? []
+        : await savePdfFigureCrops({
+            geometryPages: geometryResult.pages,
+            pageRenderAssets: rendered.assets,
+            sourceId,
+            assetsDir: assetsRoot,
+            outputRoot,
+          }).catch(() => []);
+    const assets = [...rendered.assets, ...imageAssets, ...figureAssets];
 
-    const pages = textResult.pages?.length
+    const pages = geometryResult?.pages?.length
+      ? geometryResult.pages
+      : textResult.pages?.length
       ? textResult.pages
       : [{ num: 1, text: textResult.text || "" }];
     const layoutMaxChars =

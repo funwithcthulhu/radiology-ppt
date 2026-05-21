@@ -176,7 +176,7 @@ Core Review has its own lecture path. Set a case count, domain, random selection
 
 The bundled diagnosis seed list is original practice scaffolding aligned to public ABR Core domains. It is not official ABR content and is not a board-recall list.
 
-Core Review can also import local PDFs, Word `.docx` documents, PowerPoint `.pptx` decks, notes, and JSON source material into a local study library under `library\board-review\`. The imported corpora stay local and are not committed. PDF imports keep page provenance, save page/image assets locally, and can attach the same-page source image to generated standalone questions.
+Core Review can also import local PDFs, Word `.docx` documents, PowerPoint `.pptx` decks, notes, and JSON source material into a local study library under `library\board-review\`. The imported corpora stay local and are not committed. PDF imports keep page provenance, save page/image assets locally, crop caption-adjacent figure regions when possible, and attach the best supported source image to generated standalone questions.
 
 Use the Core Review `Import Sources` control for study material. The `Cases` importer is only for Radiopaedia request rows or request-list files, and rejects PDF/binary-looking content so raw PDF object text does not become garbage case requests. Legacy `.doc` and `.ppt` files should be saved as `.docx` or `.pptx` before import.
 

@@ -95,7 +95,7 @@ To add local question sources:
 
 Supported source imports:
 
-- PDFs are chunked by page. The importer saves page images and extracted PDF images when available, so generated standalone questions can show the source image from the same page as the supporting text.
+- PDFs are chunked by page. The importer saves page images, extracts PDF images when available, and crops caption-adjacent figure regions from page renders when geometry is available, so generated standalone questions can show the source image closest to the supporting text.
 - Word imports require `.docx`; PowerPoint imports require `.pptx`.
 - Legacy `.doc` and `.ppt` files are not imported directly. Open them in Office or LibreOffice, save as `.docx` or `.pptx`, then import the converted file.
 - Plain notes and JSON question banks are still supported for text-only study material.

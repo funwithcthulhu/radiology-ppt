@@ -57,6 +57,63 @@ function cleanSentence(text) {
   );
 }
 
+function sentenceTitleCaseRatio(sentence) {
+  const words = collapseWhitespace(sentence).split(/\s+/).filter(Boolean);
+  const candidates = words.filter((word) => /[a-z]/i.test(word));
+  if (!candidates.length) {
+    return 0;
+  }
+  const titled = candidates.filter(
+    (word) =>
+      /^[A-Z][a-z0-9()/+-]*$/.test(word) ||
+      /^[A-Z0-9()/+-]{2,}$/.test(word),
+  );
+  return titled.length / candidates.length;
+}
+
+function isLikelySourceNoise(sentence) {
+  const clean = collapseWhitespace(sentence);
+  if (!clean) {
+    return true;
+  }
+  if (
+    /\b(?:doi|cureus|copyright|creative commons|how to cite|submitted|published|review began|review ended|peer review|open access|corresponding author|et al\.)\b/i.test(
+      clean,
+    )
+  ) {
+    return true;
+  }
+  if (
+    /(?:\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?\s+[A-Z]{1,3},\s*){2,}/.test(
+      clean,
+    )
+  ) {
+    return true;
+  }
+  if (/\b(?:Acta Neurochir|Neurol India|J Neurol Surg Rep|Radiology|AJNR|AJR)\b/i.test(clean)) {
+    return true;
+  }
+  if (/^(?:categories|keywords|references?)\s*:/i.test(clean)) {
+    return true;
+  }
+  if (/\b\d+\s+of\s+\d+\b/i.test(clean)) {
+    return true;
+  }
+  const words = clean.split(/\s+/);
+  const hasSentencePunctuation = /[.?!]$/.test(clean);
+  const hasPredicate =
+    /\b(?:is|are|was|were|be|being|been|has|have|had|show(?:s|ed|ing)?|demonstrat(?:es|ed|ing)?|reveal(?:s|ed|ing)?|depict(?:s|ed|ing)?|suggest(?:s|ed|ing)?|indicat(?:es|ed|ing)?|require(?:s|d)?|improv(?:es|ed|ing)?|worsen(?:s|ed|ing)?|increase(?:s|d|ing)?|decrease(?:s|d|ing)?|reduce(?:s|d|ing)?|lead(?:s|ing)?|caus(?:es|ed|ing)?|present(?:s|ed|ing)?|manage(?:s|d|ment)|diagnos(?:is|ed|tic)|treat(?:s|ed|ment))\b/i.test(
+      clean,
+    );
+  if (!hasPredicate) {
+    return true;
+  }
+  if (!hasSentencePunctuation && words.length <= 12 && sentenceTitleCaseRatio(clean) >= 0.65) {
+    return true;
+  }
+  return false;
+}
+
 function splitChunkIntoSentences(text) {
   const lines = String(text || "")
     .replace(/\r\n/g, "\n")
@@ -76,6 +133,9 @@ function splitChunkIntoSentences(text) {
         continue;
       }
       if (!/[a-z]/i.test(normalized) || /https?:\/\//i.test(normalized)) {
+        continue;
+      }
+      if (isLikelySourceNoise(normalized)) {
         continue;
       }
       sentences.push(normalized);
@@ -111,7 +171,7 @@ function splitAtKeyword(sentence, keywords) {
 
 function classifySentence(sentence, domain) {
   if (
-    /\b(should|must|recommended|recommend|requires?|avoid|document|verify|notify|contact|communicate|screen|delay|report)\b/i.test(
+    /\b(should|must|recommended|recommend|requires?|avoid|document|verify|notify|contact|communicate|screen|report)\b/i.test(
       sentence,
     )
   ) {
@@ -254,7 +314,11 @@ function resolveCorpusAsset(asset, corpusPath) {
   };
 }
 
-const PDF_IMAGE_ASSET_TYPES = new Set(["embedded_image", "page_render"]);
+const PDF_IMAGE_ASSET_TYPES = new Set([
+  "embedded_image",
+  "figure_crop",
+  "page_render",
+]);
 const MIN_PDF_IMAGE_CONFIDENCE = 0.6;
 
 function clampConfidence(value) {
@@ -500,7 +564,8 @@ function imageAssetCandidate(asset, source, chunk, assetIds) {
     assetPageNumber(asset) && chunkPageNumber(chunk)
       ? Math.abs(assetPageNumber(asset) - chunkPageNumber(chunk))
       : 0;
-  const typeRank = asset.type === "embedded_image" ? 2 : 1;
+  const typeRank =
+    asset.type === "figure_crop" ? 3 : asset.type === "embedded_image" ? 2 : 1;
   return {
     asset,
     ...confidence,
@@ -587,7 +652,11 @@ function imageForSourceAsset(candidate, source, chunk) {
       [
         source?.title || "Imported source",
         pageNumber ? `page ${pageNumber}` : "",
-        asset.type === "embedded_image" ? "embedded image" : "page image",
+        asset.type === "figure_crop"
+          ? "figure crop"
+          : asset.type === "embedded_image"
+            ? "embedded image"
+            : "page image",
       ]
         .filter(Boolean)
         .join(" - "),
@@ -664,7 +733,6 @@ function buildCorrectOption(sentence, style, sourceTitle) {
       " notify ",
       " contact ",
       " communicate ",
-      " delay ",
       " report ",
     ]);
     if (match) {
@@ -710,7 +778,6 @@ function topicFromSentence(sentence, style, sourceTitle) {
         " notify ",
         " contact ",
         " communicate ",
-        " delay ",
         " report ",
       ])?.before || sourceTitle
     );
@@ -737,6 +804,13 @@ function topicFromSentence(sentence, style, sourceTitle) {
     );
   }
   return sourceTitle;
+}
+
+function isGenericQuestionTopic(topic) {
+  const normalized = collapseWhitespace(topic).replace(/^(?:a|an|the)\s+/i, "");
+  return /^(?:this|that|these|those|it|condition|finding|findings|case|cases|two cases(?:, one)?|both cases|patient|patients|medical professional)$/i.test(
+    normalized,
+  );
 }
 
 function buildOptionSet(correctText, domain, style, seed) {
@@ -771,6 +845,248 @@ function buildOptionSet(correctText, domain, style, seed) {
   return { options, answerKey };
 }
 
+function hasDiagnosticImageAsset(candidate) {
+  return ["figure_crop", "embedded_image"].includes(candidate?.asset?.type || "");
+}
+
+function hasFigureImageCaption(candidate, chunk) {
+  return /^(?:fig(?:ure)?\.?|image)\s*\d+/i.test(
+    collapseWhitespace(
+      [
+        candidate?.caption || "",
+        chunk?.sourceLocator?.caption || "",
+        candidate?.asset?.caption || "",
+      ].join(" "),
+    ),
+  );
+}
+
+function isCaptionStubChunk(chunk) {
+  const text = collapseWhitespace(chunk?.text || "");
+  return /^(?:fig(?:ure)?\.?|image)\s*\d+/i.test(text) && !hasFindingTerm(text);
+}
+
+function cleanFigureFindingText(text) {
+  return collapseWhitespace(
+    String(text || "")
+      .replace(/\b(?:fig(?:ure)?\.?\s*\d+|image\s*\d+|table\s*\d+)\s*[:.)-]*/gi, " ")
+      .replace(/\b(?:arrow|arrows|case\s*\d+)\b/gi, " ")
+      .replace(/\([^)]*\)/g, " ")
+      .replace(/\s+/g, " "),
+  );
+}
+
+function hasFindingTerm(text) {
+  return /\b(?:hematoma|haematoma|hemorrhage|haemorrhage|hyperdense|hypodense|mass|lesion|collection|fracture|edema|oedema|infarct|aneurysm|occlusion|stenosis|abscess|pneumothorax|effusion|consolidation|nodule|exposure|dose|signal|artifact|geometry)\b/i.test(
+    text,
+  );
+}
+
+function imageFindingCandidatesFromText(text) {
+  const clean = cleanFigureFindingText(text);
+  const findings = [];
+  const findingPatterns = [
+    /\b(?:showing|demonstrating|revealing|depicting|showed|demonstrated|revealed|depicted|shows|demonstrates|reveals|depicts)\s+(?:an?|the)?\s*([^.;]+(?:suggestive of [^.;]+)?)/gi,
+    /\b(?:suggestive of|consistent with|compatible with|representing)\s+(?:an?|the)?\s*([^.;]+)/gi,
+  ];
+
+  for (const pattern of findingPatterns) {
+    let match;
+    while ((match = pattern.exec(clean))) {
+      const finding = cleanFigureFindingText(match[1]);
+      const nestedFinding = cleanFigureFindingText(
+        splitAtKeyword(finding, [
+          " showing ",
+          " demonstrating ",
+          " revealing ",
+          " depicting ",
+          " shows ",
+          " demonstrates ",
+          " reveals ",
+          " depicts ",
+        ])?.after || "",
+      );
+      const wordCount = finding.split(/\s+/).filter(Boolean).length;
+      if (wordCount >= 3 && finding.length >= 18 && hasFindingTerm(finding)) {
+        findings.push(finding);
+      }
+      const nestedWordCount = nestedFinding.split(/\s+/).filter(Boolean).length;
+      if (
+        nestedWordCount >= 3 &&
+        nestedFinding.length >= 18 &&
+        hasFindingTerm(nestedFinding)
+      ) {
+        findings.push(nestedFinding);
+      }
+    }
+  }
+
+  if (!findings.length && hasFindingTerm(clean) && clean.split(/\s+/).length >= 7) {
+    findings.push(clean);
+  }
+
+  return uniqueBy(findings, (finding) => finding.toLowerCase());
+}
+
+function imageFindingScore(finding) {
+  const text = collapseWhitespace(finding);
+  let score = Math.min(text.length, 140);
+  if (hasFindingTerm(text)) {
+    score += 120;
+  }
+  if (/\b(?:biconvex|hyperdense|hypodense|collection|attenuation|mass effect|midline shift|subgaleal|extra-axial|extracalvarial)\b/i.test(text)) {
+    score += 60;
+  }
+  if (/\b(?:non-contrast|noncontrast|axial|coronal|sagittal|ct|mri|mr)\b/i.test(text)) {
+    score -= 35;
+  }
+  if (/\b(?:showing|demonstrating|revealing|depicting)\b/i.test(text)) {
+    score -= 80;
+  }
+  return score;
+}
+
+function extractImageFindingText(source, chunk, candidate) {
+  const chunkText = cleanFigureFindingText(chunk?.text || "");
+  const captionText = cleanFigureFindingText(
+    [
+      candidate?.caption || "",
+      chunk?.sourceLocator?.caption || "",
+      candidate?.asset?.caption || "",
+    ]
+      .filter(Boolean)
+      .join(" "),
+  );
+  const candidates = [
+    ...imageFindingCandidatesFromText(chunkText),
+    ...imageFindingCandidatesFromText(captionText),
+    ...imageFindingCandidatesFromText([chunkText, captionText].join(" ")),
+  ];
+  if (!candidates.length) {
+    return "";
+  }
+
+  const selected = candidates.sort(
+    (left, right) => imageFindingScore(right) - imageFindingScore(left),
+  )[0];
+  const correctText = shortenOptionText(selected, 132);
+  if (
+    !correctText ||
+    correctText.length < 24 ||
+    /^case\s*\d+$/i.test(correctText) ||
+    correctText.toLowerCase() ===
+      collapseWhitespace(source?.title || "").toLowerCase()
+  ) {
+    return "";
+  }
+  return correctText;
+}
+
+function imageFindingDistractors(domain) {
+  if (domain === "physics") {
+    return [
+      "a detector exposure relationship unrelated to the displayed source figure",
+      "a post-processing-only artifact without an acquisition effect",
+      "a normal acquisition setup without a measurable exposure change",
+    ];
+  }
+
+  return [
+    "a crescentic extra-axial collection crossing sutures, favoring subdural hematoma",
+    "diffuse subarachnoid hemorrhage centered in the basal cisterns",
+    "an intraparenchymal basal ganglia hemorrhage with surrounding edema",
+    "a normal noncontrast head CT without extra-axial hemorrhage",
+  ];
+}
+
+function buildImageFindingOptionSet(correctText, domain, seed) {
+  const distractors = imageFindingDistractors(domain)
+    .map((option) => shortenOptionText(option, 132))
+    .filter((option) => option.toLowerCase() !== correctText.toLowerCase());
+  const pickedDistractors = uniqueBy(distractors, (option) =>
+    option.toLowerCase(),
+  ).slice(0, 3);
+  if (pickedDistractors.length < 3) {
+    return { options: [], answerKey: "" };
+  }
+
+  const choices = shuffle(
+    [
+      { text: correctText, correct: true },
+      ...pickedDistractors.map((text) => ({ text, correct: false })),
+    ],
+    seed,
+  ).slice(0, 4);
+  const optionIds = ["A", "B", "C", "D"];
+  const options = choices.map((choice, index) => ({
+    id: optionIds[index],
+    text: choice.text,
+  }));
+  const answerKey =
+    options.find((_, index) => choices[index].correct)?.id || "";
+  return { options, answerKey };
+}
+
+function imageFindingStem(chunk, candidate) {
+  const text = collapseWhitespace(
+    [
+      candidate?.caption || "",
+      chunk?.sourceLocator?.caption || "",
+      chunk?.text || "",
+    ].join(" "),
+  );
+  if (/\bCT\b|computed tomography|non-contrast|noncontrast/i.test(text)) {
+    return "On the linked CT image, which finding is described by the source?";
+  }
+  if (/\bMR\b|MRI\b|magnetic resonance/i.test(text)) {
+    return "On the linked MR image, which finding is described by the source?";
+  }
+  return "On the linked source image, which finding is described by the source?";
+}
+
+function draftImageFindingQuestion(source, chunk, assetsById) {
+  const domain = normalizeCoreReviewDomain(
+    chunk?.domain || source?.domain || "",
+  );
+  if (!domain) {
+    return null;
+  }
+  const candidate = preferredAssetForChunk(chunk, source, assetsById);
+  if (!hasDiagnosticImageAsset(candidate) || !hasFigureImageCaption(candidate, chunk)) {
+    return null;
+  }
+  if (isCaptionStubChunk(chunk)) {
+    return null;
+  }
+  const correctText = extractImageFindingText(source, chunk, candidate);
+  if (!correctText) {
+    return null;
+  }
+  const { options, answerKey } = buildImageFindingOptionSet(
+    correctText,
+    domain,
+    `${chunk.id}:image-finding`,
+  );
+  if (options.length < 4 || !answerKey) {
+    return null;
+  }
+
+  return {
+    id: `${slugify(chunk.id || source?.id || "core-review-source") || "core-review-source"}-image-q01`,
+    type: "single_best_answer",
+    domain,
+    difficulty: "core",
+    cognitiveLevel: "image_finding",
+    stem: imageFindingStem(chunk, candidate),
+    options,
+    answerKey,
+    explanation: `Source-grounded image item based on ${source?.title || "an imported source"}.`,
+    image: imageForSourceAsset(candidate, source, chunk),
+    references: buildReference(source, chunk),
+    sourceChunkIds: [chunk.id],
+  };
+}
+
 function draftQuestionFromSentence(source, chunk, sentence, index, assetsById) {
   const domain = normalizeCoreReviewDomain(
     chunk?.domain || source?.domain || "",
@@ -785,6 +1101,9 @@ function draftQuestionFromSentence(source, chunk, sentence, index, assetsById) {
     style,
     source?.title || "Imported source",
   );
+  if (isGenericQuestionTopic(topic)) {
+    return null;
+  }
   const correctText = buildCorrectOption(
     sentence,
     style,
@@ -902,6 +1221,7 @@ export function buildCoreReviewQuestionBankFromCorpus(corpus, options = {}) {
   );
   const questions = [];
   const seenStems = new Set();
+  const seenImageQuestionAssets = new Set();
 
   for (const chunk of corpus.chunks || []) {
     const source = sourcesById.get(chunk.sourceId) || {
@@ -914,6 +1234,24 @@ export function buildCoreReviewQuestionBankFromCorpus(corpus, options = {}) {
     );
     if (!domain) {
       continue;
+    }
+    const imageQuestion = draftImageFindingQuestion(
+      source,
+      { ...chunk, domain },
+      assetsById,
+    );
+    const imageQuestionKey =
+      imageQuestion?.image?.sourceAssetId || imageQuestion?.stem || "";
+    if (imageQuestion && imageQuestionKey && !seenImageQuestionAssets.has(imageQuestionKey)) {
+      const normalizedImageQuestion = normalizeCoreReviewQuestion(
+        imageQuestion,
+        questions.length,
+      );
+      const validation = validateCoreReviewQuestion(normalizedImageQuestion);
+      if (validation.ok) {
+        seenImageQuestionAssets.add(imageQuestionKey);
+        questions.push(normalizedImageQuestion);
+      }
     }
     const candidateSentences = splitChunkIntoSentences(chunk.text).slice(0, 2);
     for (const [index, sentence] of candidateSentences.entries()) {
