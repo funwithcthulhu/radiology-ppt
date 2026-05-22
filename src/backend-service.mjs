@@ -184,7 +184,7 @@ async function handleLine(line) {
     send({
       id,
       type: "error",
-      error: error?.stack || error?.message || String(error),
+      error: error?.message || String(error),
     });
   }
 }

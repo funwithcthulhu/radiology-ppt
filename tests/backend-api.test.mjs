@@ -295,6 +295,38 @@ test("PowerPoint render rejects directory output paths before export", async () 
   );
 });
 
+test("PowerPoint render rejects invalid output directories before export", async () => {
+  const { renderPowerPoint, tempDir } =
+    await loadRenderPowerPoint("invalid-output-directory");
+  const outputDirectory = path.join(tempDir, "outputs");
+  const outputPath = path.join(outputDirectory, "blocked.pptx");
+  await fs.writeFile(outputDirectory, "not a directory", "utf8");
+
+  await assert.rejects(
+    () =>
+      renderPowerPoint(
+        {
+          items: [
+            {
+              request: { rawInput: "appendicitis" },
+              caseData: renderCaseData(),
+            },
+          ],
+        },
+        {
+          out: outputPath,
+          title: "Invalid Output Directory Test",
+        },
+      ),
+    (error) => {
+      assert.match(error.message, /Cannot render PowerPoint/);
+      assert.match(error.message, /output directory is invalid/);
+      assert.match(error.message, /outputs/);
+      return true;
+    },
+  );
+});
+
 test("PowerPoint render does not write random history a second time", async () => {
   const tempDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "radiology-render-history-"),

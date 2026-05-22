@@ -323,6 +323,15 @@ function isUnsupportedImagePath(localPath) {
 }
 
 async function validateRenderOutputPath(outputPath) {
+  const outputDirectory = path.dirname(outputPath);
+  try {
+    await fs.mkdir(outputDirectory, { recursive: true });
+  } catch (error) {
+    throw new Error(
+      `Cannot render PowerPoint because the output directory is invalid: ${outputDirectory}. ${error?.message || error}`,
+    );
+  }
+
   try {
     const stat = await fs.stat(outputPath);
     if (stat.isDirectory()) {
@@ -633,7 +642,6 @@ export async function renderPowerPoint(payload, args) {
       : [];
 
   await validateRenderOutputPath(outputPath);
-  await fs.mkdir(path.dirname(outputPath), { recursive: true });
   await fs.writeFile(
     manifestPath,
     `${JSON.stringify(toManifest(cases, entries, deckTitle, deckMode), null, 2)}\n`,
