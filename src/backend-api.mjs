@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import sharp from "sharp";
 import {
   buildCoreReviewCasePlan,
   buildCoreReviewQuestionBankFromCorpus,
@@ -38,6 +39,20 @@ const RESOURCE_ROOT =
   process.env.RADIOLOGY_PPT_RESOURCE_ROOT ||
   path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const APP_ROOT = process.env.RADIOLOGY_PPT_APP_ROOT || RESOURCE_ROOT;
+const SUPPORTED_RENDER_IMAGE_EXTENSIONS = new Set([
+  ".avif",
+  ".bmp",
+  ".gif",
+  ".heic",
+  ".heif",
+  ".jpeg",
+  ".jpg",
+  ".png",
+  ".svg",
+  ".tif",
+  ".tiff",
+  ".webp",
+]);
 const RANDOM_PREPARE_FALLBACK_ATTEMPTS = boundedInteger(
   process.env.RADIOLOGY_PPT_RANDOM_PREPARE_FALLBACK_ATTEMPTS,
   8,
@@ -235,7 +250,13 @@ async function validateRenderPreparedItems(rawItems) {
       );
       continue;
     }
+    if (!caseData.images.length) {
+      failures.push(
+        `${caseRenderLabel(caseNumber, caseTitle)} has no selected images.`,
+      );
+    }
 
+    const imagePathIndexes = new Map();
     for (
       let imageIndex = 0;
       imageIndex < caseData.images.length;
@@ -264,6 +285,12 @@ async function validateRenderPreparedItems(rawItems) {
         );
         continue;
       }
+      if (isUnsupportedImageExtension(localPath)) {
+        failures.push(
+          `${imageLabel} uses an unsupported image extension: ${localPath}`,
+        );
+        continue;
+      }
 
       try {
         const stat = await fs.stat(localPath);
@@ -272,6 +299,33 @@ async function validateRenderPreparedItems(rawItems) {
         }
       } catch {
         failures.push(`${imageLabel} was not found: ${localPath}`);
+        continue;
+      }
+
+      const imagePathKey = imagePathIdentity(localPath);
+      const previousImageNumber = imagePathIndexes.get(imagePathKey);
+      if (previousImageNumber) {
+        failures.push(
+          `${imageLabel} duplicates image ${previousImageNumber} for ${imageCaseRenderLabel(
+            caseNumber,
+            caseTitle,
+          )}: ${localPath}`,
+        );
+        continue;
+      }
+      imagePathIndexes.set(imagePathKey, imageNumber);
+
+      try {
+        const metadata = await sharp(localPath).metadata();
+        if (!metadata.width || !metadata.height) {
+          failures.push(
+            `${imageLabel} is not a readable image file: ${localPath}`,
+          );
+        }
+      } catch {
+        failures.push(
+          `${imageLabel} is not a readable image file: ${localPath}`,
+        );
       }
     }
   }
@@ -320,6 +374,20 @@ function isUnsupportedImagePath(localPath) {
   return (
     /^[a-z][a-z\d+.-]*:/i.test(localPath) && !/^[a-z]:[\\/]/i.test(localPath)
   );
+}
+
+function isUnsupportedImageExtension(localPath) {
+  const extension = path.extname(localPath).toLowerCase();
+  return Boolean(
+    extension && !SUPPORTED_RENDER_IMAGE_EXTENSIONS.has(extension),
+  );
+}
+
+function imagePathIdentity(localPath) {
+  const resolvedPath = path.resolve(localPath);
+  return process.platform === "win32"
+    ? resolvedPath.toLowerCase()
+    : resolvedPath;
 }
 
 async function validateRenderOutputPath(outputPath) {

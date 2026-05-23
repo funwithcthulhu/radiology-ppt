@@ -4,6 +4,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import zlib from "node:zlib";
+import sharp from "sharp";
 import {
   coreReviewCaseCountForTotal,
   coreReviewStandaloneQuestionCountsForTotal,
@@ -176,6 +177,11 @@ test("PowerPoint render rejects missing and unsupported image assets", async () 
     "invalid-image-assets",
   );
   const missingImagePath = path.join(tempDir, "images", "missing.png");
+  const unsupportedExtensionPath = path.join(tempDir, "images", "notes.txt");
+  const unreadableImagePath = path.join(tempDir, "images", "not-an-image.png");
+  await fs.mkdir(path.dirname(unsupportedExtensionPath), { recursive: true });
+  await fs.writeFile(unsupportedExtensionPath, "not an image", "utf8");
+  await fs.writeFile(unreadableImagePath, "not an image", "utf8");
 
   await assert.rejects(
     () =>
@@ -192,6 +198,11 @@ test("PowerPoint render rejects missing and unsupported image assets", async () 
                     label: "Remote image URL",
                   },
                   { localPath: missingImagePath, label: "Missing file" },
+                  {
+                    localPath: unsupportedExtensionPath,
+                    label: "Unsupported extension",
+                  },
+                  { localPath: unreadableImagePath, label: "Unreadable image" },
                 ],
               }),
             },
@@ -217,6 +228,80 @@ test("PowerPoint render rejects missing and unsupported image assets", async () 
         /Image 3 for case "Appendicitis" was not found/,
       );
       assert.match(error.message, /missing\.png/);
+      assert.match(
+        error.message,
+        /Image 4 for case "Appendicitis" uses an unsupported image extension/,
+      );
+      assert.match(error.message, /notes\.txt/);
+      assert.match(
+        error.message,
+        /Image 5 for case "Appendicitis" is not a readable image file/,
+      );
+      assert.match(error.message, /not-an-image\.png/);
+      return true;
+    },
+  );
+
+  await assert.rejects(
+    () =>
+      renderPowerPoint(
+        {
+          items: [
+            {
+              request: { rawInput: "empty image list" },
+              caseData: renderCaseData({ images: [] }),
+            },
+          ],
+        },
+        {
+          out: path.join(tempDir, "outputs", "empty-images.pptx"),
+          title: "Empty Images Test",
+        },
+      ),
+    (error) => {
+      assert.match(error.message, /Cannot render PowerPoint/);
+      assert.match(
+        error.message,
+        /Case 1 "Appendicitis" has no selected images/,
+      );
+      return true;
+    },
+  );
+});
+
+test("PowerPoint render rejects duplicate selected image entries", async () => {
+  const { renderPowerPoint, tempDir } =
+    await loadRenderPowerPoint("duplicate-image-assets");
+  const imagePath = await writeTestImage(tempDir, "duplicate.png");
+
+  await assert.rejects(
+    () =>
+      renderPowerPoint(
+        {
+          items: [
+            {
+              request: { rawInput: "appendicitis" },
+              caseData: renderCaseData({
+                images: [
+                  { localPath: imagePath, label: "First image" },
+                  { localPath: imagePath, label: "Duplicate image" },
+                ],
+              }),
+            },
+          ],
+        },
+        {
+          out: path.join(tempDir, "outputs", "duplicate-assets.pptx"),
+          title: "Duplicate Assets Test",
+        },
+      ),
+    (error) => {
+      assert.match(error.message, /Cannot render PowerPoint/);
+      assert.match(
+        error.message,
+        /Image 2 for case "Appendicitis" duplicates image 1/,
+      );
+      assert.match(error.message, /duplicate\.png/);
       return true;
     },
   );
@@ -267,6 +352,7 @@ test("PowerPoint render rejects empty render input and empty cases clearly", asy
 test("PowerPoint render rejects directory output paths before export", async () => {
   const { renderPowerPoint, tempDir } =
     await loadRenderPowerPoint("directory-output-path");
+  const imagePath = await writeTestImage(tempDir, "directory-output.png");
   const outputPath = path.join(tempDir, "outputs", "blocked.pptx");
   await fs.mkdir(outputPath, { recursive: true });
 
@@ -277,7 +363,9 @@ test("PowerPoint render rejects directory output paths before export", async () 
           items: [
             {
               request: { rawInput: "appendicitis" },
-              caseData: renderCaseData(),
+              caseData: renderCaseData({
+                images: [{ localPath: imagePath, label: "CT" }],
+              }),
             },
           ],
         },
@@ -298,6 +386,7 @@ test("PowerPoint render rejects directory output paths before export", async () 
 test("PowerPoint render rejects invalid output directories before export", async () => {
   const { renderPowerPoint, tempDir } =
     await loadRenderPowerPoint("invalid-output-directory");
+  const imagePath = await writeTestImage(tempDir, "invalid-output.png");
   const outputDirectory = path.join(tempDir, "outputs");
   const outputPath = path.join(outputDirectory, "blocked.pptx");
   await fs.writeFile(outputDirectory, "not a directory", "utf8");
@@ -309,7 +398,9 @@ test("PowerPoint render rejects invalid output directories before export", async
           items: [
             {
               request: { rawInput: "appendicitis" },
-              caseData: renderCaseData(),
+              caseData: renderCaseData({
+                images: [{ localPath: imagePath, label: "CT" }],
+              }),
             },
           ],
         },
@@ -339,6 +430,7 @@ test("PowerPoint render does not write random history a second time", async () =
     import.meta.url,
   );
   const { renderPowerPoint } = await import(moduleUrl.href);
+  const imagePath = await writeTestImage(tempDir, "render-history.png");
   const outputPath = path.join(tempDir, "outputs", "render-history-test.pptx");
 
   const result = await renderPowerPoint(
@@ -368,7 +460,7 @@ test("PowerPoint render does not write random history a second time", async () =
             revealSummary: "Example summary.",
             footerText: "",
             patientData: {},
-            images: [],
+            images: [{ localPath: imagePath, label: "MRI" }],
           },
         },
       ],
@@ -412,6 +504,7 @@ test("PowerPoint render can source Core Review questions from the imported libra
     import.meta.url,
   );
   const { renderPowerPoint } = await import(moduleUrl.href);
+  const imagePath = await writeTestImage(tempDir, "core-library.png");
   const outputPath = path.join(tempDir, "outputs", "core-library-test.pptx");
 
   const result = await renderPowerPoint(
@@ -440,7 +533,7 @@ test("PowerPoint render can source Core Review questions from the imported libra
             revealSummary: "Example summary.",
             footerText: "",
             patientData: {},
-            images: [],
+            images: [{ localPath: imagePath, label: "CT" }],
           },
         },
       ],
@@ -463,6 +556,22 @@ async function writeImportedSource(tempDir, fileName, text) {
   const filePath = path.join(tempDir, fileName);
   await fs.writeFile(filePath, text, "utf8");
   return filePath;
+}
+
+async function writeTestImage(tempDir, fileName) {
+  const imagePath = path.join(tempDir, "images", fileName);
+  await fs.mkdir(path.dirname(imagePath), { recursive: true });
+  await sharp({
+    create: {
+      width: 24,
+      height: 18,
+      channels: 3,
+      background: "#202020",
+    },
+  })
+    .png()
+    .toFile(imagePath);
+  return imagePath;
 }
 
 async function loadRenderPowerPoint(name) {
