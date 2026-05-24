@@ -230,6 +230,69 @@ test("normalizes embedded media extensions to match image bytes", async () => {
   }
 });
 
+test("cleans generated image normalization files when deck write fails", async () => {
+  const { buildDeck } = await import("../src/deck.mjs");
+  const sharp = (await import("sharp")).default;
+  const tempDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "radiology-deck-temp-cleanup-"),
+  );
+  const imagePath = path.join(tempDir, "png-served-as-jpeg.jpeg");
+  const normalizedImagePath = `${imagePath}.pptx.png`;
+  const outputPath = path.join(tempDir, "blocked-output.pptx");
+  await fs.mkdir(outputPath, { recursive: true });
+
+  await sharp({
+    create: {
+      width: 480,
+      height: 360,
+      channels: 3,
+      background: "#202020",
+    },
+  })
+    .png()
+    .toFile(imagePath);
+
+  await assert.rejects(
+    () =>
+      buildDeck({
+        cases: [
+          {
+            rawInput: "media mismatch",
+            diagnosisQuery: "Media mismatch",
+            caseTitle: "Media extension mismatch",
+            caseUrl: "https://radiopaedia.org/cases/example",
+            author: "Test Author",
+            licenseName: "CC BY-NC-SA 3.0",
+            rid: "rID-000001",
+            revealSummary: "Diagnosis sourced from the linked Radiopaedia case.",
+            footerText:
+              "Radiopaedia • rID-000001 • Test Author • CC BY-NC-SA 3.0",
+            images: [
+              {
+                localPath: imagePath,
+                label: "PNG body delivered from a JPEG URL",
+              },
+            ],
+            teachingPoints: [],
+          },
+        ],
+        deckTitle: "Failed Write Cleanup Regression",
+        outputPath,
+        scratchDir: path.join(tempDir, "scratch"),
+      }),
+    (error) => {
+      assert.match(error.message, /Could not write PowerPoint output/);
+      assert.match(error.message, /blocked-output\.pptx/);
+      return true;
+    },
+  );
+
+  await assert.rejects(
+    () => fs.access(normalizedImagePath),
+    (error) => error?.code === "ENOENT",
+  );
+});
+
 test("case intro slide hides unsafe finding text", async () => {
   const { buildDeck } = await import("../src/deck.mjs");
   const sharp = (await import("sharp")).default;

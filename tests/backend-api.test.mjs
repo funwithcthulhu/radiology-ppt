@@ -418,6 +418,45 @@ test("PowerPoint render rejects invalid output directories before export", async
   );
 });
 
+test("PowerPoint render overwrites an existing output path with a valid deck", async () => {
+  const { renderPowerPoint, tempDir } =
+    await loadRenderPowerPoint("output-path-overwrite");
+  const imagePath = await writeTestImage(tempDir, "overwrite-output.png");
+  const outputPath = path.join(tempDir, "outputs", "same-output.pptx");
+  const payload = {
+    items: [
+      {
+        request: { rawInput: "appendicitis" },
+        caseData: renderCaseData({
+          images: [{ localPath: imagePath, label: "CT" }],
+        }),
+      },
+    ],
+  };
+
+  await fs.mkdir(path.dirname(outputPath), { recursive: true });
+  await fs.writeFile(outputPath, "stale output bytes", "utf8");
+
+  const firstResult = await renderPowerPoint(payload, {
+    out: outputPath,
+    title: "Output Path Overwrite Test",
+  });
+  const firstPptx = await fs.readFile(outputPath);
+  assert.equal(firstResult.outputPath, outputPath);
+  assert.equal(firstPptx.subarray(0, 2).toString("ascii"), "PK");
+
+  await fs.writeFile(outputPath, "stale output bytes between renders", "utf8");
+
+  const secondResult = await renderPowerPoint(payload, {
+    out: outputPath,
+    title: "Output Path Overwrite Test",
+  });
+  const secondPptx = await fs.readFile(outputPath);
+  assert.equal(secondResult.outputPath, outputPath);
+  assert.equal(secondPptx.subarray(0, 2).toString("ascii"), "PK");
+  assert.match(readAllSlideText(secondPptx), /Appendicitis/);
+});
+
 test("PowerPoint render does not write random history a second time", async () => {
   const tempDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "radiology-render-history-"),

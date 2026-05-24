@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import fs from "node:fs/promises";
 import path from "node:path";
 import JSZip from "jszip";
@@ -27,6 +28,7 @@ const POWERPOINT_IMAGE_FORMAT_EXTENSIONS = new Map([
   ["png", ".png"],
   ["gif", ".gif"],
 ]);
+const deckBuildContext = new AsyncLocalStorage();
 const DECK_MODES = {
   caseConference: "case-conference",
   coreReview: "core-review",
@@ -916,12 +918,29 @@ async function powerPointSafeImagePath(imagePath) {
 
   const targetExtension = expectedExtension || ".png";
   const safePath = `${imagePath}.pptx${targetExtension}`;
+  registerTemporaryImagePath(safePath);
   if (expectedExtension) {
     await fs.copyFile(imagePath, safePath);
   } else {
     await sharp(imagePath).png().toFile(safePath);
   }
   return safePath;
+}
+
+function registerTemporaryImagePath(filePath) {
+  deckBuildContext.getStore()?.temporaryImagePaths?.add(filePath);
+}
+
+async function cleanupTemporaryImagePaths(filePaths) {
+  await Promise.all(
+    [...filePaths].map(async (filePath) => {
+      try {
+        await fs.rm(filePath, { force: true });
+      } catch {
+        // Best-effort cleanup should not mask the export result.
+      }
+    }),
+  );
 }
 
 async function addImage(slide, imagePath, position, alt) {
@@ -3620,7 +3639,18 @@ async function addCoreReviewCaseExerciseSlides({
   addDiagnosisSlide(addSlide(), caseData, caseNumber, deckTitle, theme);
 }
 
-export async function buildDeck({
+export async function buildDeck(options) {
+  const temporaryImagePaths = new Set();
+  try {
+    return await deckBuildContext.run({ temporaryImagePaths }, () =>
+      buildDeckPresentation(options),
+    );
+  } finally {
+    await cleanupTemporaryImagePaths(temporaryImagePaths);
+  }
+}
+
+async function buildDeckPresentation({
   cases,
   deckTitle,
   outputPath,
@@ -3756,8 +3786,14 @@ export async function buildDeck({
     }
   }
 
-  await presentation.writeFile({ fileName: outputPath });
-  await normalizePowerPointPackage(outputPath);
+  try {
+    await presentation.writeFile({ fileName: outputPath });
+    await normalizePowerPointPackage(outputPath);
+  } catch (error) {
+    throw new Error(
+      `Could not write PowerPoint output to ${outputPath}: ${error?.message || error}`,
+    );
+  }
 
   return {
     outputPath,
