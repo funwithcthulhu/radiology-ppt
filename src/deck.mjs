@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import JSZip from "jszip";
@@ -3559,6 +3560,30 @@ async function normalizePowerPointPackage(filePath) {
   await fs.writeFile(filePath, normalizedBuffer);
 }
 
+function powerPointTempOutputPath(outputPath) {
+  const parsed = path.parse(outputPath);
+  return path.join(
+    parsed.dir,
+    `.${parsed.base}.${process.pid}.${randomUUID()}.tmp.pptx`,
+  );
+}
+
+async function writePowerPointPackageAtomically(presentation, outputPath) {
+  const tempPath = powerPointTempOutputPath(outputPath);
+  try {
+    await presentation.writeFile({ fileName: tempPath });
+    await normalizePowerPointPackage(tempPath);
+    await fs.rename(tempPath, outputPath);
+  } catch (error) {
+    try {
+      await fs.rm(tempPath, { force: true });
+    } catch {
+      // Best-effort cleanup should not hide the original export failure.
+    }
+    throw error;
+  }
+}
+
 async function resolveCoreReviewCaseBankCases(
   coreReviewCaseBank,
   coreReviewCaseBankPath,
@@ -3787,8 +3812,7 @@ async function buildDeckPresentation({
   }
 
   try {
-    await presentation.writeFile({ fileName: outputPath });
-    await normalizePowerPointPackage(outputPath);
+    await writePowerPointPackageAtomically(presentation, outputPath);
   } catch (error) {
     throw new Error(
       `Could not write PowerPoint output to ${outputPath}: ${error?.message || error}`,

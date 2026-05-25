@@ -368,6 +368,15 @@ test("cleans generated image normalization files when deck write fails", async (
     () => fs.access(normalizedImagePath),
     (error) => error?.code === "ENOENT",
   );
+  const outputDirEntries = await fs.readdir(tempDir);
+  assert.equal(
+    outputDirEntries.some(
+      (entry) =>
+        entry.startsWith(".blocked-output.pptx.") &&
+        entry.endsWith(".tmp.pptx"),
+    ),
+    false,
+  );
 });
 
 test("case intro slide hides unsafe finding text", async () => {
