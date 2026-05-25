@@ -96,7 +96,7 @@ Use these boundaries when deciding where a change belongs:
 - Keep the GUI as the product. Put reusable backend behavior in `src/backend-api.mjs` or focused modules.
 - Keep `src/backend-service.mjs` thin. It should own JSONL protocol mechanics, not Radiopaedia or PowerPoint business logic.
 - Keep moving C# logic from click handlers into view models, services, and contracts.
-- Keep slow/optional work out of initial preparation. Use review actions for expensive steps such as Ollama scoring.
+- Keep slow/optional work explicit in settings and docs. If a setting can run during preparation, describe that behavior plainly.
 - Long-running service commands should create/update `backend_jobs` rows.
 - Keep image-selection rationale user-facing. If the scoring logic changes, update `selectionExplanation`, tests, and docs.
 - Keep random behavior explainable: history, skipped/rejected cases, and indexed reuse should remain visible in Activity and Decision Logic.

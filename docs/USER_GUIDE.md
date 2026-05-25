@@ -71,12 +71,12 @@ The Library is built from your local SQLite state. It is not synced to Radiopaed
 
 ## Core Review
 
-Core Review has two jobs: build CORE-style case review lectures, and import local source material for standalone review questions.
+Core Review has two jobs: build case review decks, and import local source material for standalone review questions.
 
 To build a Core Review lecture:
 
 1. Set `Cases` to the target PowerPoint size. Long reviews such as 50-100 cases are supported, but preparation will take time.
-2. Choose a `Domain`. `General / Mixed` uses a broad CORE-style mix. `NIS`, `Physics`, and `RISC` are question domains, so case planning falls back to mixed diagnostic cases.
+2. Choose a `Domain`. `General / Mixed` uses a broad domain mix. `NIS`, `Physics`, and `RISC` are question domains, so case planning falls back to mixed diagnostic cases.
 3. Choose `Selection`. `General Random CORE Mix` gives more slots to large diagnostic areas. `Even Domain Random Mix` spreads cases more evenly. `Focused Domain Random Mix` uses the selected diagnostic domain.
 4. Choose `Modality mix`. `Mixed Modalities` rotates through common modalities for a diagnosis. `Prefer Classic Modality` uses the first listed modality. `Any Modality` leaves modality broad.
 5. Optional: set `Output .pptx` if you want the Core Review PowerPoint saved somewhere specific.
@@ -127,13 +127,13 @@ Options:
 - `Show patient age/sex when available`: adds minimal patient info on the case slide when clean data exists.
 - `Add teaching-points slides when available`: adds teaching points after diagnosis.
 - `Only use new random cases`: enabled by default. Prevents random mode from backfilling with cases already selected in earlier random runs.
-- `Use Ollama image review`: enables the review-window `Ollama Score Case` action.
+- `Use Ollama image review`: enables optional local Ollama scoring for selected images and the review-window `Ollama Score Case` action.
 - `Refresh Models`: loads local Ollama model names into the model dropdown.
 
 Presets:
 
 - `Fast Preview`: quicker review settings.
-- `Ollama Assisted`: enables the Ollama scoring option during review.
+- `Ollama Assisted`: enables the local Ollama scoring option for prepared images and review.
 - `Core Review Teaching`: Core Review style with teaching points when available.
 - `Dark Conference`: darker presentation style.
 
@@ -238,7 +238,7 @@ Review with Ollama:
 3. Generate normally.
 4. In review, click `Ollama Score Case` only for cases where the extra scoring time is useful.
 
-Core Review style PowerPoint:
+Core Review PowerPoint:
 
 1. Core Review: set case count, domain, selection, and modality mix.
 2. PowerPoint: choose the bundled bank, imported Core Review library, or a custom question-bank JSON file for standalone review questions.

@@ -4,6 +4,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { recordCaseIndex, writeRandomHistory } from "../src/app-store.mjs";
+import { buildClinicalHistoryText } from "../src/radiopaedia-case-text.mjs";
 import {
   buildTeachingPoints,
   buildCaseSearchUrl,
@@ -160,6 +161,30 @@ test("retries suspicious empty Radiopaedia search pages without cache", async ()
   assert.equal(calls.length, 2);
   assert.equal(calls[1].headers["cache-control"], "no-cache");
   assert.equal(result.candidates[0].casePath, "/cases/multiple-sclerosis-42");
+});
+
+test("formats age and sex context for case intro slides", () => {
+  assert.equal(
+    buildClinicalHistoryText({
+      request: { includeClinicalHistory: true, difficulty: "medium" },
+      patientData: { age: "50 years", gender: "Female" },
+    }),
+    "The patient is a 50-year-old female.",
+  );
+  assert.equal(
+    buildClinicalHistoryText({
+      request: { includeClinicalHistory: true, difficulty: "easy" },
+      patientData: { age: "11 months", gender: "M" },
+    }),
+    "The patient is an 11-month-old male.",
+  );
+  assert.equal(
+    buildClinicalHistoryText({
+      request: { includeClinicalHistory: true, difficulty: "hard" },
+      patientData: { age: "50 years", gender: "Female" },
+    }),
+    "",
+  );
 });
 
 test("builds complete teaching-point sentences without ellipses", () => {

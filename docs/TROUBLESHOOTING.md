@@ -83,7 +83,7 @@ Actions:
 - Start with fewer random cases only if Radiopaedia is slow or your filters are very narrow.
 - Use broader filters if a filtered search stalls.
 - Re-run after one successful pass so cached metadata and `case_index` can help.
-- Avoid Ollama during initial preparation.
+- Leave Ollama image review off during initial preparation when speed matters.
 - Use `Run Maintenance` after many test runs.
 - Check `Activity` for recent backend job duration. If `prepare` is long, the delay is usually live Radiopaedia case/study loading rather than PowerPoint rendering.
 
@@ -109,13 +109,15 @@ $env:RADIOLOGY_PPT_PREFETCH_FALLBACKS = "1"
 
 ## Ollama Takes Too Long
 
-Ollama is optional and intentionally deferred to review.
+Ollama is optional and local. When `Use Ollama image review` is enabled before
+preparation, selected images can be scored after download. The review window can
+also score the current kept images with `Ollama Score Case`.
 
 Recommended use:
 
-1. Enable `Use Ollama image review` only if you want local model help.
+1. Leave `Use Ollama image review` off for the fastest preparation path.
 2. Choose a local model in Cases or Core Review.
-3. Generate normally.
+3. Enable `Use Ollama image review` only if you want local model help.
 4. In review, click `Ollama Score Case` only for selected cases.
 
 Default limits:

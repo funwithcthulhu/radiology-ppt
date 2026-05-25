@@ -26,11 +26,11 @@ The case intro slide avoids giving away the diagnosis when possible. If clean pa
 - Dropdown filters for modality, anatomy, area, age group, topic focus, and difficulty.
 - Random selection that avoids recent, skipped, and rejected cases when possible.
 - Review before export, with controls to keep, favorite, skip, reroll, re-pick, replace, remove, or manually choose images.
-- Image-selection rationale in the review window and generated manifest.
+- Deterministic image-selection rationale in the review window and generated manifest.
 - Local Library view for reviewed cases and favorites.
 - PowerPoint presets including `Fast Preview`, `Ollama Assisted`, `Core Review Teaching`, and `Dark Conference`.
-- Separate Core Review generator for long CORE-style lectures without using the Cases view.
-- Optional Ollama vision scoring during review.
+- Separate Core Review workflow for review decks without using the Cases view.
+- Optional local Ollama image scoring for prepared images as a review aid.
 - Random mode searches live Radiopaedia first and avoids cases selected in previous random runs by default.
 - Local SQLite cache for Radiopaedia metadata, image candidates, random history, review decisions, and backend diagnostics.
 - Persistent local Node backend service with idle health checks.
@@ -39,8 +39,10 @@ The case intro slide avoids giving away the diagnosis when possible. If clean pa
 
 - [User Guide](docs/USER_GUIDE.md)
 - [Decision Logic](docs/DECISION_LOGIC.md)
+- [AI Boundaries](docs/AI_BOUNDARIES.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
+- [Manual Radiology Smoke Test](docs/manual-radiology-smoke-test.md)
 - [Contributing](docs/CONTRIBUTING.md)
 - [Releasing](docs/RELEASING.md)
 - [Security And Privacy](SECURITY.md)
@@ -89,7 +91,7 @@ There is no success popup after export. Use the left status area, Activity, `Ope
 ## Navigation
 
 - `Cases`: request grid for diagnoses, random pulls, or Radiopaedia URLs.
-- `Core Review`: generate CORE-style review PowerPoints and import PDFs, Word `.docx` documents, PowerPoint `.pptx` decks, notes, or JSON study material for review questions.
+- `Core Review`: generate review PowerPoints and import PDFs, Word `.docx` documents, PowerPoint `.pptx` decks, notes, or JSON study material for local practice questions.
 - `Library`: local history of reviewed cases with decision, image count, score, and case path.
 - `Activity`: diagnostics, backend logs, SQLite/cache counts, state folder access, cleanup, and maintenance.
 
@@ -172,7 +174,7 @@ GitHub Actions runs Node tests and the WPF Release build on Windows.
 
 ## Core Review
 
-Core Review has its own lecture path. Set a case count, domain, random selection mode, modality mix, and optional output `.pptx` path, then click `Generate Core Review PowerPoint`. The app builds a CORE-scoped plan, searches Radiopaedia for matching cases, opens the normal review window, and exports only the cases/images you approve. You do not need to select cases in the `Cases` tab for this workflow.
+Core Review has its own review-deck path. Set a case count, domain, random selection mode, modality mix, and optional output `.pptx` path, then click `Generate Core Review PowerPoint`. The app builds a domain-scoped plan, searches Radiopaedia for matching cases, opens the normal review window, and exports only the cases/images you approve. You do not need to select cases in the `Cases` tab for this workflow.
 
 The bundled diagnosis seed list is original practice scaffolding aligned to public ABR Core domains. It is not official ABR content and is not a board-recall list.
 
@@ -180,9 +182,9 @@ Core Review can also import local PDFs, Word `.docx` documents, PowerPoint `.ppt
 
 Use the Core Review `Import Sources` control for study material. The `Cases` importer is only for Radiopaedia request rows or request-list files, and rejects PDF/binary-looking content so raw PDF object text does not become garbage case requests. Legacy `.doc` and `.ppt` files should be saved as `.docx` or `.pptx` before import.
 
-Core Review PowerPoints can source NIS and physics questions from:
+Core Review PowerPoints can source standalone NIS and physics practice questions from:
 
-- the bundled free CORE-style bank
+- the bundled free practice bank
 - the imported local Core Review library
 - a custom question-bank JSON file
 

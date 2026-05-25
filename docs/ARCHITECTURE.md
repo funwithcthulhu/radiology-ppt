@@ -124,20 +124,20 @@ Radiopaedia behavior is intentionally split:
 ### Image And PowerPoint Modules
 
 - `src/image-candidates.mjs`: frame candidate extraction, relevance scoring, selected-image quality, and replacement rules.
-- `src/ollama-review.mjs`: optional local vision-model scoring with time/image caps.
+- `src/ollama-review.mjs`: optional local Ollama vision-model scoring with time/image caps.
 - `src/deck.mjs`: PPTX rendering.
 
 ### Core Review Modules
 
-- `src/core_review/schema.mjs`: ABR-style domains and question-type schema.
-- `src/core_review/case-plan.mjs`: CORE-style diagnosis seed list and Radiopaedia request planning.
+- `src/core_review/schema.mjs`: Core Review domain and question-type schema.
+- `src/core_review/case-plan.mjs`: Core Review diagnosis seed list and Radiopaedia request planning.
 - `src/core_review/ingest.mjs`: text, JSON, Word, and PowerPoint source ingestion.
 - `src/core_review/pdf-ingest.mjs`: local PDF copy, page rendering, embedded-image extraction, text chunking, and provenance.
 - `src/core_review/quiz.mjs`: question-bank validation, session assembly, scoring, and localization scoring.
 - `src/core_review/source-bank.mjs`: imported-corpus loading, merging, and referenced practice question drafting.
 - `src/core_review/index.mjs`: exports.
 
-The GUI supports Core Review PowerPoint generation plus import for PDFs, Word documents, PowerPoint decks, notes, and JSON study material. Backend Core Review modules plan Radiopaedia case requests, ingest source corpora, draft referenced practice questions, validate question banks, and assemble quiz sessions.
+The GUI supports Core Review PowerPoint generation plus import for PDFs, Word documents, PowerPoint decks, notes, and JSON study material. Backend Core Review modules plan Radiopaedia case requests, ingest source corpora, draft referenced practice questions from local source text, validate question banks, and assemble quiz sessions. These modules provide practice scaffolding, not official board content or clinical advice.
 
 PDF import stores page renders, extracted embedded images, and geometry-derived caption-region crops as corpus assets, then associates those assets with text chunks through `assetIds` and scored `assetMatches`. `source-bank.mjs` uses that provenance when drafting source-grounded questions, preferring a high-confidence figure crop or embedded image over a full-page render when both are attached to the same chunk. The deck renderer consumes the resulting `question.image` metadata for standalone Core Review image questions.
 
@@ -278,11 +278,12 @@ Backend health:
 - Cache image candidate banks and fetched metadata.
 - Avoid rejected frames when re-picking images from the same case.
 - Keep random fallback prefetch opt-in with `RADIOLOGY_PPT_PREFETCH_FALLBACKS=1`.
-- Keep Ollama out of initial preparation; score selected cases during review only.
+- Keep Ollama optional and explicit. When enabled before preparation, selected images can be scored after download; review actions can also score the current kept images.
 - Limit HTTP concurrency and retry transient Radiopaedia/curl failures.
 - Emit structured progress/timing events into Activity.
 
 See [Decision Logic](DECISION_LOGIC.md) for the random-selection, image-ranking, and storage rules.
+See [AI Boundaries](AI_BOUNDARIES.md) for non-diagnostic use, local model behavior, and imported-source limits.
 
 ## Packaging
 

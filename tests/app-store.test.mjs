@@ -72,8 +72,17 @@ test("reads skipped and rejected case paths for future random avoidance", async 
     decision: "approved",
     reason: "unit-test",
   });
+  await recordCaseDecision({
+    casePath: "/cases/reject-me?lang=us",
+    caseTitle: "Rejected case",
+    decision: "rejected",
+    reason: "unit-test",
+  });
 
-  assert.deepEqual(await readAvoidedCasePaths(), ["/cases/skip-me"]);
+  assert.deepEqual((await readAvoidedCasePaths()).sort(), [
+    "/cases/reject-me",
+    "/cases/skip-me",
+  ]);
 });
 
 test("indexes prepared cases for cached random reuse and filtering", async () => {

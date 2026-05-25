@@ -57,9 +57,11 @@ High-value signals:
 - current viewer slice
 - proximity to annotated slices
 - distinct series/view coverage
-- optional Ollama score when you manually run `Ollama Score Case`
+- optional local Ollama score when image review is enabled or when you manually run `Ollama Score Case`
 
 Selected images carry `selectionExplanation`, shown in review and written to the PowerPoint manifest. The `Details` tab lists the same rationale.
+
+The rationale explains the app's ranking inputs. It is not a clinical assessment and should be ignored when it conflicts with the visible image, source text, or user review.
 
 The candidate bank is separate from selected images, so `Re-pick Images`, `Replace Unchecked`, and manual `Candidates` selection can reuse same-case frames without reloading the whole case when possible.
 
@@ -111,6 +113,10 @@ File folders store generated or cached artifacts:
 
 Use `Activity` > `Run Maintenance` to clean old cache/scratch files and optimize SQLite after many test runs.
 
+## AI And Clinical Boundaries
+
+See [AI Boundaries](AI_BOUNDARIES.md) for the explicit limits around optional local Ollama scoring, deterministic teaching-point/question scaffolding, imported source handling, and non-diagnostic use.
+
 ## Speed Tradeoffs
 
 The app optimizes for review quality first, then speed.
@@ -118,7 +124,7 @@ The app optimizes for review quality first, then speed.
 - Initial random runs are slower because Radiopaedia pages and image studies must be loaded.
 - Later runs improve because search pages, candidate banks, image decisions, and case index rows are cached.
 - Background fallback prefetch is off by default to avoid surprising network activity.
-- Ollama is never used during initial preparation; it only runs when you explicitly score a reviewed case.
+- Ollama is off unless the image-review option is enabled. If enabled before preparation, selected images can be scored after download; the review window can also score the current kept images.
 - HTTP concurrency is capped to avoid hammering Radiopaedia.
 
 If a category is slow, start with fewer cases, use broader filters, and let the cache/index build up.

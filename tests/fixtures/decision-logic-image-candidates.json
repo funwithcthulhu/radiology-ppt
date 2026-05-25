@@ -1,0 +1,37 @@
+{
+  "candidates": [
+    {
+      "frameId": "annotated-axial",
+      "seriesId": "series-1",
+      "viewSignature": "MRI:T2:axial",
+      "url": "https://example.test/annotated-axial.jpg",
+      "relevantScore": 215,
+      "isAnnotated": true,
+      "isKeyImage": false,
+      "isCurrent": true,
+      "audit": {
+        "candidateSource": "deterministic fixture",
+        "reasons": [
+          "contains Radiopaedia annotation",
+          "current viewer slice"
+        ]
+      }
+    },
+    {
+      "frameId": "key-coronal",
+      "seriesId": "series-2",
+      "viewSignature": "MRI:T1:coronal",
+      "url": "https://example.test/key-coronal.jpg",
+      "relevantScore": 160,
+      "isAnnotated": false,
+      "isKeyImage": true,
+      "isCurrent": false,
+      "audit": {
+        "candidateSource": "deterministic fixture",
+        "reasons": [
+          "marked as Radiopaedia key image"
+        ]
+      }
+    }
+  ]
+}

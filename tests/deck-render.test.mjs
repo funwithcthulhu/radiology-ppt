@@ -230,6 +230,83 @@ test("normalizes embedded media extensions to match image bytes", async () => {
   }
 });
 
+test("keeps same-basename images from different folders distinct", async () => {
+  const { buildDeck } = await import("../src/deck.mjs");
+  const sharp = (await import("sharp")).default;
+  const tempDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "radiology-deck-basename-collision-"),
+  );
+  const firstImagePath = path.join(tempDir, "case-a", "image1.png");
+  const secondImagePath = path.join(tempDir, "case-b", "image1.png");
+  const outputPath = path.join(tempDir, "basename-collision.pptx");
+  await fs.mkdir(path.dirname(firstImagePath), { recursive: true });
+  await fs.mkdir(path.dirname(secondImagePath), { recursive: true });
+
+  await sharp({
+    create: {
+      width: 72,
+      height: 54,
+      channels: 3,
+      background: "#d72638",
+    },
+  })
+    .png()
+    .toFile(firstImagePath);
+  await sharp({
+    create: {
+      width: 72,
+      height: 54,
+      channels: 3,
+      background: "#1b998b",
+    },
+  })
+    .png()
+    .toFile(secondImagePath);
+
+  await buildDeck({
+    cases: [
+      {
+        rawInput: "first generic image",
+        diagnosisQuery: "First generic image",
+        caseTitle: "First basename collision case",
+        caseUrl: "https://radiopaedia.org/cases/first-basename-collision",
+        patientData: { age: "50", gender: "female" },
+        revealSummary: "First case reveal.",
+        footerText: "Radiopaedia test attribution",
+        images: [{ localPath: firstImagePath, label: "First image1.png" }],
+        teachingPoints: [],
+      },
+      {
+        rawInput: "second generic image",
+        diagnosisQuery: "Second generic image",
+        caseTitle: "Second basename collision case",
+        caseUrl: "https://radiopaedia.org/cases/second-basename-collision",
+        patientData: { age: "60", gender: "male" },
+        revealSummary: "Second case reveal.",
+        footerText: "Radiopaedia test attribution",
+        images: [{ localPath: secondImagePath, label: "Second image1.png" }],
+        teachingPoints: [],
+      },
+    ],
+    deckTitle: "Basename Collision Regression",
+    outputPath,
+    scratchDir: path.join(tempDir, "scratch"),
+  });
+
+  const pptx = await fs.readFile(outputPath);
+  const slideTexts = readSlideTexts(pptx);
+  assert.match(slideTexts[0], /50-year-old female/);
+  assert.match(slideTexts[3], /60-year-old male/);
+
+  const firstSlideMedia = readSlideMediaBuffers(pptx, 2);
+  const secondSlideMedia = readSlideMediaBuffers(pptx, 5);
+  assert.equal(firstSlideMedia.length, 1);
+  assert.equal(secondSlideMedia.length, 1);
+  assert.notDeepEqual(firstSlideMedia[0], secondSlideMedia[0]);
+  assert.deepEqual(firstSlideMedia[0], await fs.readFile(firstImagePath));
+  assert.deepEqual(secondSlideMedia[0], await fs.readFile(secondImagePath));
+});
+
 test("cleans generated image normalization files when deck write fails", async () => {
   const { buildDeck } = await import("../src/deck.mjs");
   const sharp = (await import("sharp")).default;
@@ -1607,6 +1684,19 @@ function readSlideXmlEntries(buffer) {
 
 function readSlideTexts(buffer) {
   return readSlideXmlEntries(buffer).map(({ text }) => text);
+}
+
+function readSlideMediaBuffers(buffer, slideIndex) {
+  const relationships = readZipEntryText(
+    buffer,
+    `ppt/slides/_rels/slide${slideIndex}.xml.rels`,
+  );
+  const mediaTargets = [
+    ...relationships.matchAll(/Target="\.\.\/media\/([^"]+)"/g),
+  ]
+    .map((match) => `ppt/media/${match[1]}`)
+    .sort();
+  return mediaTargets.map((entry) => readZipEntry(buffer, entry));
 }
 
 function textBoxBoundsForText(slideXml, pattern) {

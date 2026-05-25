@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
+import path from "node:path";
 import {
   buildImageCandidates,
   evaluateSelectedImages,
@@ -103,6 +105,30 @@ test("can explicitly select requested image frames before filling remaining slot
       (candidate) => candidate.frameId === "1" || candidate.frameId === "3",
     ),
   );
+});
+
+test("generates image-selection rationale from deterministic fixture data", async () => {
+  const fixture = JSON.parse(
+    await fs.readFile(
+      path.resolve("tests", "fixtures", "decision-logic-image-candidates.json"),
+      "utf8",
+    ),
+  );
+
+  const selected = selectRelevantImages(fixture.candidates, 1);
+
+  assert.equal(selected.length, 1);
+  assert.equal(selected[0].frameId, "annotated-axial");
+  assert.equal(selected[0].audit.selectedReason, "annotated frame");
+  assert.match(
+    selected[0].selectionExplanation,
+    /Selected rank 1, score 215 from deterministic fixture/,
+  );
+  assert.match(
+    selected[0].selectionExplanation,
+    /contains Radiopaedia annotation/,
+  );
+  assert.match(selected[0].selectionExplanation, /current viewer slice/);
 });
 
 test("normalizes candidate banks and drops local paths", () => {

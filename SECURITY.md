@@ -8,6 +8,8 @@ The app is designed for local use. Generated PowerPoints, review history, cache 
 
 The SQLite database may include local file paths, reviewed case titles, random history, image decisions, backend job timing/details, and generated PowerPoint metadata. Treat it as private local state.
 
+Normal case preparation contacts Radiopaedia for search results, case pages, studies, and images. Optional Ollama image scoring contacts a local Ollama server on `127.0.0.1` when enabled. Imported Core Review files are processed locally and written under `library\board-review\`.
+
 Do not share:
 
 - private patient data
@@ -19,3 +21,5 @@ Do not share:
 ## Medical Disclaimer
 
 This project is for education and presentation preparation. It is not a medical device and should not be used for clinical diagnosis or patient care decisions.
+
+See [AI Boundaries](docs/AI_BOUNDARIES.md) for the limits around optional local image scoring, generated teaching/question scaffolding, and imported-source handling.
