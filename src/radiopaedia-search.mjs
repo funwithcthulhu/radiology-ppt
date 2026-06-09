@@ -285,6 +285,7 @@ async function fetchSearchResultCandidates(
 export function buildCaseSearchUrl({
   query = "",
   systems = [],
+  modalities = [],
   page = 1,
 } = {}) {
   const searchUrl = new URL(`${BASE_URL}/search`);
@@ -293,6 +294,9 @@ export function buildCaseSearchUrl({
   searchUrl.searchParams.set("page", String(Math.max(1, page)));
   for (const system of dedupe(systems)) {
     searchUrl.searchParams.append("system[]", system);
+  }
+  for (const modality of dedupe(modalities)) {
+    searchUrl.searchParams.append("modality[]", modality);
   }
   const cleanQuery = collapseWhitespace(query);
   if (cleanQuery) {
@@ -347,37 +351,70 @@ function rotate(values, offset) {
   return [...values.slice(start), ...values.slice(0, start)];
 }
 
-function buildRandomSearchQueries(request) {
+function joinSearchQueryParts(parts) {
+  return collapseWhitespace(dedupe(parts.filter(Boolean)).join(" "));
+}
+
+export function buildRandomSearchQueries(request) {
   const randomQuery = request.randomSpec?.queryText || "";
   const studyHint = request.studyHint || "";
   const filterQuery = request.filterQuery || "";
   const strippedHint = stripModalityTerms(studyHint);
-  return dedupe([
-    collapseWhitespace(
-      [randomQuery, filterQuery, studyHint].filter(Boolean).join(" "),
-    ),
-    collapseWhitespace(
-      [randomQuery, filterQuery, strippedHint].filter(Boolean).join(" "),
-    ),
-    collapseWhitespace([filterQuery, studyHint].filter(Boolean).join(" ")),
-    collapseWhitespace([filterQuery, strippedHint].filter(Boolean).join(" ")),
-    collapseWhitespace([randomQuery, filterQuery].filter(Boolean).join(" ")),
+  const hasNativeModalityFilter = Boolean(
+    (request.preferredModalities || []).length ||
+      preferredModalitiesFromHint(studyHint).length,
+  );
+  const modalityFilteredQueries = [
+    joinSearchQueryParts([randomQuery, filterQuery, strippedHint]),
+    joinSearchQueryParts([filterQuery, strippedHint]),
+    joinSearchQueryParts([randomQuery, filterQuery]),
+    strippedHint,
+    filterQuery,
+    randomQuery,
+    joinSearchQueryParts([randomQuery, filterQuery, studyHint]),
+    joinSearchQueryParts([filterQuery, studyHint]),
+    studyHint,
+    "",
+  ];
+  const textOnlyQueries = [
+    joinSearchQueryParts([randomQuery, filterQuery, studyHint]),
+    joinSearchQueryParts([randomQuery, filterQuery, strippedHint]),
+    joinSearchQueryParts([filterQuery, studyHint]),
+    joinSearchQueryParts([filterQuery, strippedHint]),
+    joinSearchQueryParts([randomQuery, filterQuery]),
     strippedHint,
     filterQuery,
     randomQuery,
     studyHint,
     "",
-  ]);
+  ];
+  return dedupe(
+    hasNativeModalityFilter ? modalityFilteredQueries : textOnlyQueries,
+  );
 }
 
-async function fetchRandomSearchPage(query, systems, page) {
-  const html = await fetchText(buildCaseSearchUrl({ query, systems, page }));
+function randomSearchModalities(request) {
+  return dedupe(
+    [
+      ...(request.preferredModalities || []),
+      ...preferredModalitiesFromHint(request.studyHint || ""),
+    ]
+      .map((value) => collapseWhitespace(value))
+      .filter(Boolean),
+  );
+}
+
+async function fetchRandomSearchPage(query, systems, modalities, page) {
+  const html = await fetchText(
+    buildCaseSearchUrl({ query, systems, modalities, page }),
+  );
   return {
     pageNumbers: extractSearchPageNumbers(html),
     candidates: parseCaseSearchResults(html).map((candidate) => ({
       ...candidate,
       searchedSystems: dedupe(systems || []),
       systemsFilterTrusted: Boolean((systems || []).length),
+      searchedModalities: dedupe(modalities || []),
     })),
   };
 }
@@ -388,11 +425,10 @@ function queueDiscoveredSearchPages(
   visitedPages,
   pageNumbers,
 ) {
-  const newPages = shuffle(
-    dedupe(pageNumbers)
-      .filter((page) => page > 0)
-      .filter((page) => !queuedPages.has(page) && !visitedPages.has(page)),
-  );
+  const newPages = dedupe(pageNumbers)
+    .filter((page) => page > 0)
+    .filter((page) => !queuedPages.has(page) && !visitedPages.has(page))
+    .sort((left, right) => left - right);
 
   for (const page of newPages) {
     queuedPages.add(page);
@@ -588,6 +624,11 @@ function addRandomCandidate(candidateMap, candidate) {
   return true;
 }
 
+function randomCandidatePoolTarget(requestedCount) {
+  const count = Math.max(1, requestedCount || 1);
+  return Math.max(count + 24, Math.ceil(count * 1.5), 48);
+}
+
 async function pickRandomCaseCandidates(
   request,
   {
@@ -598,13 +639,10 @@ async function pickRandomCaseCandidates(
 ) {
   const systems = request.randomSpec?.systems || [];
   const systemMode = request.randomSpec?.systemMode || "all";
+  const modalities = randomSearchModalities(request);
   const candidateMap = new Map();
   const htmlCache = new Map();
-  const targetPoolSize = Math.max(
-    request.randomSpec.count * 5,
-    request.randomSpec.count + 40,
-    80,
-  );
+  const targetPoolSize = randomCandidatePoolTarget(request.randomSpec.count);
   const startedAt = Date.now();
   let reviewedCandidates = 0;
   let searchedPages = 0;
@@ -623,6 +661,8 @@ async function pickRandomCaseCandidates(
     emitProgress("Searching Radiopaedia random cases", {
       query,
       systems,
+      modalities,
+      targetPoolSize,
       pageLimit: RANDOM_SEARCH_PAGE_SCAN_LIMIT,
     });
 
@@ -651,11 +691,17 @@ async function pickRandomCaseCandidates(
 
       let pageResult;
       try {
-        pageResult = await fetchRandomSearchPage(query, systems, page);
+        pageResult = await fetchRandomSearchPage(
+          query,
+          systems,
+          modalities,
+          page,
+        );
       } catch (error) {
         emitWarning("Radiopaedia random page could not be read", {
           query,
           systems,
+          modalities,
           page,
           message: error.message,
         });
@@ -673,6 +719,7 @@ async function pickRandomCaseCandidates(
       emitProgress("Scanned Radiopaedia random page", {
         query,
         systems,
+        modalities,
         page,
         candidates: candidates.length,
         totalPagesScanned: searchedPages,

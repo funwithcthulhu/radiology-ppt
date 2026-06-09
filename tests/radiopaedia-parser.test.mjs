@@ -14,6 +14,7 @@ import {
   parseCaseSearchResults,
   parseCaseSystemsFromHtml,
 } from "../src/radiopaedia.mjs";
+import { buildRandomSearchQueries } from "../src/radiopaedia-search.mjs";
 
 test("parses Radiopaedia case search result fixtures without network access", async () => {
   const html = await fs.readFile(
@@ -37,6 +38,7 @@ test("builds stable Radiopaedia case search URLs", () => {
     buildCaseSearchUrl({
       query: "multiple sclerosis",
       systems: ["Central Nervous System", "Paediatrics"],
+      modalities: ["MRI"],
       page: 2,
     }),
   );
@@ -50,6 +52,24 @@ test("builds stable Radiopaedia case search URLs", () => {
     "Central Nervous System",
     "Paediatrics",
   ]);
+  assert.deepEqual(url.searchParams.getAll("modality[]"), ["MRI"]);
+});
+
+test("prefers native modality-filtered random search over modality text queries", () => {
+  const modalityOnly = buildRandomSearchQueries({
+    randomSpec: { queryText: "" },
+    studyHint: "MRI",
+    preferredModalities: ["MRI"],
+  });
+  assert.equal(modalityOnly[0], "");
+
+  const modalityWithAnatomy = buildRandomSearchQueries({
+    randomSpec: { queryText: "brain" },
+    studyHint: "MRI brain",
+    preferredModalities: ["MRI"],
+  });
+  assert.equal(modalityWithAnatomy[0], "brain");
+  assert.ok(modalityWithAnatomy.indexOf("MRI brain") > 0);
 });
 
 test("extracts Radiopaedia search pages regardless of query parameter order", () => {

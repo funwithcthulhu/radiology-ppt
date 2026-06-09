@@ -103,7 +103,7 @@ public sealed class CaseRequestRow : INotifyPropertyChanged, IDataErrorInfo
     public int Count
     {
         get => _count;
-        set => SetField(ref _count, Math.Max(1, Math.Min(20, value)));
+        set => SetField(ref _count, Math.Max(1, Math.Min(100, value)));
     }
 
     public string Modality

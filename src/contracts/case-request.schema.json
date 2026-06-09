@@ -15,7 +15,7 @@
     "diagnosis": { "type": "string" },
     "selectedCasePath": { "type": "string" },
     "selectedCaseTitle": { "type": "string" },
-    "randomCount": { "type": "integer", "minimum": 1, "maximum": 20 },
+    "randomCount": { "type": "integer", "minimum": 1, "maximum": 100 },
     "randomSystems": {
       "type": "array",
       "items": { "type": "string" }

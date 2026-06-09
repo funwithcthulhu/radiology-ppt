@@ -155,8 +155,15 @@ test("handles terse and misspelled random category requests", () => {
   const countOnly = parseCaseRequest("3");
   assert.equal(countOnly.randomSpec.count, 3);
 
+  const modalityOnly = parseCaseRequest("random MRI cases 20");
+  assert.equal(modalityOnly.randomSpec.count, 20);
+  assert.equal(modalityOnly.randomSpec.queryText, "");
+  assert.equal(modalityOnly.studyHint, "mri");
+  assert.deepEqual(modalityOnly.preferredModalities, ["MRI"]);
+
   const mixed = parseCaseRequest("random pediatric neuro MRI brain 100");
-  assert.equal(mixed.randomSpec.count, 20);
+  assert.equal(mixed.randomSpec.count, 100);
+  assert.equal(mixed.randomSpec.queryText, "");
   assert.deepEqual(
     mixed.randomSpec.systems.sort(),
     ["Central Nervous System", "Paediatrics"].sort(),

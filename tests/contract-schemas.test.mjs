@@ -261,11 +261,11 @@ test("contracts reject empty and out-of-range GUI payloads", () => {
           {
             ...request,
             requestMode: "random",
-            randomCount: 21,
+            randomCount: 101,
           },
         ],
       }),
-    /randomCount must be <= 20/,
+    /randomCount must be <= 100/,
   );
   assert.throws(
     () =>

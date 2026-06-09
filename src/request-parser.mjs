@@ -38,7 +38,7 @@ const MODALITY_HINTS = [
     patterns: [/\bangiograph(?:y|ic)?\b/i, /\bangio\b/i],
   },
 ];
-const RANDOM_REQUEST_LIMIT = 20;
+const RANDOM_REQUEST_LIMIT = 100;
 const RANDOM_DIRECTIVE_PATTERNS = [
   /\brandom\b/gi,
   /\bdiagnos(?:is|es)\b/gi,
@@ -1042,14 +1042,15 @@ function parseRandomDirective(rawText) {
     (hasRandomKeyword || systems.length > 0 || Boolean(countMatch));
 
   if (hasRandomKeyword || isDirectiveOnly) {
-    const studyHintText = preferredModalitiesFromHint(rawText).length
-      ? queryText
-      : "";
+    const hasModality = preferredModalitiesFromHint(rawText).length > 0;
+    const searchQueryText = hasModality
+      ? collapseWhitespace(stripCategoryTerms(stripModalityTerms(queryText)))
+      : queryText;
     return {
       count: Math.max(1, Math.min(RANDOM_REQUEST_LIMIT, count)),
       systems: dedupe(systems),
-      queryText,
-      studyHintText,
+      queryText: searchQueryText,
+      studyHintText: hasModality ? queryText : "",
     };
   }
 
