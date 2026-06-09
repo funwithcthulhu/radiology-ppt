@@ -835,6 +835,7 @@ public partial class MainWindow : Window
         GenerateCoreReviewButton.IsEnabled = !busy;
         CancelButton.IsEnabled = busy;
         CoreReviewCancelButton.IsEnabled = busy;
+        ProgressCancelButton.IsEnabled = busy;
         ProgressPanel.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
     }
 

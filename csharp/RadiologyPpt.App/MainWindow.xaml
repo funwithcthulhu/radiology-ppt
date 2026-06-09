@@ -220,7 +220,7 @@
                                         </DataGridTemplateColumn.Header>
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
-                                                <TextBox Text="{Binding Query, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, ValidatesOnDataErrors=True, NotifyOnValidationError=True}"
+                                                <TextBox Text="{Binding Query, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                          ToolTip="{Binding EntryHelpText}"
                                                          BorderThickness="0"
                                                          Background="Transparent"
@@ -514,6 +514,14 @@
                     <RowDefinition Height="10" />
                 </Grid.RowDefinitions>
                 <DockPanel Margin="0,0,0,6">
+                    <Button x:Name="ProgressCancelButton"
+                            DockPanel.Dock="Right"
+                            Content="Abort"
+                            Click="Cancel_Click"
+                            IsEnabled="False"
+                            Padding="10,4"
+                            Margin="12,0,0,0"
+                            ToolTip="Abort the current generation, import, or export job." />
                     <TextBlock x:Name="ProgressPercentText"
                                DockPanel.Dock="Right"
                                Text="0%"
