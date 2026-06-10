@@ -96,9 +96,6 @@ public partial class MainWindow : Window
         ModalityColumn.ItemsSource = AppOptions.Modalities;
         AnatomyColumn.ItemsSource = AppOptions.Anatomy;
         SubspecialtyColumn.ItemsSource = AppOptions.Subspecialties;
-        AgeColumn.ItemsSource = AppOptions.AgeGroups;
-        TopicColumn.ItemsSource = AppOptions.TopicFocuses;
-        DifficultyColumn.ItemsSource = AppOptions.Difficulties;
         LibraryDecisionFilter.ItemsSource = new[] { "All", "approved", "favorite", "skipped", "rejected" };
         LibraryDecisionFilter.SelectedIndex = 0;
 

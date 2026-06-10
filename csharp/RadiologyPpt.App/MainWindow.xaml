@@ -1,6 +1,7 @@
 <Window x:Class="RadiologyPpt.App.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:RadiologyPpt.App"
         Title="Radiopaedia Case PowerPoint Builder"
         Icon="Assets/app-icon.ico"
         Height="760"
@@ -204,69 +205,133 @@
                                                            FontWeight="SemiBold"
                                                            TextWrapping="Wrap"
                                                            Margin="0,2,0,0" />
+                                                <WrapPanel Margin="0,8,0,0">
+                                                    <StackPanel Width="110" Margin="0,0,12,4">
+                                                        <TextBlock Text="Age" FontSize="11" FontWeight="SemiBold" />
+                                                        <ComboBox ItemsSource="{x:Static local:AppOptions.AgeGroups}"
+                                                                  SelectedItem="{Binding AgeGroup, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                  Margin="0,2,0,0" />
+                                                    </StackPanel>
+                                                    <StackPanel Width="130" Margin="0,0,12,4">
+                                                        <TextBlock Text="Topic" FontSize="11" FontWeight="SemiBold" />
+                                                        <ComboBox ItemsSource="{x:Static local:AppOptions.TopicFocuses}"
+                                                                  SelectedItem="{Binding TopicFocus, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                  Margin="0,2,0,0" />
+                                                    </StackPanel>
+                                                    <StackPanel Width="110" Margin="0,0,12,4">
+                                                        <TextBlock Text="Difficulty" FontSize="11" FontWeight="SemiBold" />
+                                                        <ComboBox ItemsSource="{x:Static local:AppOptions.Difficulties}"
+                                                                  SelectedItem="{Binding Difficulty, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                  Margin="0,2,0,0" />
+                                                    </StackPanel>
+                                                </WrapPanel>
                                             </StackPanel>
                                         </Border>
                                     </DataTemplate>
                                 </DataGrid.RowDetailsTemplate>
                                 <DataGrid.Columns>
-                                    <DataGridComboBoxColumn x:Name="ModeColumn" SelectedItemBinding="{Binding Mode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="155">
+                                    <DataGridComboBoxColumn x:Name="ModeColumn" SelectedItemBinding="{Binding Mode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="135">
                                         <DataGridComboBoxColumn.Header>
-                                            <TextBlock Text="Radiopaedia Request Type" TextWrapping="Wrap" />
+                                            <TextBlock Text="Request" TextWrapping="Wrap" />
                                         </DataGridComboBoxColumn.Header>
                                     </DataGridComboBoxColumn>
-                                    <DataGridTemplateColumn Width="320" MinWidth="260">
+                                    <DataGridTemplateColumn Width="*" MinWidth="120">
                                         <DataGridTemplateColumn.Header>
-                                            <TextBlock Text="Radiopaedia Case Entry" TextWrapping="Wrap" />
+                                            <TextBlock Text="Diagnosis / URL" TextWrapping="Wrap" />
                                         </DataGridTemplateColumn.Header>
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
-                                                <TextBox Text="{Binding Query, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                         ToolTip="{Binding EntryHelpText}"
-                                                         BorderThickness="0"
-                                                         Background="Transparent"
-                                                         Padding="2"
-                                                         VerticalContentAlignment="Center" />
+                                                <Grid>
+                                                    <TextBox Text="{Binding Query, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                             ToolTip="{Binding EntryHelpText}"
+                                                             BorderThickness="0"
+                                                             Background="Transparent"
+                                                             Padding="2"
+                                                             VerticalContentAlignment="Center">
+                                                        <TextBox.Style>
+                                                            <Style TargetType="{x:Type TextBox}">
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding Mode}" Value="Random Case">
+                                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBox.Style>
+                                                    </TextBox>
+                                                    <TextBlock Text="No diagnosis needed"
+                                                               Foreground="{StaticResource MutedBrush}"
+                                                               Padding="2,0"
+                                                               VerticalAlignment="Center">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="{x:Type TextBlock}">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding Mode}" Value="Random Case">
+                                                                        <Setter Property="Visibility" Value="Visible" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </Grid>
                                             </DataTemplate>
                                         </DataGridTemplateColumn.CellTemplate>
                                     </DataGridTemplateColumn>
-                                    <DataGridTextColumn Binding="{Binding Count, UpdateSourceTrigger=PropertyChanged}" Width="70">
-                                        <DataGridTextColumn.Header>
-                                            <TextBlock Text="How many" TextWrapping="Wrap" />
-                                        </DataGridTextColumn.Header>
-                                    </DataGridTextColumn>
-                                    <DataGridTextColumn Binding="{Binding EntryHelpText}" IsReadOnly="True" Width="250">
-                                        <DataGridTextColumn.Header>
-                                            <TextBlock Text="Entry Guidance" TextWrapping="Wrap" />
-                                        </DataGridTextColumn.Header>
-                                    </DataGridTextColumn>
-                                    <DataGridComboBoxColumn x:Name="ModalityColumn" SelectedItemBinding="{Binding Modality, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="130">
+                                    <DataGridTemplateColumn Width="65">
+                                        <DataGridTemplateColumn.Header>
+                                            <TextBlock Text="Cases" TextWrapping="Wrap" />
+                                        </DataGridTemplateColumn.Header>
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <Grid>
+                                                    <TextBox Text="{Binding Count, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                             BorderThickness="0"
+                                                             Background="Transparent"
+                                                             Padding="2"
+                                                             HorizontalContentAlignment="Center"
+                                                             VerticalContentAlignment="Center">
+                                                        <TextBox.Style>
+                                                            <Style TargetType="{x:Type TextBox}">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding Mode}" Value="Random Case">
+                                                                        <Setter Property="Visibility" Value="Visible" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBox.Style>
+                                                    </TextBox>
+                                                    <TextBlock Text="1"
+                                                               HorizontalAlignment="Center"
+                                                               VerticalAlignment="Center"
+                                                               Foreground="{StaticResource MutedBrush}">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="{x:Type TextBlock}">
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding Mode}" Value="Random Case">
+                                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridComboBoxColumn x:Name="ModalityColumn" SelectedItemBinding="{Binding Modality, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="105">
                                         <DataGridComboBoxColumn.Header>
                                             <TextBlock Text="Modality" TextWrapping="Wrap" />
                                         </DataGridComboBoxColumn.Header>
                                     </DataGridComboBoxColumn>
-                                    <DataGridComboBoxColumn x:Name="AnatomyColumn" SelectedItemBinding="{Binding Anatomy, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="160">
+                                    <DataGridComboBoxColumn x:Name="AnatomyColumn" SelectedItemBinding="{Binding Anatomy, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="120">
                                         <DataGridComboBoxColumn.Header>
                                             <TextBlock Text="Anatomy" TextWrapping="Wrap" />
                                         </DataGridComboBoxColumn.Header>
                                     </DataGridComboBoxColumn>
-                                    <DataGridComboBoxColumn x:Name="SubspecialtyColumn" SelectedItemBinding="{Binding Subspecialty, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="170">
+                                    <DataGridComboBoxColumn x:Name="SubspecialtyColumn" SelectedItemBinding="{Binding Subspecialty, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="120">
                                         <DataGridComboBoxColumn.Header>
                                             <TextBlock Text="Subspecialty" TextWrapping="Wrap" />
-                                        </DataGridComboBoxColumn.Header>
-                                    </DataGridComboBoxColumn>
-                                    <DataGridComboBoxColumn x:Name="AgeColumn" SelectedItemBinding="{Binding AgeGroup, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="120">
-                                        <DataGridComboBoxColumn.Header>
-                                            <TextBlock Text="Age Group" TextWrapping="Wrap" />
-                                        </DataGridComboBoxColumn.Header>
-                                    </DataGridComboBoxColumn>
-                                    <DataGridComboBoxColumn x:Name="TopicColumn" SelectedItemBinding="{Binding TopicFocus, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="130">
-                                        <DataGridComboBoxColumn.Header>
-                                            <TextBlock Text="Topic Focus" TextWrapping="Wrap" />
-                                        </DataGridComboBoxColumn.Header>
-                                    </DataGridComboBoxColumn>
-                                    <DataGridComboBoxColumn x:Name="DifficultyColumn" SelectedItemBinding="{Binding Difficulty, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="120">
-                                        <DataGridComboBoxColumn.Header>
-                                            <TextBlock Text="Difficulty" TextWrapping="Wrap" />
                                         </DataGridComboBoxColumn.Header>
                                     </DataGridComboBoxColumn>
                                 </DataGrid.Columns>
