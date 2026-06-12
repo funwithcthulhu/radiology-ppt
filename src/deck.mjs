@@ -1014,6 +1014,36 @@ function addFooter(slide, text, theme, { dark = false } = {}) {
   });
 }
 
+function isCaseUrlAttributionPart(value) {
+  const text = normalizeText(value).toLowerCase();
+  return (
+    /(?:^|\b)https?:\/\/(?:www\.)?radiopaedia\.org\/cases\//.test(text) ||
+    /(?:^|\b)(?:www\.)?radiopaedia\.org\/cases\//.test(text) ||
+    text.startsWith("/cases/")
+  );
+}
+
+function safeImageAttributionFooter(caseData) {
+  const parts = dedupe(
+    ["Radiopaedia", caseData.rid, caseData.author, caseData.licenseName]
+      .map((part) => normalizeText(part))
+      .filter(Boolean)
+      .filter((part) => !isCaseUrlAttributionPart(part)),
+  );
+
+  if (parts.length > 1) {
+    return parts.join(" • ");
+  }
+
+  return dedupe(
+    String(caseData.footerText || "")
+      .split(/\s*[•|]\s*/)
+      .map((part) => normalizeText(part))
+      .filter(Boolean)
+      .filter((part) => !isCaseUrlAttributionPart(part)),
+  ).join(" • ");
+}
+
 function truncateText(value, maxLength) {
   const text = String(value ?? "")
     .replace(/\s+/g, " ")
@@ -1651,7 +1681,7 @@ async function addImagesSlide(slide, caseData, caseNumber, deckTitle, theme) {
     );
   }
 
-  addFooter(slide, caseData.footerText, theme, { dark: true });
+  addFooter(slide, safeImageAttributionFooter(caseData), theme, { dark: true });
   addSpeakerNotes(slide, caseData, caseNumber);
 }
 

@@ -153,6 +153,62 @@ test("preserves image aspect ratio on image slides", async () => {
   );
 });
 
+test("image slide attribution does not reveal diagnosis-bearing case URL", async () => {
+  const { buildDeck } = await import("../src/deck.mjs");
+  const sharp = (await import("sharp")).default;
+  const tempDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "radiology-deck-image-footer-"),
+  );
+  const imagePath = path.join(tempDir, "image.png");
+  const outputPath = path.join(tempDir, "image-footer.pptx");
+
+  await sharp({
+    create: {
+      width: 640,
+      height: 480,
+      channels: 3,
+      background: "#202020",
+    },
+  })
+    .png()
+    .toFile(imagePath);
+
+  await buildDeck({
+    cases: [
+      {
+        rawInput: "osteopoikilosis shoulder MRI",
+        diagnosisQuery: "Osteopoikilosis",
+        caseTitle: "Osteopoikilosis on shoulder MRI",
+        caseUrl:
+          "https://radiopaedia.org/cases/osteopoikilosis-on-shoulder-mri",
+        author: "Test Author",
+        licenseName: "CC BY-NC-SA 3.0",
+        rid: "rID-235474",
+        revealSummary: "Diagnosis sourced from the linked Radiopaedia case.",
+        footerText:
+          "Radiopaedia • rID-235474 • Test Author • CC BY-NC-SA 3.0 • radiopaedia.org/cases/osteopoikilosis-on-shoulder-mri",
+        images: [{ localPath: imagePath, label: "MRI shoulder" }],
+        teachingPoints: [],
+      },
+    ],
+    deckTitle: "Image Footer Regression",
+    outputPath,
+    scratchDir: path.join(tempDir, "scratch"),
+  });
+
+  const pptx = await fs.readFile(outputPath);
+  const imageSlideText = decodeXmlText(
+    readZipEntryText(pptx, "ppt/slides/slide2.xml"),
+  );
+
+  assert.match(imageSlideText, /Radiopaedia/);
+  assert.match(imageSlideText, /rID-235474/);
+  assert.match(imageSlideText, /Test Author/);
+  assert.match(imageSlideText, /CC BY-NC-SA 3\.0/);
+  assert.equal(imageSlideText.includes("osteopoikilosis-on-shoulder-mri"), false);
+  assert.equal(imageSlideText.includes("radiopaedia.org/cases/"), false);
+});
+
 test("normalizes embedded media extensions to match image bytes", async () => {
   const { buildDeck } = await import("../src/deck.mjs");
   const sharp = (await import("sharp")).default;
