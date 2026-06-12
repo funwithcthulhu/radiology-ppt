@@ -404,6 +404,21 @@ function randomSearchModalities(request) {
   );
 }
 
+function randomSearchSystemScopes(request, systems) {
+  if (systems.length) {
+    return [systems];
+  }
+
+  const hasQuery = Boolean(
+    collapseWhitespace(request?.randomSpec?.queryText || ""),
+  );
+  if (!randomSearchModalities(request).length && hasQuery) {
+    return [[]];
+  }
+
+  return [[], ...KNOWN_CASE_SYSTEMS.map((system) => [system])];
+}
+
 async function fetchRandomSearchPage(query, systems, modalities, page) {
   const html = await fetchText(
     buildCaseSearchUrl({ query, systems, modalities, page }),
@@ -624,9 +639,20 @@ function addRandomCandidate(candidateMap, candidate) {
   return true;
 }
 
-function randomCandidatePoolTarget(requestedCount) {
-  const count = Math.max(1, requestedCount || 1);
-  return Math.max(count + 24, Math.ceil(count * 1.5), 48);
+export function randomCandidatePoolTarget(request) {
+  const randomSpec =
+    typeof request === "number" ? { count: request } : request?.randomSpec || {};
+  const count = Math.max(1, randomSpec.count || 1);
+  const hasQuery = Boolean(collapseWhitespace(randomSpec.queryText || ""));
+  const hasSystems = Boolean((randomSpec.systems || []).length);
+  const hasModalities = Boolean(randomSearchModalities(request || {}).length);
+  const isBroadRandom = !hasQuery || (!hasSystems && hasModalities);
+
+  if (isBroadRandom) {
+    return Math.max(count + 200, Math.ceil(count * 5), 400);
+  }
+
+  return Math.max(count + 80, Math.ceil(count * 4), 120);
 }
 
 async function pickRandomCaseCandidates(
@@ -642,7 +668,7 @@ async function pickRandomCaseCandidates(
   const modalities = randomSearchModalities(request);
   const candidateMap = new Map();
   const htmlCache = new Map();
-  const targetPoolSize = randomCandidatePoolTarget(request.randomSpec.count);
+  const targetPoolSize = randomCandidatePoolTarget(request);
   const startedAt = Date.now();
   let reviewedCandidates = 0;
   let searchedPages = 0;
@@ -650,6 +676,7 @@ async function pickRandomCaseCandidates(
   const liveQueries = allowLiveSearch
     ? buildRandomSearchQueries(request).slice(0, RANDOM_SEARCH_QUERY_LIMIT)
     : [];
+  const liveSystemScopes = randomSearchSystemScopes(request, systems);
   for (const query of liveQueries) {
     if (candidateMap.size >= targetPoolSize) {
       break;
@@ -658,20 +685,7 @@ async function pickRandomCaseCandidates(
       break;
     }
 
-    emitProgress("Searching Radiopaedia random cases", {
-      query,
-      systems,
-      modalities,
-      targetPoolSize,
-      pageLimit: RANDOM_SEARCH_PAGE_SCAN_LIMIT,
-    });
-
-    const queue = [1];
-    const queuedPages = new Set(queue);
-    const visitedPages = new Set();
-    let emptyPagesInARow = 0;
-
-    while (queue.length) {
+    for (const searchSystems of liveSystemScopes) {
       if (
         candidateMap.size >= targetPoolSize ||
         searchedPages >= RANDOM_SEARCH_PAGE_SCAN_LIMIT ||
@@ -681,90 +695,128 @@ async function pickRandomCaseCandidates(
         break;
       }
 
-      const page = queue.shift();
-      queuedPages.delete(page);
-      if (visitedPages.has(page)) {
-        continue;
-      }
-      visitedPages.add(page);
-      searchedPages += 1;
+      emitProgress("Searching Radiopaedia random cases", {
+        query,
+        systems: searchSystems,
+        modalities,
+        targetPoolSize,
+        pageLimit: RANDOM_SEARCH_PAGE_SCAN_LIMIT,
+      });
 
-      let pageResult;
-      try {
-        pageResult = await fetchRandomSearchPage(
+      const queue = [1];
+      const queuedPages = new Set(queue);
+      const visitedPages = new Set();
+      let emptyPagesInARow = 0;
+      let maxDiscoveredPage = 1;
+      let sawPagination = false;
+
+      while (queue.length) {
+        if (
+          candidateMap.size >= targetPoolSize ||
+          searchedPages >= RANDOM_SEARCH_PAGE_SCAN_LIMIT ||
+          reviewedCandidates >= RANDOM_CANDIDATE_REVIEW_LIMIT ||
+          Date.now() - startedAt > RANDOM_SEARCH_TIME_LIMIT_MS
+        ) {
+          break;
+        }
+
+        const page = queue.shift();
+        queuedPages.delete(page);
+        if (visitedPages.has(page)) {
+          continue;
+        }
+        visitedPages.add(page);
+        searchedPages += 1;
+
+        let pageResult;
+        try {
+          pageResult = await fetchRandomSearchPage(
+            query,
+            searchSystems,
+            modalities,
+            page,
+          );
+        } catch (error) {
+          emitWarning("Radiopaedia random page could not be read", {
+            query,
+            systems: searchSystems,
+            modalities,
+            page,
+            message: error.message,
+          });
+          emptyPagesInARow += 1;
+          if (emptyPagesInARow >= 3) {
+            break;
+          }
+          if (!queue.length && !sawPagination) {
+            queueNextSequentialSearchPage(queue, queuedPages, visitedPages);
+          }
+          continue;
+        }
+
+        const { candidates, pageNumbers } = pageResult;
+        if (pageNumbers.length) {
+          sawPagination = true;
+          maxDiscoveredPage = Math.max(maxDiscoveredPage, ...pageNumbers);
+        }
+        emitProgress("Scanned Radiopaedia random page", {
           query,
-          systems,
+          systems: searchSystems,
           modalities,
           page,
-        );
-      } catch (error) {
-        emitWarning("Radiopaedia random page could not be read", {
-          query,
-          systems,
-          modalities,
-          page,
-          message: error.message,
+          candidates: candidates.length,
+          totalPagesScanned: searchedPages,
         });
-        emptyPagesInARow += 1;
+        queueDiscoveredSearchPages(
+          queue,
+          queuedPages,
+          visitedPages,
+          pageNumbers,
+        );
+        emptyPagesInARow = candidates.length ? 0 : emptyPagesInARow + 1;
         if (emptyPagesInARow >= 3) {
           break;
         }
-        if (!queue.length) {
+        if (
+          !queue.length &&
+          (!sawPagination || Math.max(...visitedPages) < maxDiscoveredPage)
+        ) {
           queueNextSequentialSearchPage(queue, queuedPages, visitedPages);
         }
-        continue;
-      }
 
-      const { candidates, pageNumbers } = pageResult;
-      emitProgress("Scanned Radiopaedia random page", {
-        query,
-        systems,
-        modalities,
-        page,
-        candidates: candidates.length,
-        totalPagesScanned: searchedPages,
-      });
-      queueDiscoveredSearchPages(queue, queuedPages, visitedPages, pageNumbers);
-      emptyPagesInARow = candidates.length ? 0 : emptyPagesInARow + 1;
-      if (emptyPagesInARow >= 3) {
-        break;
-      }
-      if (!queue.length) {
-        queueNextSequentialSearchPage(queue, queuedPages, visitedPages);
-      }
+        for (const candidate of shuffle(candidates)) {
+          if (
+            Date.now() - startedAt > RANDOM_SEARCH_TIME_LIMIT_MS ||
+            reviewedCandidates >= RANDOM_CANDIDATE_REVIEW_LIMIT
+          ) {
+            break;
+          }
+          reviewedCandidates += 1;
+          if (
+            excludePaths.has(comparableCasePath(candidate.casePath)) ||
+            candidateMap.has(comparableCasePath(candidate.casePath))
+          ) {
+            continue;
+          }
+          if (
+            !(await candidateMatchesSystems(
+              candidate,
+              systems,
+              htmlCache,
+              systemMode,
+            ))
+          ) {
+            continue;
+          }
+          addRandomCandidate(candidateMap, candidate);
+          if (candidateMap.size >= targetPoolSize) {
+            break;
+          }
+        }
 
-      for (const candidate of shuffle(candidates)) {
-        if (
-          Date.now() - startedAt > RANDOM_SEARCH_TIME_LIMIT_MS ||
-          reviewedCandidates >= RANDOM_CANDIDATE_REVIEW_LIMIT
-        ) {
-          break;
-        }
-        reviewedCandidates += 1;
-        if (
-          excludePaths.has(comparableCasePath(candidate.casePath)) ||
-          candidateMap.has(comparableCasePath(candidate.casePath))
-        ) {
-          continue;
-        }
-        if (
-          !(await candidateMatchesSystems(
-            candidate,
-            systems,
-            htmlCache,
-            systemMode,
-          ))
-        ) {
-          continue;
-        }
-        addRandomCandidate(candidateMap, candidate);
         if (candidateMap.size >= targetPoolSize) {
           break;
         }
-      }
-
-      if (candidateMap.size >= targetPoolSize) {
-        break;
       }
     }
   }
